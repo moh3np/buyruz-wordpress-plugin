@@ -37,5 +37,12 @@ if ( ! empty( $smart_linker_settings['delete_data_on_uninstall'] ) ) {
     delete_option( 'brz_smart_linker_options' );
 }
 
+// Remove firewall settings from brz_options.
+$brz_options = get_option( 'brz_options', array() );
+if ( is_array( $brz_options ) && isset( $brz_options['firewall'] ) ) {
+    unset( $brz_options['firewall'] );
+    update_option( 'brz_options', $brz_options );
+}
+
 // Note: Links that have been applied to post content are NOT removed
 // because they are part of the post_content itself and do not depend on the plugin.

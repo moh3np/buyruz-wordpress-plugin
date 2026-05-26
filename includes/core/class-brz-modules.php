@@ -30,13 +30,25 @@ class BRZ_Modules {
                 'description' => 'خروجی JSON هوش تجاری و سئو برای اتصال به LLM.',
                 'class'       => 'BRZ_BI_Exporter',
             ),
+            'offline_transfer' => array(
+                'label'       => 'انتقال آفلاین',
+                'description' => 'پل انتقال آفلاین بین شیت و سایت',
+                'class'       => 'BRZ_Offline_Transfer',
+            ),
+            'http_firewall' => array(
+                'label'       => 'فایروال HTTP',
+                'description' => 'کنترل درخواست‌های خروجی وردپرس',
+                'class'       => 'BRZ_Firewall',
+            ),
         );
     }
 
+
     public static function default_states() {
         $states = array();
+        $disabled_by_default = array( 'debug', 'http_firewall' );
         foreach ( self::registry() as $slug => $meta ) {
-            $states[ $slug ] = ( 'debug' === $slug ) ? 0 : 1;
+            $states[ $slug ] = in_array( $slug, $disabled_by_default, true ) ? 0 : 1;
         }
         return $states;
     }

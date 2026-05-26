@@ -1,0 +1,271 @@
+/* ==========================================================================
+   Buyruz HTTP Firewall - Admin Styles
+   Material Design 3 | RTL Layout
+   ========================================================================== */
+
+/* ==========================================================================
+   1. BASE LAYOUT
+   ========================================================================== */
+
+.brz-firewall-wrap {
+  direction: rtl;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-space-lg);
+}
+
+/* ==========================================================================
+   2. MODE SELECTOR
+   ========================================================================== */
+
+.brz-firewall-mode-selector {
+  display: flex;
+  gap: var(--md-space-md);
+  flex-wrap: wrap;
+}
+
+.brz-firewall-mode-option {
+  flex: 1;
+  min-width: 200px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-space-xs);
+  padding: var(--md-space-lg) var(--md-space-xl);
+  background: var(--md-surface);
+  border: 2px solid var(--md-outline-variant);
+  border-radius: var(--md-radius-lg);
+  cursor: pointer;
+  transition: all var(--md-transition-normal);
+}
+
+.brz-firewall-mode-option:hover {
+  border-color: var(--md-outline);
+  box-shadow: var(--md-elevation-1);
+}
+
+.brz-firewall-mode-option.is-active {
+  border-color: var(--md-primary);
+  background: var(--md-primary-container);
+  box-shadow: 0 0 0 1px var(--md-primary), var(--md-elevation-1);
+}
+
+.brz-firewall-mode-option input[type="radio"] {
+  margin: 0;
+  margin-bottom: var(--md-space-sm);
+  accent-color: var(--md-primary);
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.brz-firewall-mode-option__label {
+  font: var(--md-font-title-md);
+  color: var(--md-on-surface);
+  margin: 0;
+  font-weight: 600;
+}
+
+.brz-firewall-mode-option.is-active .brz-firewall-mode-option__label {
+  color: var(--md-on-primary-container);
+}
+
+.brz-firewall-mode-option__desc {
+  font: var(--md-font-body-md);
+  color: var(--md-on-surface-variant);
+  margin: 0;
+  font-size: 13px;
+}
+
+.brz-firewall-mode-option.is-active .brz-firewall-mode-option__desc {
+  color: var(--md-on-primary-container);
+  opacity: 0.85;
+}
+
+/* ==========================================================================
+   3. DOMAIN INPUT
+   ========================================================================== */
+
+.brz-firewall-domain-input {
+  display: flex;
+  gap: var(--md-space-sm);
+  align-items: stretch;
+  margin-bottom: var(--md-space-md);
+}
+
+.brz-firewall-domain-input input[type="text"] {
+  flex: 1;
+  padding: var(--md-space-md) var(--md-space-lg);
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-radius-sm);
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  font: var(--md-font-body-md);
+  font-size: 14px;
+  direction: ltr;
+  text-align: left;
+  transition: all var(--md-transition-fast);
+}
+
+.brz-firewall-domain-input input[type="text"]:focus {
+  outline: none;
+  border-color: var(--md-primary);
+  box-shadow: 0 0 0 2px var(--md-primary-container);
+}
+
+.brz-firewall-domain-input input[type="text"]::placeholder {
+  color: var(--md-on-surface-variant);
+  direction: ltr;
+  text-align: left;
+}
+
+.brz-firewall-domain-input button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--md-space-sm);
+  padding: var(--md-space-md) var(--md-space-xl);
+  border: none;
+  border-radius: var(--md-radius-sm);
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  font: var(--md-font-label-lg);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--md-transition-fast);
+  box-shadow: var(--md-elevation-1);
+}
+
+.brz-firewall-domain-input button:hover {
+  background: var(--md-primary-hover);
+  box-shadow: var(--md-elevation-2);
+}
+
+.brz-firewall-domain-input button:active {
+  transform: scale(0.98);
+}
+
+/* ==========================================================================
+   4. DOMAIN LIST
+   ========================================================================== */
+
+.brz-firewall-domain-list {
+  list-style: none;
+  margin: var(--md-space-sm) 0 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-space-xs);
+}
+
+.brz-firewall-domain-list:not(:empty) {
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-radius-sm);
+  overflow: hidden;
+}
+
+.brz-firewall-domain-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--md-space-md);
+  padding: var(--md-space-md) var(--md-space-lg);
+  background: var(--md-surface);
+  border-bottom: 1px solid var(--md-outline-variant);
+  transition: background var(--md-transition-fast);
+}
+
+.brz-firewall-domain-item:last-child {
+  border-bottom: none;
+}
+
+.brz-firewall-domain-item:hover {
+  background: var(--md-surface-dim);
+}
+
+.brz-firewall-domain-item__name {
+  font-family: monospace;
+  font-size: 14px;
+  color: var(--md-on-surface);
+  direction: ltr;
+  text-align: left;
+  word-break: break-all;
+}
+
+.brz-firewall-domain-item__delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--md-radius-sm);
+  background: transparent;
+  color: var(--md-on-surface-variant);
+  font-size: 1.2rem;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: all var(--md-transition-fast);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.brz-firewall-domain-item:hover .brz-firewall-domain-item__delete {
+  opacity: 1;
+}
+
+.brz-firewall-domain-item__delete:hover {
+  background: var(--md-error-container);
+  color: var(--md-error);
+  opacity: 1;
+}
+
+/* ==========================================================================
+   5. ERROR MESSAGE
+   ========================================================================== */
+
+.brz-firewall-error {
+  font: var(--md-font-body-md);
+  font-size: 13px;
+  color: var(--md-error);
+  background: var(--md-error-container);
+  border: 1px solid var(--md-error);
+  padding: var(--md-space-sm) var(--md-space-md);
+  border-radius: var(--md-radius-sm);
+  margin-bottom: var(--md-space-md);
+}
+
+/* ==========================================================================
+   6. EMPTY STATE
+   ========================================================================== */
+
+.brz-firewall-empty {
+  text-align: center;
+  padding: var(--md-space-2xl) var(--md-space-lg);
+  color: var(--md-on-surface-variant);
+  font: var(--md-font-body-md);
+  font-size: 14px;
+}
+
+/* ==========================================================================
+   7. RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 600px) {
+  .brz-firewall-mode-selector {
+    flex-direction: column;
+  }
+
+  .brz-firewall-mode-option {
+    min-width: unset;
+  }
+
+  .brz-firewall-domain-input {
+    flex-direction: column;
+  }
+
+  .brz-firewall-domain-input button {
+    width: 100%;
+  }
+}
