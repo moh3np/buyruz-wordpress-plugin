@@ -204,8 +204,8 @@ jQuery(document).ready(function ($) {
     var $item  = $(this).closest('.brz-firewall-domain-item');
     var domain = $item.data('domain');
 
-    // Visual feedback during request.
-    $item.css('opacity', '0.5');
+    // Optimistic UI: immediately slide up the item.
+    $item.slideUp(200);
 
     $.ajax({
       url: config.ajax_url,
@@ -221,7 +221,8 @@ jQuery(document).ready(function ($) {
           renderDomains(response.data.domains);
           hideError();
         } else {
-          $item.css('opacity', '');
+          // Revert: show the item again on failure.
+          $item.slideDown(200);
           var message = (response.data && response.data.message)
             ? response.data.message
             : 'خطا در حذف دامنه';
@@ -229,7 +230,8 @@ jQuery(document).ready(function ($) {
         }
       },
       error: function () {
-        $item.css('opacity', '');
+        // Revert: show the item again on network error.
+        $item.slideDown(200);
         showError('خطا در ارتباط با سرور');
       }
     });

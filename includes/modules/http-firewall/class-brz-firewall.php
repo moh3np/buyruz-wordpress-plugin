@@ -147,7 +147,7 @@ class BRZ_Firewall {
                             <?php foreach ( $domains as $domain ) : ?>
                                 <div class="brz-firewall-domain-item" data-domain="<?php echo esc_attr( $domain ); ?>">
                                     <span class="brz-firewall-domain-item__name" dir="ltr"><?php echo esc_html( $domain ); ?></span>
-                                    <button type="button" class="brz-firewall-domain-item__remove" title="حذف">&times;</button>
+                                    <button type="button" class="brz-firewall-domain-item__delete" title="حذف">&times;</button>
                                 </div>
                             <?php endforeach; ?>
                         <?php endif; ?>

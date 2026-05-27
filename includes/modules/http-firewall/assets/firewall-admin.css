@@ -197,16 +197,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border: none;
   border-radius: var(--md-radius-sm);
   background: transparent;
   color: var(--md-on-surface-variant);
-  font-size: 1.2rem;
+  font-size: 1.4rem;
   cursor: pointer;
-  opacity: 0.4;
-  transition: all var(--md-transition-fast);
+  opacity: 0.6;
+  transition: all 0.2s ease;
   flex-shrink: 0;
   line-height: 1;
 }
@@ -216,9 +216,10 @@
 }
 
 .brz-firewall-domain-item__delete:hover {
-  background: var(--md-error-container);
-  color: var(--md-error);
+  background: var(--md-error);
+  color: #fff;
   opacity: 1;
+  transform: scale(1.1);
 }
 
 /* ==========================================================================
