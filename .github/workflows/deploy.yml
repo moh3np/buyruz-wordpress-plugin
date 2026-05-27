@@ -1,9 +1,9 @@
-name: Deploy plugin to cPanel via FTPS
+name: Zero-Downtime Absolute Bulletproof Deploy
 
 on:
   push:
     branches:
-      - main    # اگر برنچ اصلی‌ات مثلا master است، همین main را به master تغییر بده
+      - main
 
 jobs:
   deploy:
@@ -13,26 +13,46 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Deploy via FTPS
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+      - name: Create Zip Archive
+        run: |
+          zip -r plugin.zip . -x "*.git*" "*.github*"
+
+      - name: Upload Zip via SCP
+        uses: appleboy/scp-action@v0.1.7
         with:
-          server: ${{ secrets.FTP_HOST }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
+          host: '2193182015.cloudylink.com'
+          username: ${{ secrets.SFTP_USERNAME }}
+          password: ${{ secrets.SFTP_PASSWORD }}
+          port: 8888
+          source: "plugin.zip"
+          target: "~/"
 
-          protocol: ftps
-          port: 21
+      - name: Atomic Extract & Swap via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: '2193182015.cloudylink.com'
+          username: ${{ secrets.SFTP_USERNAME }}
+          password: ${{ secrets.SFTP_PASSWORD }}
+          port: 8888
+          script: |
+            rm -rf ~/tmp_main ~/tmp_mag
 
-          # پوشهٔ لوکال (خود ریشه ریپو)
-          local-dir: ./
+            mkdir -p ~/tmp_main
+            unzip -q -o ~/plugin.zip -d ~/tmp_main
+            
+            if [ -d "public_html/wp-content/plugins/buyruz-plugin" ]; then
+              mv public_html/wp-content/plugins/buyruz-plugin public_html/wp-content/plugins/buyruz-plugin_old
+            fi
+            mv ~/tmp_main public_html/wp-content/plugins/buyruz-plugin
+            rm -rf public_html/wp-content/plugins/buyruz-plugin_old
 
-          # چون روت FTP این یوزر خود پوشهٔ پلاگین است
-          # همین ./ یعنی همون buyruz-plugin روی هاست
-          server-dir: ./
+            mkdir -p ~/tmp_mag
+            unzip -q -o ~/plugin.zip -d ~/tmp_mag
+            
+            if [ -d "public_html/mag/wp-content/plugins/buyruz-plugin" ]; then
+              mv public_html/mag/wp-content/plugins/buyruz-plugin public_html/mag/wp-content/plugins/buyruz-plugin_old
+            fi
+            mv ~/tmp_mag public_html/mag/wp-content/plugins/buyruz-plugin
+            rm -rf public_html/mag/wp-content/plugins/buyruz-plugin_old
 
-          # چیزهایی که لازم نیست آپلود شود
-          exclude: |
-            .git*
-            .github/
-            node_modules/
-            *.log
+            rm ~/plugin.zip
