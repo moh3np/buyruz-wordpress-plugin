@@ -524,6 +524,11 @@ class BRZ_Settings {
                 return;
             }
 
+            if ( 'outbound_guard' === $module_slug ) {
+                BRZ_Firewall::render_admin_page();
+                return;
+            }
+
             $label = isset( $modules[ $module_slug ]['label'] ) ? $modules[ $module_slug ]['label'] : $module_slug;
             self::render_generic_module_card( $label, $active );
         } );
