@@ -458,7 +458,7 @@ class BRZ_Compare_Table_Admin {
 
     public static function register_admin_page() {
         add_submenu_page(
-            null,
+            '',
             'جدول مقایسه',
             'جدول مقایسه',
             'edit_products',
