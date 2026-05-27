@@ -35,7 +35,7 @@ class BRZ_Modules {
                 'description' => 'پل انتقال آفلاین بین شیت و سایت',
                 'class'       => 'BRZ_Offline_Transfer',
             ),
-            'http_fw' => array(
+            'outbound_guard' => array(
                 'label'       => 'فایروال HTTP',
                 'description' => 'کنترل درخواست‌های خروجی وردپرس',
                 'class'       => 'BRZ_Firewall',
@@ -46,7 +46,7 @@ class BRZ_Modules {
 
     public static function default_states() {
         $states = array();
-        $disabled_by_default = array( 'debug', 'http_fw' );
+        $disabled_by_default = array( 'debug', 'outbound_guard' );
         foreach ( self::registry() as $slug => $meta ) {
             $states[ $slug ] = in_array( $slug, $disabled_by_default, true ) ? 0 : 1;
         }
