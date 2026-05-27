@@ -235,4 +235,52 @@ jQuery(document).ready(function ($) {
     });
   });
 
+  /* ==========================================================================
+     6. BATCH ADD HANDLER
+     ========================================================================== */
+
+  var $batchTextarea = $('#brz-firewall-batch');
+  var $batchBtn      = $('#brz-firewall-batch-btn');
+  var $batchStatus   = $('#brz-firewall-batch-status');
+
+  if ($batchBtn.length) {
+    $batchBtn.on('click', function () {
+      var domains = $.trim($batchTextarea.val());
+      if (!domains) {
+        $batchStatus.text('لیست خالی است').css('color', '#dc2626');
+        return;
+      }
+
+      $batchBtn.prop('disabled', true);
+      $batchStatus.text('در حال پردازش...').css('color', '#6b7280');
+
+      $.ajax({
+        url: config.ajax_url,
+        method: 'POST',
+        data: {
+          action: 'brz_firewall_add_batch',
+          _ajax_nonce: config.nonce,
+          domains: domains
+        },
+        success: function (response) {
+          if (response.success && response.data) {
+            renderDomains(response.data.domains);
+            $batchTextarea.val('');
+            $batchStatus.text(response.data.message).css('color', '#16a34a');
+            hideError();
+          } else {
+            var msg = (response.data && response.data.message) || 'خطا';
+            $batchStatus.text(msg).css('color', '#dc2626');
+          }
+        },
+        error: function () {
+          $batchStatus.text('خطا در ارتباط با سرور').css('color', '#dc2626');
+        },
+        complete: function () {
+          $batchBtn.prop('disabled', false);
+        }
+      });
+    });
+  }
+
 });

@@ -22,6 +22,7 @@ class BRZ_Firewall {
         add_action( 'wp_ajax_brz_firewall_switch_mode', array( __CLASS__, 'ajax_switch_mode' ) );
         add_action( 'wp_ajax_brz_firewall_add_domain', array( __CLASS__, 'ajax_add_domain' ) );
         add_action( 'wp_ajax_brz_firewall_remove_domain', array( __CLASS__, 'ajax_remove_domain' ) );
+        add_action( 'wp_ajax_brz_firewall_add_batch', array( __CLASS__, 'ajax_add_batch' ) );
 
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_assets' ) );
     }
@@ -124,6 +125,16 @@ class BRZ_Firewall {
                         <input type="text" id="brz-firewall-new-domain" placeholder="example.com" dir="ltr">
                         <button type="button" class="button button-primary" id="brz-firewall-add-btn">افزودن</button>
                     </div>
+
+                    <!-- Batch Add -->
+                    <details style="margin-bottom: 12px;">
+                        <summary style="cursor:pointer; color:#2563eb; font-size:13px; margin-bottom:8px;">افزودن دسته‌ای (چند دامنه همزمان)</summary>
+                        <div style="margin-top:8px;">
+                            <textarea id="brz-firewall-batch" rows="4" dir="ltr" style="width:100%; font-family:monospace; font-size:13px; padding:8px; border:1px solid #e2e8f0; border-radius:8px;" placeholder="هر خط یک دامنه&#10;example.com&#10;*.example.org"></textarea>
+                            <button type="button" class="button" id="brz-firewall-batch-btn" style="margin-top:6px;">افزودن همه</button>
+                            <span id="brz-firewall-batch-status" style="margin-right:8px; font-size:13px;"></span>
+                        </div>
+                    </details>
 
                     <!-- Inline Error Container -->
                     <div class="brz-firewall-error" id="brz-firewall-error" style="display:none;"></div>
@@ -345,6 +356,78 @@ class BRZ_Firewall {
         self::save_settings( $settings );
 
         wp_send_json_success( array(
+            'domains' => $settings[ $mode ],
+        ) );
+    }
+
+    /**
+     * AJAX handler: Add multiple domains at once (batch).
+     * Accepts newline-separated or comma-separated domains.
+     */
+    public static function ajax_add_batch(): void {
+        check_ajax_referer( 'brz_firewall_nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+        }
+
+        $raw = isset( $_POST['domains'] ) ? sanitize_textarea_field( wp_unslash( $_POST['domains'] ) ) : '';
+
+        if ( '' === trim( $raw ) ) {
+            wp_send_json_error( array( 'message' => 'لیست دامنه‌ها خالی است' ) );
+        }
+
+        // Split by newline, comma, or space
+        $lines = preg_split( '/[\r\n,]+/', $raw, -1, PREG_SPLIT_NO_EMPTY );
+
+        $settings = self::get_settings();
+        $mode     = $settings['active_mode'];
+        $added    = 0;
+        $skipped  = 0;
+        $errors   = array();
+
+        foreach ( $lines as $line ) {
+            $line = trim( $line );
+            if ( '' === $line ) {
+                continue;
+            }
+
+            $domain = BRZ_Firewall_Validator::normalize( $line );
+            if ( '' === $domain ) {
+                $skipped++;
+                continue;
+            }
+
+            $validation = BRZ_Firewall_Validator::validate( $domain );
+            if ( is_wp_error( $validation ) ) {
+                $errors[] = $line . ': ' . $validation->get_error_message();
+                continue;
+            }
+
+            if ( in_array( $domain, $settings[ $mode ], true ) ) {
+                $skipped++;
+                continue;
+            }
+
+            $settings[ $mode ][] = $domain;
+            $added++;
+        }
+
+        self::save_settings( $settings );
+
+        $message = sprintf( '%d دامنه اضافه شد', $added );
+        if ( $skipped > 0 ) {
+            $message .= sprintf( '، %d تکراری رد شد', $skipped );
+        }
+        if ( ! empty( $errors ) ) {
+            $message .= sprintf( '، %d خطا', count( $errors ) );
+        }
+
+        wp_send_json_success( array(
+            'message' => $message,
+            'added'   => $added,
+            'skipped' => $skipped,
+            'errors'  => $errors,
             'domains' => $settings[ $mode ],
         ) );
     }
