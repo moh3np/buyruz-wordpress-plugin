@@ -30,14 +30,16 @@ class BRZ_Compare_Table {
         
         $should_load = ! empty( $opts['table_styles_enabled'] ) && BRZ_Detector::should_load_table_styles( $table_targets );
 
-        // Check if the post actually has the shortcode
+        // Check if the post has a compare table (via shortcode or meta)
         if ( ! $should_load ) {
             global $post;
-            if ( $post && has_shortcode( $post->post_content ?? '', 'buyruz_compare_table' ) ) {
-                $should_load = true;
-            }
-            if ( $post && has_shortcode( $post->post_content ?? '', 'brz_compare_table' ) ) {
-                $should_load = true;
+            if ( $post ) {
+                $content = $post->post_content ?? '';
+                if ( has_shortcode( $content, 'buyruz_compare_table' ) || has_shortcode( $content, 'brz_compare_table' ) ) {
+                    $should_load = true;
+                } elseif ( is_singular( 'product' ) && self::has_table( $post->ID ) ) {
+                    $should_load = true;
+                }
             }
         }
 
