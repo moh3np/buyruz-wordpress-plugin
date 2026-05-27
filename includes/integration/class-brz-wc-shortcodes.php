@@ -79,6 +79,7 @@ class BRZ_WC_Shortcodes {
     }
 
     public static function process_product_content( $content, $product = null ) {
+        $content = $content ?? '';
         $post_id   = 0;
         $post_type = '';
 
@@ -100,6 +101,7 @@ class BRZ_WC_Shortcodes {
     }
 
     public static function process_the_content( $content ) {
+        $content = $content ?? '';
         $post = get_post();
         $post_id   = $post ? $post->ID : 0;
         $post_type = $post ? $post->post_type : '';
@@ -112,6 +114,7 @@ class BRZ_WC_Shortcodes {
     }
 
     public static function process_the_excerpt( $excerpt ) {
+        $excerpt = $excerpt ?? '';
         $post = get_post();
         $post_id   = $post ? $post->ID : 0;
         $post_type = $post ? $post->post_type : '';
@@ -124,6 +127,7 @@ class BRZ_WC_Shortcodes {
     }
 
     public static function process_woocommerce_short_description( $excerpt ) {
+        $excerpt = $excerpt ?? '';
         $post = get_post();
         $post_id   = $post ? $post->ID : 0;
         $post_type = $post ? $post->post_type : '';
@@ -152,13 +156,15 @@ class BRZ_WC_Shortcodes {
             return;
         }
 
-        $post->post_content = self::process_value( $post->post_content, $post_id, 'content' );
-        $post->post_excerpt = self::process_value( $post->post_excerpt, $post_id, 'excerpt' );
+        $post->post_content = self::process_value( $post->post_content ?? '', $post_id, 'content' );
+        $post->post_excerpt = self::process_value( $post->post_excerpt ?? '', $post_id, 'excerpt' );
 
         self::$primed = true;
     }
 
     private static function process_value( $content, $post_id, $context ) {
+        $content = $content ?? '';
+
         if ( isset( self::$processed[ $post_id ][ $context ] ) ) {
             return self::$processed[ $post_id ][ $context ];
         }
