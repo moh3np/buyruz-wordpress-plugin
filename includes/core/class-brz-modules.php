@@ -30,11 +30,6 @@ class BRZ_Modules {
                 'description' => 'خروجی JSON هوش تجاری و سئو برای اتصال به LLM.',
                 'class'       => 'BRZ_BI_Exporter',
             ),
-            'offline_transfer' => array(
-                'label'       => 'انتقال آفلاین',
-                'description' => 'پل انتقال آفلاین بین شیت و سایت',
-                'class'       => 'BRZ_Offline_Transfer',
-            ),
             'outbound_guard' => array(
                 'label'       => 'فایروال HTTP',
                 'description' => 'کنترل درخواست‌های خروجی وردپرس',
