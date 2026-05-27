@@ -32,7 +32,7 @@ class BRZ_Firewall {
      * @param string $hook The current admin page hook suffix.
      */
     public static function enqueue_admin_assets( string $hook ): void {
-        if ( strpos( $hook, 'buyruz-module-http_firewall' ) === false ) {
+        if ( strpos( $hook, 'buyruz-module-http_fw' ) === false ) {
             return;
         }
 

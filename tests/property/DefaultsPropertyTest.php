@@ -29,7 +29,7 @@ class DefaultsPropertyTest extends TestCase {
             ],
             // brz_options exists but no firewall key.
             'no_firewall_key' => [
-                [ 'modules' => [ 'http_firewall' => 1 ] ],
+                [ 'modules' => [ 'http_fw' => 1 ] ],
             ],
             // firewall key is not an array.
             'firewall_is_string' => [
