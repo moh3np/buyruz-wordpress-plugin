@@ -10,7 +10,7 @@ class BRZ_Detector {
 
         global $post;
         if ( ! $post ) { return false; }
-        $content = $post->post_content;
+        $content = $post->post_content ?? '';
 
         // Shortcode detection
         if ( function_exists('has_shortcode') && has_shortcode( $content, 'rank_math_faq' ) ) {
@@ -24,13 +24,13 @@ class BRZ_Detector {
             return true;
         }
         // Fallback: look for class in content
-        if ( strpos( $content, 'rank-math-faq' ) !== false ) {
+        if ( str_contains( $content, 'rank-math-faq' ) ) {
             return true;
         }
-        if ( strpos( $content, 'rank-math-rich-snippet' ) !== false ) {
+        if ( str_contains( $content, 'rank-math-rich-snippet' ) ) {
             return true;
         }
-        if ( strpos( $content, 'rank_math_rich_snippet' ) !== false ) {
+        if ( str_contains( $content, 'rank_math_rich_snippet' ) ) {
             return true;
         }
         // بررسی شورت‌کد با پترن s- (FAQ های ایجاد شده توسط Google Apps Script)
@@ -38,7 +38,7 @@ class BRZ_Detector {
             return true;
         }
         // بررسی کلاس brz-faq-rendered که توسط BRZ_FAQ_Renderer اضافه می‌شود
-        if ( strpos( $content, 'brz-faq-rendered' ) !== false ) {
+        if ( str_contains( $content, 'brz-faq-rendered' ) ) {
             return true;
         }
 

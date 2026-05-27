@@ -7,6 +7,10 @@ class BRZ_Tag_Sync_Guard {
     const HEADER_VALUE = 'sheets';
 
     public static function init() {
+        add_action( 'rest_api_init', array( __CLASS__, 'register_filters' ) );
+    }
+
+    public static function register_filters() {
         add_filter( 'rest_pre_insert_product_tag', array( __CLASS__, 'whitelist_sheet_fields_tag' ), 10, 3 );
         add_filter( 'rest_pre_insert_product_brand', array( __CLASS__, 'whitelist_sheet_fields_brand' ), 10, 3 );
         add_filter( 'rest_pre_insert_product_cat', array( __CLASS__, 'whitelist_sheet_fields_category' ), 10, 3 );

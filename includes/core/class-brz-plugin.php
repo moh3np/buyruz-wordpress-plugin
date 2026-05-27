@@ -4,15 +4,40 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class BRZ_Plugin {
     /**
-     * Bootstrap core modules.
+     * Bootstrap core modules with context-aware loading.
      */
-    public static function init() {
+    public static function init(): void {
         if ( ! BRZ_Guard::ready() ) {
             return;
         }
-        self::cleanup_legacy_update_artifacts();
-        self::migrate_legacy_options();
-        foreach ( self::modules() as $class ) {
+
+        // Version-gated migrations (only when version changes)
+        self::maybe_run_migrations();
+
+        // Context detection
+        $is_admin = is_admin();
+        $is_rest  = defined( 'REST_REQUEST' ) && REST_REQUEST;
+
+        // Admin-only core
+        if ( $is_admin ) {
+            BRZ_Settings::init();
+            BRZ_Compare_Table_Admin::init();
+        }
+
+        // Frontend-only core
+        if ( ! $is_admin && ! $is_rest ) {
+            BRZ_FAQ_Renderer::init();
+            BRZ_Compare_Table::init();
+            BRZ_WC_Shortcodes::init();
+        }
+
+        // Always needed (REST fields for products, used by both admin and REST)
+        BRZ_Rest::init();
+        BRZ_Tag_Sync_Guard::init();
+
+        // Dynamic modules (only active ones)
+        $active = BRZ_Modules::active_classes();
+        foreach ( $active as $class ) {
             if ( class_exists( $class ) && method_exists( $class, 'init' ) ) {
                 call_user_func( array( $class, 'init' ) );
             }
@@ -20,45 +45,24 @@ class BRZ_Plugin {
     }
 
     /**
-     * Declarative list of modules to load.
-     *
-     * @return string[]
+     * Version-gated migrations — only runs when plugin version changes.
      */
-    private static function modules() {
-        $modules = array( 'BRZ_Settings', 'BRZ_Tag_Sync_Guard', 'BRZ_Compare_Table_Admin', 'BRZ_Compare_Table', 'BRZ_FAQ_Renderer', 'BRZ_Rest' );
-
-        $active = BRZ_Modules::active_classes();
-        if ( ! empty( $active ) ) {
-            $modules = array_merge( $modules, $active );
-        }
-
-        return (array) apply_filters( 'brz/modules', $modules );
-    }
-
-    /**
-     * Remove leftovers from the old GitHub update system.
-     */
-    private static function cleanup_legacy_update_artifacts() {
-        delete_transient( 'brz_remote_meta' );
-        delete_transient( 'brz_update_error' );
-        delete_transient( 'brz_token_expiry' );
-        delete_transient( 'rfa_remote_meta' );
-        delete_transient( 'rfa_update_error' );
-        delete_transient( 'rfa_token_expiry' );
-    }
-
-    /**
-     * Preserve legacy settings when moving from RFA prefix to BRZ.
-     */
-    private static function migrate_legacy_options() {
-        $new = get_option( BRZ_OPTION, null );
-        if ( null !== $new ) {
+    private static function maybe_run_migrations(): void {
+        $stored = get_option( 'brz_db_version', '0' );
+        if ( version_compare( $stored, BRZ_VERSION, '>=' ) ) {
             return;
         }
 
-        $legacy = get_option( 'rfa_options', null );
-        if ( is_array( $legacy ) ) {
-            update_option( BRZ_OPTION, $legacy, false );
+        // Smart Linker DB migration
+        if ( BRZ_Modules::is_enabled( 'smart_linker' ) ) {
+            if ( class_exists( 'BRZ_Smart_Linker_DB' ) ) {
+                BRZ_Smart_Linker_DB::migrate();
+            }
+            if ( class_exists( 'BRZ_Smart_Linker_Health' ) ) {
+                BRZ_Smart_Linker_Health::migrate();
+            }
         }
+
+        update_option( 'brz_db_version', BRZ_VERSION, false );
     }
 }

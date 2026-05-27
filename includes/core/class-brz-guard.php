@@ -3,7 +3,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 // هشدار: پیش از هر تغییر، حتماً فایل CONTRIBUTING.md را با دقت کامل بخوانید و بی‌قید و شرط اجرا کنید و پس از اتمام کار تطابق را دوباره چک کنید.
 
 class BRZ_Guard {
-    const MIN_PHP = '8.1.0';
+    const MIN_PHP = '8.3.0';
 
     public static function ready() {
         if ( version_compare( PHP_VERSION, self::MIN_PHP, '<' ) ) {

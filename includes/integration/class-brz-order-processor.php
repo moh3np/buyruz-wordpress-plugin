@@ -488,6 +488,3 @@ class BRZ_Order_Processor {
         return $statuses;
     }
 }
-
-// Initialize
-BRZ_Order_Processor::init();

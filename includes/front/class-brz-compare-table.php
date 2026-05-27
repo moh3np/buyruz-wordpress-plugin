@@ -11,9 +11,6 @@ class BRZ_Compare_Table {
     private static $rendered = array();
 
     public static function init() {
-        // add_filter( 'the_content', array( __CLASS__, 'inject_into_content' ), 25 );
-        // add_filter( 'woocommerce_product_get_description', array( __CLASS__, 'inject_into_wc_description' ), 25, 2 );
-        // add_action( 'woocommerce_after_single_product_summary', array( __CLASS__, 'render_after_summary' ), 25 );
         add_shortcode( 'buyruz_compare_table', array( __CLASS__, 'shortcode' ) );
         add_shortcode( 'brz_compare_table', array( __CLASS__, 'shortcode' ) );
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
@@ -33,13 +30,13 @@ class BRZ_Compare_Table {
         
         $should_load = ! empty( $opts['table_styles_enabled'] ) && BRZ_Detector::should_load_table_styles( $table_targets );
 
-        // Force load on single products to ensure visibility
-        if ( is_singular( 'product' ) ) {
-            $should_load = true;
-        } else {
-            // Check for other post types if they have the table
-            $post_id = get_the_ID();
-            if ( $post_id && self::has_table( $post_id ) ) {
+        // Check if the post actually has the shortcode
+        if ( ! $should_load ) {
+            global $post;
+            if ( $post && has_shortcode( $post->post_content ?? '', 'buyruz_compare_table' ) ) {
+                $should_load = true;
+            }
+            if ( $post && has_shortcode( $post->post_content ?? '', 'brz_compare_table' ) ) {
                 $should_load = true;
             }
         }
@@ -112,6 +109,10 @@ class BRZ_Compare_Table {
     }
 
     private static function normalize_cell( $value ) {
+        if ( null === $value ) {
+            return '';
+        }
+
         if ( is_array( $value ) || is_object( $value ) ) {
             return '';
         }
@@ -119,7 +120,7 @@ class BRZ_Compare_Table {
         $value = (string) $value;
 
         // Decode escaped \uXXXX sequences
-        if ( strpos( $value, '\\u' ) !== false ) {
+        if ( str_contains( $value, '\\u' ) ) {
             $decoded = json_decode( '"' . str_replace( array( "\r", "\n" ), '', addslashes( $value ) ) . '"', true );
             if ( is_string( $decoded ) ) {
                 $value = $decoded;
@@ -150,7 +151,7 @@ class BRZ_Compare_Table {
             return self::$cache[ $post_id ];
         }
 
-        $raw = get_post_meta( $post_id, self::META_KEY, true );
+        $raw = get_post_meta( $post_id, self::META_KEY, true ) ?: '';
         if ( empty( $raw ) ) {
             self::$cache[ $post_id ] = array();
             return self::$cache[ $post_id ];
@@ -217,14 +218,6 @@ class BRZ_Compare_Table {
         }
 
         $title = isset( $decoded['title'] ) ? self::normalize_cell( $decoded['title'] ) : '';
-        /*
-        if ( empty( $title ) && class_exists( 'BRZ_Settings' ) ) {
-            $fallback_title = BRZ_Settings::get( 'compare_table_default_title', '' );
-            if ( ! empty( $fallback_title ) ) {
-                $title = $fallback_title;
-            }
-        }
-        */
 
         self::$cache[ $post_id ] = array(
             'id'      => $table_id,
@@ -266,7 +259,7 @@ class BRZ_Compare_Table {
 
         self::$rendered[ $post_id ] = true;
 
-        if ( strpos( $content, '[[COMPARE_TABLE]]' ) !== false ) {
+        if ( str_contains( $content ?? '', '[[COMPARE_TABLE]]' ) ) {
             $content = str_replace( '[[COMPARE_TABLE]]', $html, $content );
         } else {
             $content .= $html;

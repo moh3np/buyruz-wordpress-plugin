@@ -5,16 +5,6 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 class BRZ_Modules {
     public static function registry() {
         return array(
-            'frontend' => array(
-                'label'       => 'نمایش و بارگذاری',
-                'description' => 'لود شرطی CSS/JS و تشخیص محتوا.',
-                'class'       => 'BRZ_Enqueue',
-            ),
-            'debug' => array(
-                'label'       => 'دیباگ و لاگ‌ها',
-                'description' => 'ثبت رخدادهای انتخاب‌شده برای عیب‌یابی.',
-                'class'       => 'BRZ_Debug',
-            ),
             'compare_table' => array(
                 'label'       => 'جدول متا',
                 'description' => 'جدول مقایسهٔ محصول را مدیریت و در فرانت نمایش می‌دهد.',
@@ -35,13 +25,17 @@ class BRZ_Modules {
                 'description' => 'کنترل درخواست‌های خروجی وردپرس',
                 'class'       => 'BRZ_Firewall',
             ),
+            'order_processor' => array(
+                'label'       => 'پردازش سفارش',
+                'description' => 'REST API پردازش سفارشات از گوگل شیت',
+                'class'       => 'BRZ_Order_Processor',
+            ),
         );
     }
 
-
     public static function default_states() {
         $states = array();
-        $disabled_by_default = array( 'debug', 'outbound_guard' );
+        $disabled_by_default = array( 'outbound_guard', 'order_processor' );
         foreach ( self::registry() as $slug => $meta ) {
             $states[ $slug ] = in_array( $slug, $disabled_by_default, true ) ? 0 : 1;
         }

@@ -3,13 +3,13 @@
  * Plugin Name: تنظیمات بایروز
  * Plugin URI: https://github.com/Codruz/buyruz-plugin.git
  * Description: تنظیمات بایروز، مرکز مدیریت و هماهنگ‌سازی قابلیت‌ها و تنظیمات اختصاصی بایروز در سایت شماست. از این صفحه می‌توانید رفتار افزونه‌های بایروز را یکپارچه کنترل کنید.
- * Version: 3.3.3
+ * Version: 4.0.0
  * Author: کُدروز
  * Author URI: https://codruz.ir
  * License: Proprietary
  * Text Domain: buyruz-settings
  * Requires at least: 6.8.3
- * Requires PHP: 8.1
+ * Requires PHP: 8.3
  */
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
@@ -21,22 +21,13 @@ $plugin_header = get_file_data(
         'Version' => 'Version',
     )
 );
-define( 'BRZ_VERSION', isset( $plugin_header['Version'] ) ? $plugin_header['Version'] : '3.3.2' );
+define( 'BRZ_VERSION', isset( $plugin_header['Version'] ) ? $plugin_header['Version'] : '4.0.0' );
 define( 'BRZ_PATH', plugin_dir_path( __FILE__ ) );
 define( 'BRZ_URL', plugin_dir_url( __FILE__ ) );
 define( 'BRZ_OPTION', 'brz_options' );
-define( 'BRZ_LOG_DIR', trailingslashit( BRZ_PATH ) . 'logs/' );
 
 require_once BRZ_PATH . 'includes/autoload.php';
 BRZ_Plugin::init();
-
-$brz_wc_shortcodes_path = BRZ_PATH . 'includes/integration/class-myplugin-wc-shortcodes.php';
-if ( file_exists( $brz_wc_shortcodes_path ) ) {
-    require_once $brz_wc_shortcodes_path;
-    if ( class_exists( 'MyPlugin_WC_Product_Shortcodes' ) ) {
-        MyPlugin_WC_Product_Shortcodes::init();
-    }
-}
 
 add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), function( $links ) {
     $links['settings'] = '<a href="' . esc_url( admin_url( 'admin.php?page=buyruz-dashboard' ) ) . '">تنظیمات</a>';

@@ -2,7 +2,7 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 // هشدار: پیش از هر تغییر، حتماً فایل CONTRIBUTING.md را با دقت کامل بخوانید و بی‌قید و شرط اجرا کنید و پس از اتمام کار تطابق را دوباره چک کنید.
 
-class MyPlugin_WC_Product_Shortcodes {
+class BRZ_WC_Shortcodes {
     private static $enabled_cache = null;
     private static $processed     = array();
     private static $primed        = false;

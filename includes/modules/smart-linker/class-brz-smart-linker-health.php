@@ -98,25 +98,25 @@ class BRZ_Smart_Linker_Health {
         $anchors = $dom->getElementsByTagName( 'a' );
         
         foreach ( $anchors as $anchor ) {
-            $href = $anchor->getAttribute( 'href' );
+            $href = $anchor->getAttribute( 'href' ) ?? '';
             
             // Skip empty, anchor-only, javascript, and mail links
             if ( empty( $href ) || 
-                 strpos( $href, '#' ) === 0 || 
-                 strpos( $href, 'javascript:' ) === 0 ||
-                 strpos( $href, 'mailto:' ) === 0 ||
-                 strpos( $href, 'tel:' ) === 0 ) {
+                 str_starts_with( $href, '#' ) || 
+                 str_starts_with( $href, 'javascript:' ) ||
+                 str_starts_with( $href, 'mailto:' ) ||
+                 str_starts_with( $href, 'tel:' ) ) {
                 continue;
             }
             
-            $rel = strtolower( $anchor->getAttribute( 'rel' ) );
+            $rel = strtolower( $anchor->getAttribute( 'rel' ) ?? '' );
             
             $links[] = array(
                 'url'          => $href,
-                'text'         => mb_substr( trim( $anchor->textContent ), 0, 255, 'UTF-8' ),
-                'is_nofollow'  => strpos( $rel, 'nofollow' ) !== false ? 1 : 0,
-                'is_sponsored' => strpos( $rel, 'sponsored' ) !== false ? 1 : 0,
-                'is_ugc'       => strpos( $rel, 'ugc' ) !== false ? 1 : 0,
+                'text'         => mb_substr( trim( $anchor->textContent ?? '' ), 0, 255, 'UTF-8' ),
+                'is_nofollow'  => str_contains( $rel, 'nofollow' ) ? 1 : 0,
+                'is_sponsored' => str_contains( $rel, 'sponsored' ) ? 1 : 0,
+                'is_ugc'       => str_contains( $rel, 'ugc' ) ? 1 : 0,
             );
         }
         
@@ -165,12 +165,12 @@ class BRZ_Smart_Linker_Health {
         $base = $base_url ?: home_url();
         
         // Protocol-relative
-        if ( strpos( $url, '//' ) === 0 ) {
+        if ( str_starts_with( $url, '//' ) ) {
             return 'https:' . $url;
         }
         
         // Root-relative
-        if ( strpos( $url, '/' ) === 0 ) {
+        if ( str_starts_with( $url, '/' ) ) {
             return trailingslashit( $base ) . ltrim( $url, '/' );
         }
         

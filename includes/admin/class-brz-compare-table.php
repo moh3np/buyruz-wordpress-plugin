@@ -20,8 +20,6 @@ class BRZ_Compare_Table_Admin {
         add_action( 'add_meta_boxes_product', array( __CLASS__, 'register_fallback_metabox' ), 5 );
         add_action( 'admin_menu', array( __CLASS__, 'register_admin_page' ) );
         add_filter( 'post_row_actions', array( __CLASS__, 'add_row_action' ), 10, 2 );
-        // add_filter( 'woocommerce_product_data_tabs', array( __CLASS__, 'add_product_tab' ), 25 );
-        // add_action( 'woocommerce_product_data_panels', array( __CLASS__, 'render_product_tab' ) );
         add_action( 'woocommerce_admin_process_product_object', array( __CLASS__, 'save_product_object' ) );
         add_action( 'save_post_product', array( __CLASS__, 'save' ), 10, 2 );
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );

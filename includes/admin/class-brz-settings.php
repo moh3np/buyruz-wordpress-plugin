@@ -24,11 +24,7 @@ class BRZ_Settings {
                 'title'       => 'پیش‌فرض‌های جدول متا',
                 'description' => 'عنوان و نام ستون‌های پیش‌فرض برای جدول متای محصولات.',
             ),
-            'brz_debug'   => array(
-                'title'       => 'دیباگ و لاگ‌ها',
-                'description' => 'ثبت رخدادها برای عیب‌یابی بدون قربانی کردن سرعت.',
-                'footer'      => 'پوشهٔ لاگ در مسیر افزونه نگه‌داری می‌شود و پاکسازی خودکار بر اساس تعداد روز تنظیم‌شده انجام می‌شود.',
-            ),
+
             'brz_guidelines' => array(
                 'title'       => 'راهنمای توسعه و پاکسازی',
                 'description' => 'توصیه‌های کلیدی برای افزودن ماژول‌های آینده بدون قربانی کردن سرعت و سلامت دیتابیس.',
@@ -74,10 +70,6 @@ class BRZ_Settings {
         $modules = BRZ_Modules::registry();
         $states  = BRZ_Modules::get_states();
         foreach ( $modules as $slug => $meta ) {
-            if ( 'frontend' === $slug ) {
-                unset( $modules[ $slug ] );
-                continue;
-            }
             if ( empty( $states[ $slug ] ) ) {
                 unset( $modules[ $slug ] );
             }
@@ -187,31 +179,7 @@ class BRZ_Settings {
             echo '<p class="description">حداقل یکی از گزینه‌ها را انتخاب کنید تا استایل روی همان بخش‌ها اعمال شود.</p>';
         }, 'brz-settings', 'brz_tables' );
 
-        add_settings_section( 'brz_debug', 'دیباگ و لاگ‌ها', '__return_false', 'brz-settings' );
 
-        add_settings_field( 'debug_enabled', 'فعال‌سازی دیباگ', function(){
-            $enabled = (bool) self::get( 'debug_enabled', 0 );
-            echo '<input type="hidden" name="'.BRZ_OPTION.'[debug_enabled]" value="0" />';
-            echo '<label><input type="checkbox" name="'.BRZ_OPTION.'[debug_enabled]" value="1" '.checked( true, $enabled, false ).'> هنگام فعال بودن، لاگ‌گیری بر اساس انتخاب‌های زیر انجام می‌شود.</label>';
-        }, 'brz-settings', 'brz_debug' );
-
-        add_settings_field( 'debug_components', 'بخش‌های قابل لاگ', array( __CLASS__, 'render_debug_components_field' ), 'brz-settings', 'brz_debug' );
-
-        add_settings_field( 'debug_mask_sensitive', 'ماسک داده‌های حساس', function(){
-            $mask = (bool) self::get( 'debug_mask_sensitive', 1 );
-            echo '<input type="hidden" name="'.BRZ_OPTION.'[debug_mask_sensitive]" value="0" />';
-            echo '<label><input type="checkbox" name="'.BRZ_OPTION.'[debug_mask_sensitive]" value="1" '.checked( true, $mask, false ).'> مقادیر شامل توکن، Authorization و رشته‌های محرمانه در لاگ‌ها با [masked] جایگزین شوند.</label>';
-            echo '<p class="description">در صورت نیاز به لاگ کامل برای محیط‌های آزمایشی می‌توانید این گزینه را غیرفعال کنید، اما نسبت به امنیت فایل دقت کنید.</p>';
-        }, 'brz-settings', 'brz_debug' );
-
-        add_settings_field( 'debug_retention_days', 'مدت نگهداری لاگ', function(){
-            $days = (int) self::get( 'debug_retention_days', 7 );
-            if ( $days < 1 ) { $days = 1; }
-            echo '<input type="number" class="small-text" name="'.BRZ_OPTION.'[debug_retention_days]" value="'.esc_attr( $days ).'" min="1" max="30" />';
-            echo '<p class="description">به‌صورت پیش‌فرض لاگ‌ها هر ۷ روز پاکسازی می‌شوند. می‌توانید بین ۱ تا ۳۰ روز تنظیم کنید.</p>';
-        }, 'brz-settings', 'brz_debug' );
-
-        add_settings_field( 'debug_log_path', 'محل ذخیره لاگ', array( __CLASS__, 'render_debug_log_path_field' ), 'brz-settings', 'brz_debug' );
     }
 
     public static function page() {
@@ -471,59 +439,7 @@ class BRZ_Settings {
         self::render_shell( 'buyruz-module-' . $module_slug, function() use ( $modules, $module_slug, $active ) {
             self::render_notices();
 
-            if ( 'debug' === $module_slug ) {
-                ?>
-                <div class="brz-section-header">
-                    <div>
-                        <h2>دیباگ و لاگ‌ها</h2>
-                        <p>کنترل کامل روی لاگ‌ها بدون اثرگذاری روی عملکرد.</p>
-                    </div>
-                    <div class="brz-section-actions">
-                        <span class="brz-status <?php echo $active ? 'is-on' : 'is-off'; ?>"><?php echo $active ? 'فعال است' : 'غیرفعال است'; ?></span>
-                    </div>
-                </div>
-                <div class="brz-grid">
-                    <div class="brz-grid__main">
-                        <div class="brz-card">
-                            <div class="brz-card__body">
-                                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="brz-toggle-form" data-module="debug" data-label="دیباگ و لاگ‌ها">
-                                    <?php wp_nonce_field( 'brz_toggle_module_debug' ); ?>
-                                    <input type="hidden" name="action" value="brz_toggle_module" />
-                                    <input type="hidden" name="module" value="debug" />
-                                    <input type="hidden" name="state" value="<?php echo $active ? '0' : '1'; ?>" />
-                                    <input type="hidden" name="redirect" value="<?php echo esc_url( admin_url( 'admin.php?page=buyruz-module-debug' ) ); ?>" />
-                                    <button type="submit" class="brz-button <?php echo $active ? 'brz-button--ghost' : 'brz-button--primary'; ?>">
-                                        <?php echo $active ? 'غیرفعال کردن' : 'فعال کردن'; ?>
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                        <form method="post" action="options.php" class="brz-settings-form" data-context="debug">
-                            <?php
-                            settings_fields( 'brz_group' );
-                            echo '<input type="hidden" name="' . BRZ_OPTION . '[brz_form_context]" value="debug" />';
-                            self::render_section_cards( array( 'brz_debug' ) );
-                            ?>
-                            <div class="brz-save-bar">
-                                <?php submit_button( 'ذخیره تنظیمات دیباگ', 'primary', 'submit', false ); ?>
-                            </div>
-                        </form>
-                    </div>
-                    <aside class="brz-grid__aside">
-                        <?php self::render_support_card(
-                            'پاکسازی لاگ‌ها',
-                            array(
-                                'مسیر لاگ در کارت بالا نمایش داده می‌شود تا سریع به آن دسترسی داشته باشید.',
-                                'پاکسازی خودکار بر اساس تعداد روز تعیین‌شده انجام می‌شود و فضا اشغال نمی‌ماند.',
-                                'برای محیط تولید، گزینهٔ ماسک داده‌های حساس را روشن نگه دارید.',
-                            ),
-                            'توصیه'
-                        ); ?>
-                    </aside>
-                </div>
-                <?php
-                return;
-            }
+
 
             if ( 'compare_table' === $module_slug ) {
                 $compare_msg = isset( $_GET['brz-compare-msg'] ) ? sanitize_key( wp_unslash( $_GET['brz-compare-msg'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -800,55 +716,9 @@ class BRZ_Settings {
         echo '</div>';
     }
 
-    public static function render_debug_components_field() {
-        $selected = (array) self::get( 'debug_components', array() );
-        $components = BRZ_Debug::available_components();
 
-        if ( empty( $components ) ) {
-            echo '<p class="description">در حال حاضر هیچ بخشی برای لاگ‌گیری تعریف نشده است.</p>';
-            return;
-        }
 
-        foreach ( $components as $key => $meta ) {
-            $checked = in_array( $key, $selected, true );
-            echo '<label style="display:block;margin-bottom:4px;">';
-            echo '<input type="checkbox" name="'.BRZ_OPTION.'[debug_components][]" value="'.esc_attr( $key ).'" '.checked( true, $checked, false ).'> ';
-            echo '<strong>'.esc_html( $meta['label'] ).'</strong>';
-            if ( ! empty( $meta['description'] ) ) {
-                echo '<span class="description" style="margin-right:6px;">'.esc_html( $meta['description'] ).'</span>';
-            }
-            echo '</label>';
-        }
 
-        echo '<p class="description">پس از اضافه شدن بخش‌های جدید، می‌توانید لاگ‌گیری آن‌ها را از اینجا فعال کنید.</p>';
-    }
-
-    public static function render_debug_log_path_field() {
-        $dir = BRZ_Debug::get_log_directory();
-        echo '<p><code style="direction:ltr;display:inline-block;">'.esc_html( $dir ).'</code></p>';
-
-        if ( ! file_exists( $dir ) ) {
-            echo '<p class="description">پوشه به صورت خودکار هنگام اولین ثبت لاگ ساخته می‌شود. اطمینان حاصل کنید دسترسی نوشتن روی پوشهٔ افزونه وجود داشته باشد.</p>';
-            return;
-        }
-
-        $files = glob( trailingslashit( $dir ) . 'brz-*.log' );
-        if ( empty( $files ) ) {
-            echo '<p class="description">هنوز هیچ لاگی ایجاد نشده است.</p>';
-            return;
-        }
-
-        sort( $files );
-        $recent = array_slice( $files, -5 );
-
-        echo '<p class="description">نمونه فایل‌های اخیر:</p>';
-        echo '<ul style="margin:0 0 0 1.5em; list-style: disc;">';
-        foreach ( $recent as $file ) {
-            $basename = basename( $file );
-            echo '<li><code>'.esc_html( $basename ).'</code></li>';
-        }
-        echo '</ul>';
-    }
 
     private static function module_icon_letter( $meta ) {
         $label = isset( $meta['label'] ) ? $meta['label'] : '';
@@ -1182,40 +1052,7 @@ class BRZ_Settings {
             // فیلدهای پیش‌فرض جدول مقایسه حذف شده‌اند.
         }
 
-        // Debug settings.
-        if ( 'debug' === $context || isset( $input['debug_enabled'] ) || isset( $input['debug_components'] ) ) {
-            $allowed_debug_components = array_keys( BRZ_Debug::available_components() );
 
-            if ( isset( $input['debug_enabled'] ) ) {
-                $output['debug_enabled'] = isset( $input['debug_enabled'] ) ? 1 : 0;
-                unset( $input['debug_enabled'] );
-            }
-
-            if ( isset( $input['debug_components'] ) ) {
-                $components = array_map( 'sanitize_text_field', (array) $input['debug_components'] );
-                $components = array_values( array_intersect( $components, $allowed_debug_components ) );
-                $output['debug_components'] = $components;
-                unset( $input['debug_components'] );
-            } elseif ( 'debug' === $context ) {
-                $output['debug_components'] = array();
-            }
-
-            if ( isset( $input['debug_mask_sensitive'] ) ) {
-                $output['debug_mask_sensitive'] = $input['debug_mask_sensitive'] ? 1 : 0;
-                unset( $input['debug_mask_sensitive'] );
-            }
-
-            if ( isset( $input['debug_retention_days'] ) ) {
-                $days = (int) $input['debug_retention_days'];
-                if ( $days < 1 ) {
-                    $days = 1;
-                } elseif ( $days > 30 ) {
-                    $days = 30;
-                }
-                $output['debug_retention_days'] = $days;
-                unset( $input['debug_retention_days'] );
-            }
-        }
 
         // Any remaining string values.
         foreach ( $input as $key => $value ) {

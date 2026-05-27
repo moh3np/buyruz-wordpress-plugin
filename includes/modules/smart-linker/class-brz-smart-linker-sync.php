@@ -634,11 +634,11 @@ class BRZ_Smart_Linker_Sync {
         $remote_endpoint = $settings['remote_endpoint'];
         
         // If URL contains /wp-json/, extract just the base domain
-        if ( strpos( $remote_endpoint, '/wp-json/' ) !== false ) {
+        if ( str_contains( $remote_endpoint ?? '', '/wp-json/' ) ) {
             $remote_endpoint = preg_replace( '#/wp-json/.*$#', '', $remote_endpoint );
         }
         // Also handle /brz/ path directly
-        if ( strpos( $remote_endpoint, '/brz/' ) !== false ) {
+        if ( str_contains( $remote_endpoint ?? '', '/brz/' ) ) {
             $remote_endpoint = preg_replace( '#/brz/.*$#', '', $remote_endpoint );
         }
         

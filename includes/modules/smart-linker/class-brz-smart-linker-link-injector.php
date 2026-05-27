@@ -90,8 +90,8 @@ class BRZ_Smart_Linker_Link_Injector {
     private function anchor_exists( $keyword, $target_url ) {
         $anchors = $this->dom->getElementsByTagName( 'a' );
         foreach ( $anchors as $a ) {
-            $href = $a->getAttribute( 'href' );
-            $text = trim( $a->textContent );
+            $href = $a->getAttribute( 'href' ) ?? '';
+            $text = trim( $a->textContent ?? '' );
             if ( empty( $href ) ) {
                 continue;
             }
@@ -147,24 +147,24 @@ class BRZ_Smart_Linker_Link_Injector {
 
             // Check if text node is inside an excluded tag (h1, h2, h3, etc.)
             if ( $this->inside_excluded_tag( $text_node ) ) {
-                $offset_so_far += strlen( $text_node->nodeValue );
+                $offset_so_far += strlen( $text_node->nodeValue ?? '' );
                 continue;
             }
 
-            $pos = stripos( $text_node->nodeValue, $keyword );
+            $pos = stripos( $text_node->nodeValue ?? '', $keyword );
             if ( false === $pos ) {
-                $offset_so_far += strlen( $text_node->nodeValue );
+                $offset_so_far += strlen( $text_node->nodeValue ?? '' );
                 continue;
             }
 
             $absolute_pos = $offset_so_far + $pos;
             if ( $only_bottom && $absolute_pos < $min_offset ) {
-                $offset_so_far += strlen( $text_node->nodeValue );
+                $offset_so_far += strlen( $text_node->nodeValue ?? '' );
                 continue;
             }
 
             // Split text node into [before][keyword][after]
-            $full = $text_node->nodeValue;
+            $full = $text_node->nodeValue ?? '';
 
             $before = substr( $full, 0, $pos );
             $match  = substr( $full, $pos, strlen( $keyword ) );

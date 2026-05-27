@@ -19,6 +19,68 @@ class BRZ_FAQ_Renderer {
         
         // فیلتر برای شورت‌کدهای با پترن s- که توسط Google Apps Script ایجاد می‌شوند
         add_filter( 'the_content', array( __CLASS__, 'maybe_render_faq_in_content' ), 8 );
+
+        // Asset loading (absorbed from BRZ_Enqueue)
+        if ( ! is_admin() ) {
+            add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_frontend_assets' ) );
+        }
+    }
+
+    /**
+     * Enqueue FAQ frontend assets (CSS/JS) when FAQ content is detected.
+     * Logic absorbed from the old BRZ_Enqueue::frontend() method.
+     */
+    public static function enqueue_frontend_assets(): void {
+        if ( is_admin() ) {
+            return;
+        }
+
+        $opts         = BRZ_Settings::get();
+        $should_load  = BRZ_Detector::should_load();
+
+        // Fallback: if RankMath active and singular page, load FAQ assets
+        if ( ! $should_load && class_exists( '\RankMath' ) && is_singular() ) {
+            $should_load = true;
+        }
+
+        if ( ! $should_load ) {
+            return;
+        }
+
+        // JS
+        if ( ! empty( $opts['enable_js'] ) ) {
+            $data = array(
+                'singleOpen' => ! empty( $opts['single_open'] ),
+                'animate'    => ! empty( $opts['animate'] ),
+                'selector'   => '.rank-math-faq',
+            );
+            wp_register_script( 'brz-faq', BRZ_URL . 'assets/js/faq.js', array(), BRZ_VERSION, array( 'in_footer' => true, 'strategy' => 'defer' ) );
+            wp_add_inline_script( 'brz-faq', 'window.BRZ=' . wp_json_encode( $data ) . ';', 'before' );
+            wp_enqueue_script( 'brz-faq' );
+        }
+
+        // CSS
+        if ( ! empty( $opts['enable_css'] ) ) {
+            $brand    = $opts['brand_color'] ?? '#1a73e8';
+            $css_vars = ':root{--brz-brand: ' . $brand . ';}';
+
+            if ( ! empty( $opts['inline_css'] ) ) {
+                $css = @file_get_contents( BRZ_PATH . 'assets/css/faq.css' );
+                if ( $css ) {
+                    wp_register_style( 'brz-faq', false, array(), BRZ_VERSION );
+                    wp_enqueue_style( 'brz-faq' );
+                    wp_add_inline_style( 'brz-faq', $css_vars . $css );
+                } else {
+                    wp_register_style( 'brz-faq', BRZ_URL . 'assets/css/faq.css', array(), BRZ_VERSION );
+                    wp_enqueue_style( 'brz-faq' );
+                    wp_add_inline_style( 'brz-faq', $css_vars );
+                }
+            } else {
+                wp_register_style( 'brz-faq', BRZ_URL . 'assets/css/faq.css', array(), BRZ_VERSION );
+                wp_enqueue_style( 'brz-faq' );
+                wp_add_inline_style( 'brz-faq', $css_vars );
+            }
+        }
     }
 
     /**
@@ -38,7 +100,7 @@ class BRZ_FAQ_Renderer {
      */
     public static function render_shortcode( $atts ) {
         $atts = shortcode_atts( array( 'id' => '' ), $atts, 'rank_math_rich_snippet' );
-        $id   = sanitize_text_field( $atts['id'] );
+        $id   = sanitize_text_field( $atts['id'] ?? '' );
 
         if ( empty( $id ) ) {
             return '';
@@ -46,7 +108,7 @@ class BRZ_FAQ_Renderer {
 
         // بررسی اینکه آیا این یک FAQ schema است یا نه
         // ID های FAQ ما با 's-' شروع می‌شوند
-        if ( strpos( $id, 's-' ) !== 0 ) {
+        if ( ! str_starts_with( $id, 's-' ) ) {
             // اگر FAQ نیست، اجازه بده رنک‌مث خودش handle کند
             return self::fallback_to_rankmath( $id );
         }
@@ -144,7 +206,7 @@ class BRZ_FAQ_Renderer {
             if ( ! empty( $target_id ) && isset( $faq_meta['metadata']['shortcode'] ) ) {
                 $shortcode_id = $faq_meta['metadata']['shortcode'];
                 // ID می‌تواند کامل باشد یا فقط بخش s-xxx
-                if ( $shortcode_id === $target_id || strpos( $target_id, $shortcode_id ) !== false || strpos( $shortcode_id, $target_id ) !== false ) {
+                if ( $shortcode_id === $target_id || str_contains( $target_id, $shortcode_id ) || str_contains( $shortcode_id, $target_id ) ) {
                     return $faq_meta;
                 }
             } else {
@@ -186,8 +248,10 @@ class BRZ_FAQ_Renderer {
      * @return string Modified content.
      */
     public static function maybe_render_faq_in_content( $content ) {
+        $content = $content ?? '';
+
         // اگر شورت‌کد قبلاً process شده، کاری نکن
-        if ( strpos( $content, 'brz-faq-rendered' ) !== false ) {
+        if ( str_contains( $content, 'brz-faq-rendered' ) ) {
             return $content;
         }
 

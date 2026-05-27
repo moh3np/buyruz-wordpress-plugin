@@ -133,7 +133,7 @@ class BRZ_Smart_Linker_Importer {
 
             // Find keyword context in content
             if ( $post && ! empty( $link['keyword'] ) ) {
-                $content = wp_strip_all_tags( $post->post_content );
+                $content = wp_strip_all_tags( $post->post_content ?? '' );
                 $pos = mb_stripos( $content, $link['keyword'], 0, 'UTF-8' );
 
                 if ( false !== $pos ) {

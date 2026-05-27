@@ -71,7 +71,6 @@ class BRZ_Smart_Linker {
         BRZ_Smart_Linker_Sync::init();
 
         // Cron / background
-        add_action( 'init', array( __CLASS__, 'maybe_migrate_table' ), 1 );
         add_action( 'init', array( __CLASS__, 'ensure_cron_events' ) );
         add_action( 'init', array( __CLASS__, 'ensure_health_cron' ) );
         add_action( self::CRON_PROCESS_HOOK, array( __CLASS__, 'process_queue' ) );
@@ -1706,7 +1705,7 @@ class BRZ_Smart_Linker {
             return;
         }
 
-        $body = wp_strip_all_tags( $content );
+        $body = wp_strip_all_tags( $content ?? '' );
         $missing_fps = array();
 
         foreach ( $active_rows as $row ) {
@@ -1714,7 +1713,7 @@ class BRZ_Smart_Linker {
             $target_url = isset( $row['target_url'] ) ? $row['target_url'] : '';
 
             $has_keyword = ( false !== stripos( $body, $keyword ) );
-            $has_anchor  = ( false !== stripos( $content, $target_url ) );
+            $has_anchor  = ( false !== stripos( $content ?? '', $target_url ) );
 
             if ( ! $has_keyword || ! $has_anchor ) {
                 $missing_fps[] = $row['fingerprint'];
