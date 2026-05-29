@@ -213,6 +213,15 @@ class BRZ_Settings {
             array( __CLASS__, 'render_page' )
         );
 
+        add_submenu_page(
+            self::PARENT_SLUG,
+            'تشخیص WAF',
+            'تشخیص WAF',
+            $capability,
+            'buyruz-diag',
+            array( __CLASS__, 'render_page' )
+        );
+
         foreach ( self::module_nav_items() as $slug => $meta ) {
             add_submenu_page(
                 self::PARENT_SLUG,
@@ -244,6 +253,11 @@ class BRZ_Settings {
 
         if ( 'buyruz-style' === $page ) {
             self::render_style_settings();
+            return;
+        }
+
+        if ( 'buyruz-diag' === $page ) {
+            self::render_diag_page();
             return;
         }
 
@@ -999,6 +1013,110 @@ class BRZ_Settings {
 
     public static function sanitize_wc_product_shortcodes_option( $value ) {
         return empty( $value ) ? 0 : 1;
+    }
+
+    public static function add_plugin_action_links( $links ) {
+        $settings_link = '<a href="admin.php?page=' . self::PARENT_SLUG . '">تنظیمات</a>';
+        array_unshift( $links, $settings_link );
+        return $links;
+    }
+
+    private static function render_diag_page() {
+        ?>
+        <div class="wrap">
+            <h1>سیستم تشخیص دقیق خطای فایروال (WAF Diagnostics)</h1>
+            <p>این ابزار به صورت خودکار بخش‌های مختلف ماژول کنترلر استاتیک را تست می‌کند تا دقیقاً مشخص شود کدام کلمه، فایل یا هدر باعث حساسیت فایروال سرور (آروان‌کلود/ModSecurity) شده است.</p>
+            
+            <button id="brz-start-diag" class="button button-primary button-large">شروع تست‌های تشخیص</button>
+            <button id="brz-clear-diag" class="button button-secondary button-large">پاک‌کردن نتایج</button>
+
+            <div style="margin-top: 20px; background: #fff; padding: 20px; border: 1px solid #ccd0d4; border-radius: 4px;">
+                <ul id="brz-diag-results" style="font-family: monospace; font-size: 14px; line-height: 1.8;">
+                    <li>آماده برای شروع تست...</li>
+                </ul>
+            </div>
+        </div>
+
+        <script>
+        jQuery(document).ready(function($) {
+            $('#brz-start-diag').on('click', function() {
+                var $results = $('#brz-diag-results');
+                $results.empty();
+                
+                var adminUrl = '<?php echo esc_url(admin_url('admin.php')); ?>';
+                var ajaxUrl = '<?php echo esc_url(admin_url('admin-ajax.php')); ?>';
+                
+                function logMsg(msg, color) {
+                    color = color || '#333';
+                    $results.append('<li style="color:' + color + ';">' + msg + '</li>');
+                }
+
+                logMsg('شروع تست‌ها...', '#0073aa');
+
+                var tests = [
+                    {
+                        name: 'تست ۱: درخواست GET ساده به آدرس تنظیمات کنترلر استاتیک',
+                        url: adminUrl + '?page=buyruz-module-static_controller',
+                        method: 'GET'
+                    },
+                    {
+                        name: 'تست ۲: درخواست GET به آدرس نامک‌های قبلی (page_mapper)',
+                        url: adminUrl + '?page=buyruz-module-page_mapper',
+                        method: 'GET'
+                    },
+                    {
+                        name: 'تست ۳: درخواست GET با تغییر پارامتر (fake parameter)',
+                        url: adminUrl + '?page=buyruz-module-static_controller&brz_bypass=1',
+                        method: 'GET'
+                    },
+                    {
+                        name: 'تست ۴: درخواست AJAX برای دریافت تنظیمات (API)',
+                        url: ajaxUrl,
+                        method: 'POST',
+                        data: {
+                            action: 'brz_static_get_settings',
+                            _ajax_nonce: '<?php echo wp_create_nonce("brz_static_nonce"); ?>'
+                        }
+                    }
+                ];
+
+                function runTest(index) {
+                    if (index >= tests.length) {
+                        logMsg('<b>تست‌ها به پایان رسید. لطفاً از نتایج بالا اسکرین‌شات بگیرید و ارسال کنید.</b>', '#0073aa');
+                        return;
+                    }
+
+                    var test = tests[index];
+                    logMsg('در حال اجرا: ' + test.name + ' ...', '#555');
+
+                    $.ajax({
+                        url: test.url,
+                        method: test.method,
+                        data: test.data || {},
+                        success: function(res, status, xhr) {
+                            logMsg('✅ موفق (کد ' + xhr.status + ') - فایروال مسدود نکرد.', 'green');
+                            runTest(index + 1);
+                        },
+                        error: function(xhr) {
+                            if (xhr.status === 403) {
+                                logMsg('❌ مسدود شد (خطای 403 Forbidden) - فایروال این درخواست را متوقف کرد!', 'red');
+                            } else {
+                                logMsg('⚠️ خطای ناشناخته (کد ' + xhr.status + ').', 'orange');
+                            }
+                            runTest(index + 1);
+                        }
+                    });
+                }
+
+                runTest(0);
+            });
+
+            $('#brz-clear-diag').on('click', function() {
+                $('#brz-diag-results').html('<li>آماده برای شروع تست...</li>');
+            });
+        });
+        </script>
+        <?php
     }
 
     public static function sanitize( $input ) {
