@@ -81,7 +81,7 @@ class BRZ_Static_Controller {
     private static function default_settings(): array {
         return array(
             'selected_pages'    => array(),
-            'output_path'       => '/home/user/static-data/urls-map.json',
+            'output_path'       => '/static-data/urls-map.json',
             'modal_global'      => '',
             'modal_per_page'    => array(),
             'last_generated'    => null,
@@ -496,7 +496,7 @@ class BRZ_Static_Controller {
                                class="regular-text"
                                dir="ltr"
                                value="<?php echo esc_attr( $output_path ); ?>"
-                               placeholder="/home/user/static-data/urls-map.json">
+                               placeholder="/static-data/urls-map.json">
 
                         <div class="brz-static-generation-info" style="margin-top: 12px;">
                             <p>
