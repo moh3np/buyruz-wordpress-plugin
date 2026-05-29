@@ -63,6 +63,26 @@ class BRZ_Plugin {
             }
         }
 
+        // Migrate old module slugs to new ones (4.1.3+)
+        $opts = get_option( BRZ_OPTION, array() );
+        if ( isset( $opts['modules'] ) && is_array( $opts['modules'] ) ) {
+            $slug_renames = array(
+                'static_controller' => 'urlgen',
+                'page_mapper'       => 'urlgen',
+            );
+            $changed = false;
+            foreach ( $slug_renames as $old => $new ) {
+                if ( isset( $opts['modules'][ $old ] ) ) {
+                    $opts['modules'][ $new ] = $opts['modules'][ $old ];
+                    unset( $opts['modules'][ $old ] );
+                    $changed = true;
+                }
+            }
+            if ( $changed ) {
+                update_option( BRZ_OPTION, $opts, false );
+            }
+        }
+
         update_option( 'brz_db_version', BRZ_VERSION, false );
     }
 }
