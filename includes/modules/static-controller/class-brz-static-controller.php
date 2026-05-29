@@ -51,6 +51,7 @@ class BRZ_Static_Controller {
             add_action( 'wp_ajax_brz_static_save_pages', array( __CLASS__, 'ajax_save_selected_pages' ) );
             add_action( 'wp_ajax_brz_static_save_settings', array( __CLASS__, 'ajax_save_settings' ) );
             add_action( 'wp_ajax_brz_static_regenerate', array( __CLASS__, 'ajax_manual_regenerate' ) );
+            add_action( 'wp_ajax_brz_static_get_settings', array( __CLASS__, 'ajax_get_settings' ) );
 
             // Change trigger hooks (admin context for save_post, etc.).
             BRZ_Static_Change_Trigger::init();
@@ -407,6 +408,29 @@ class BRZ_Static_Controller {
     }
 
     /**
+     * AJAX handler: Get module settings to populate the form on load.
+     * Prevents WAF from blocking HTML responses containing paths or scripts.
+     *
+     * @return void Sends JSON response and terminates.
+     */
+    public static function ajax_get_settings(): void {
+        check_ajax_referer( 'brz_static_nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'دسترسی غیرمجاز.' ), 403 );
+        }
+
+        $settings = self::get_settings();
+        
+        wp_send_json_success( array(
+            'output_path'       => $settings['output_path'],
+            'modal_global'      => $settings['modal_global'],
+            'last_generated'    => $settings['last_generated'],
+            'generation_status' => $settings['generation_status'],
+        ) );
+    }
+
+    /**
      * Validate the output file path.
      *
      * Checks that the path:
@@ -471,12 +495,7 @@ class BRZ_Static_Controller {
             return;
         }
 
-        $settings          = self::get_settings();
-        $output_path       = $settings['output_path'];
-        $last_generated    = $settings['last_generated'];
-        $generation_status = $settings['generation_status'];
-        $modal_global      = $settings['modal_global'];
-        $nonce             = wp_create_nonce( 'brz_static_nonce' );
+        $nonce = wp_create_nonce( 'brz_static_nonce' );
         ?>
         <!-- Section Header -->
         <div class="brz-section-header">
@@ -489,7 +508,7 @@ class BRZ_Static_Controller {
             </div>
         </div>
 
-        <div class="brz-single-column">
+        <div class="brz-single-column brz-static-app-container" style="opacity: 0; transition: opacity 0.3s;">
             <!-- Card: تنظیمات خروجی (Output Settings) -->
             <div class="brz-card">
                 <div class="brz-card__header">
@@ -502,29 +521,17 @@ class BRZ_Static_Controller {
                                id="brz-static-output-path"
                                class="regular-text"
                                dir="ltr"
-                               value="<?php echo esc_attr( $output_path ); ?>"
-                               placeholder="/static-data/urls-map.json">
+                               value=""
+                               placeholder="در حال بارگذاری...">
 
                         <div class="brz-static-generation-info" style="margin-top: 12px;">
                             <p>
                                 <strong>آخرین تولید:</strong>
-                                <span id="brz-static-last-generated">
-                                    <?php echo $last_generated ? esc_html( $last_generated ) : 'هنوز تولید نشده'; ?>
-                                </span>
+                                <span id="brz-static-last-generated">در حال بارگذاری...</span>
                             </p>
                             <p>
                                 <strong>وضعیت:</strong>
-                                <span id="brz-static-generation-status" class="brz-static-status brz-static-status--<?php echo esc_attr( $generation_status ); ?>">
-                                    <?php
-                                    $status_labels = array(
-                                        'idle'    => 'بدون فعالیت',
-                                        'success' => 'موفق',
-                                        'error'   => 'خطا',
-                                        'running' => 'در حال اجرا',
-                                    );
-                                    echo esc_html( $status_labels[ $generation_status ] ?? $generation_status );
-                                    ?>
-                                </span>
+                                <span id="brz-static-generation-status" class="brz-static-status">در حال بارگذاری...</span>
                             </p>
                         </div>
 
@@ -582,7 +589,7 @@ class BRZ_Static_Controller {
                                       rows="10"
                                       dir="ltr"
                                       style="width: 100%; font-family: monospace;"
-                                      placeholder="کد HTML/JS مودال را اینجا وارد کنید..."><?php echo esc_textarea( $modal_global ); ?></textarea>
+                                      placeholder="کد HTML/JS مودال را اینجا وارد کنید..."></textarea>
                         </div>
 
                         <button type="button" class="button button-primary" id="brz-static-save-modal-btn" style="margin-top: 10px;">

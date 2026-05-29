@@ -414,9 +414,59 @@ jQuery(document).ready(function ($) {
   });
 
   /* ==========================================================================
-     11. INITIALIZATION
+     11. INITIALIZATION & DATA LOADING
      ========================================================================== */
 
+  /**
+   * Load settings via AJAX to prevent WAF blocks on HTML responses.
+   */
+  function loadSettings() {
+    $.ajax({
+      url: config.ajax_url,
+      method: 'POST',
+      data: {
+        action: 'brz_static_get_settings',
+        _ajax_nonce: config.nonce
+      },
+      success: function (response) {
+        if (response.success && response.data) {
+          var data = response.data;
+          
+          // Populate fields
+          $outputPath.val(data.output_path || '');
+          $modalCode.val(data.modal_global || '');
+          
+          // Populate status
+          var lastGen = data.last_generated ? data.last_generated : 'هنوز تولید نشده';
+          $('#brz-static-last-generated').text(lastGen);
+          
+          var statusLabels = {
+            'idle': 'بدون فعالیت',
+            'success': 'موفق',
+            'error': 'خطا',
+            'running': 'در حال اجرا'
+          };
+          var statusLabel = statusLabels[data.generation_status] || data.generation_status;
+          var $statusSpan = $('#brz-static-generation-status');
+          
+          $statusSpan.text(statusLabel)
+                     .removeClass()
+                     .addClass('brz-static-status brz-static-status--' + escapeHtml(data.generation_status));
+        } else {
+          showSnackbar('خطا در بارگذاری تنظیمات', 'error');
+        }
+      },
+      error: function () {
+        showSnackbar(config.strings.network_error, 'error');
+      },
+      complete: function () {
+        // Fade in the UI container
+        $('.brz-static-app-container').css('opacity', '1');
+      }
+    });
+  }
+
   initSelectedPages();
+  loadSettings();
 
 });
