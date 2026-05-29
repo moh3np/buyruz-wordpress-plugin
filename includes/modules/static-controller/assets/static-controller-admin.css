@@ -1,0 +1,358 @@
+/* هشدار: پیش از هر تغییر، حتماً فایل CONTRIBUTING.md را با دقت کامل بخوانید و بی‌قید و شرط اجرا کنید و پس از اتمام کار تطابق را دوباره چک کنید. */
+
+/* ==========================================================================
+   Buyruz Static Controller - Admin Styles
+   Material Design 3 | RTL Layout
+   ========================================================================== */
+
+/* ==========================================================================
+   1. SEARCH
+   ========================================================================== */
+
+.brz-static-search {
+  display: flex;
+  gap: var(--md-space-sm);
+  margin-bottom: var(--md-space-md);
+}
+
+.brz-static-search input {
+  width: 100%;
+  padding: var(--md-space-md) var(--md-space-lg);
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-radius-sm);
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  font: var(--md-font-body-md);
+  font-size: 14px;
+  transition: all var(--md-transition-fast);
+}
+
+.brz-static-search input:focus {
+  outline: none;
+  border-color: var(--md-primary);
+  box-shadow: 0 0 0 2px var(--md-primary-container);
+}
+
+.brz-static-search input::placeholder {
+  color: var(--md-on-surface-variant);
+}
+
+/* ==========================================================================
+   2. PAGE LIST
+   ========================================================================== */
+
+.brz-static-page-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-radius-sm);
+}
+
+/* ==========================================================================
+   3. PAGE ITEM
+   ========================================================================== */
+
+.brz-static-page-item {
+  display: flex;
+  align-items: center;
+  gap: var(--md-space-md);
+  padding: var(--md-space-md) var(--md-space-lg);
+  background: var(--md-surface);
+  border-bottom: 1px solid var(--md-outline-variant);
+  transition: background var(--md-transition-fast);
+}
+
+.brz-static-page-item:last-child {
+  border-bottom: none;
+}
+
+.brz-static-page-item:hover {
+  background: var(--md-surface-dim);
+}
+
+/* ==========================================================================
+   4. PAGE ITEM ELEMENTS
+   ========================================================================== */
+
+.brz-static-page-item__checkbox {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--md-primary);
+  cursor: pointer;
+}
+
+.brz-static-page-item__title {
+  flex-grow: 1;
+  font: var(--md-font-body-md);
+  font-weight: 500;
+  color: var(--md-on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.brz-static-page-item__type {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: var(--md-space-xs) var(--md-space-md);
+  border-radius: var(--md-radius-full);
+  font: var(--md-font-label-sm);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.brz-static-page-item__type[data-type="product"] {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.brz-static-page-item__type[data-type="archive"] {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.brz-static-page-item__type[data-type="elementor_page"] {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.brz-static-page-item__type[data-type="blog_post"] {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.brz-static-page-item__type[data-type="blog_category"] {
+  background: #e0f7fa;
+  color: #00695c;
+}
+
+.brz-static-page-item__type[data-type="unknown"] {
+  background: var(--md-surface-container);
+  color: var(--md-on-surface-variant);
+}
+
+.brz-static-page-item__url {
+  flex-shrink: 0;
+  max-width: 250px;
+  direction: ltr;
+  text-align: left;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--md-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==========================================================================
+   5. PAGINATION
+   ========================================================================== */
+
+.brz-static-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--md-space-sm);
+  margin-top: var(--md-space-md);
+}
+
+.brz-static-pagination button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: var(--md-space-xs) var(--md-space-md);
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-radius-sm);
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  font: var(--md-font-label-md);
+  cursor: pointer;
+  transition: all var(--md-transition-fast);
+}
+
+.brz-static-pagination button:hover {
+  background: var(--md-primary-container);
+  border-color: var(--md-primary);
+  color: var(--md-on-primary-container);
+}
+
+.brz-static-pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.brz-static-pagination span {
+  font: var(--md-font-body-md);
+  color: var(--md-on-surface-variant);
+  font-size: 13px;
+}
+
+/* ==========================================================================
+   6. CODE EDITOR
+   ========================================================================== */
+
+.brz-static-code-editor {
+  margin-top: var(--md-space-md);
+}
+
+.brz-static-code-editor textarea {
+  width: 100%;
+  min-height: 200px;
+  padding: var(--md-space-md) var(--md-space-lg);
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-radius-sm);
+  background: var(--md-surface-dim);
+  color: var(--md-on-surface);
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  direction: ltr;
+  text-align: left;
+  resize: vertical;
+  transition: border-color var(--md-transition-fast);
+}
+
+.brz-static-code-editor textarea:focus {
+  outline: none;
+  border-color: var(--md-primary);
+  box-shadow: 0 0 0 2px var(--md-primary-container);
+}
+
+/* ==========================================================================
+   7. STATUS INDICATOR
+   ========================================================================== */
+
+.brz-static-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--md-space-sm);
+  padding: var(--md-space-xs) var(--md-space-md);
+  border-radius: var(--md-radius-full);
+  font: var(--md-font-label-md);
+  font-size: 12px;
+  background: var(--md-surface-container);
+  color: var(--md-on-surface-variant);
+}
+
+.brz-static-status.is-success {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.brz-static-status.is-error {
+  background: var(--md-error-container);
+  color: var(--md-error);
+}
+
+.brz-static-status.is-generating {
+  background: #e3f2fd;
+  color: #1565c0;
+  animation: brz-static-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes brz-static-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ==========================================================================
+   8. OUTPUT PATH
+   ========================================================================== */
+
+.brz-static-output-path {
+  direction: ltr;
+  text-align: left;
+}
+
+.brz-static-output-path input {
+  width: 100%;
+  padding: var(--md-space-md) var(--md-space-lg);
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-radius-sm);
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  font-family: monospace;
+  font-size: 13px;
+  direction: ltr;
+  text-align: left;
+  transition: all var(--md-transition-fast);
+}
+
+.brz-static-output-path input:focus {
+  outline: none;
+  border-color: var(--md-primary);
+  box-shadow: 0 0 0 2px var(--md-primary-container);
+}
+
+/* ==========================================================================
+   9. ACTIONS (Button Group)
+   ========================================================================== */
+
+.brz-static-actions {
+  display: flex;
+  gap: var(--md-space-sm);
+  align-items: center;
+  margin-top: var(--md-space-md);
+}
+
+.brz-static-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--md-space-sm);
+  padding: var(--md-space-md) var(--md-space-xl);
+  border: none;
+  border-radius: var(--md-radius-sm);
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  font: var(--md-font-label-lg);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--md-transition-fast);
+  box-shadow: var(--md-elevation-1);
+}
+
+.brz-static-actions button:hover {
+  background: var(--md-primary-hover);
+  box-shadow: var(--md-elevation-2);
+}
+
+.brz-static-actions button:active {
+  transform: scale(0.98);
+}
+
+.brz-static-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ==========================================================================
+   10. RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 600px) {
+  .brz-static-page-item {
+    flex-wrap: wrap;
+    gap: var(--md-space-sm);
+  }
+
+  .brz-static-page-item__url {
+    max-width: 100%;
+    flex-basis: 100%;
+    order: 4;
+  }
+
+  .brz-static-actions {
+    flex-direction: column;
+  }
+
+  .brz-static-actions button {
+    width: 100%;
+  }
+}

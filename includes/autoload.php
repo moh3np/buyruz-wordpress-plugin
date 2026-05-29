@@ -37,6 +37,11 @@ spl_autoload_register( function( $class ) {
         'BRZ_BI_Exporter'            => 'modules/bi-exporter/class-brz-bi-exporter.php',
         'BRZ_Firewall'               => 'modules/http-firewall/class-brz-firewall.php',
         'BRZ_Firewall_Validator'     => 'modules/http-firewall/class-brz-firewall-validator.php',
+        'BRZ_Static_Controller'      => 'modules/static-controller/class-brz-static-controller.php',
+        'BRZ_Static_Page_Detector'   => 'modules/static-controller/class-brz-static-page-detector.php',
+        'BRZ_Static_Map_Generator'   => 'modules/static-controller/class-brz-static-map-generator.php',
+        'BRZ_Static_Change_Trigger'  => 'modules/static-controller/class-brz-static-change-trigger.php',
+        'BRZ_Static_Modal_Injector'  => 'modules/static-controller/class-brz-static-modal-injector.php',
     );
 
     $map = apply_filters( 'brz/autoload_map', $map );

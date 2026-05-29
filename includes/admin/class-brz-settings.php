@@ -529,6 +529,11 @@ class BRZ_Settings {
                 return;
             }
 
+            if ( 'static_controller' === $module_slug ) {
+                BRZ_Static_Controller::render_admin_page();
+                return;
+            }
+
             $label = isset( $modules[ $module_slug ]['label'] ) ? $modules[ $module_slug ]['label'] : $module_slug;
             self::render_generic_module_card( $label, $active );
         } );
