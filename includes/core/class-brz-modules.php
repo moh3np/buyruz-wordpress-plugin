@@ -30,7 +30,7 @@ class BRZ_Modules {
                 'description' => 'REST API پردازش سفارشات از گوگل شیت',
                 'class'       => 'BRZ_Order_Processor',
             ),
-            'page_mapper' => array(
+            'urlgen' => array(
                 'label'       => 'کنترلر استاتیک',
                 'description' => 'مدیریت صفحات و تولید نقشه URL برای ژنراتور استاتیک',
                 'class'       => 'BRZ_Static_Controller',
@@ -40,7 +40,7 @@ class BRZ_Modules {
 
     public static function default_states() {
         $states = array();
-        $disabled_by_default = array( 'outbound_guard', 'order_processor', 'page_mapper' );
+        $disabled_by_default = array( 'outbound_guard', 'order_processor', 'urlgen' );
         foreach ( self::registry() as $slug => $meta ) {
             $states[ $slug ] = in_array( $slug, $disabled_by_default, true ) ? 0 : 1;
         }

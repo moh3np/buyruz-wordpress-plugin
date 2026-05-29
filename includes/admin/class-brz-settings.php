@@ -529,7 +529,7 @@ class BRZ_Settings {
                 return;
             }
 
-            if ( 'page_mapper' === $module_slug ) {
+            if ( 'urlgen' === $module_slug ) {
                 BRZ_Static_Controller::render_admin_page();
                 return;
             }
