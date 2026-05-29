@@ -114,10 +114,16 @@ class BRZ_Static_Controller {
     /**
      * Enqueue admin CSS and JS on the static controller settings page only.
      *
-     * @param string $hook The current admin page hook suffix.
+     * @param string $hook_suffix The current admin page hook suffix.
      */
-    public static function enqueue_admin_assets( string $hook ): void {
-        if ( strpos( $hook, 'buyruz-module-static_controller' ) === false ) {
+    public static function enqueue_admin_assets( string $hook_suffix ): void {
+        // Only load on our module's page.
+        if ( false === strpos( $hook_suffix, 'buyruz-module-static_controller' ) ) {
+            return;
+        }
+
+        // ISOLATION TEST: Skip assets if requested.
+        if ( isset( $_GET['brz_isolate'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             return;
         }
 
@@ -494,6 +500,30 @@ class BRZ_Static_Controller {
         if ( ! current_user_can( 'manage_options' ) ) {
             return;
         }
+
+        // ==========================================
+        // ISOLATION TESTS FOR WAF DEBUGGING
+        // ==========================================
+        if ( isset( $_GET['brz_isolate'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $isolate = sanitize_text_field( wp_unslash( $_GET['brz_isolate'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            
+            if ( 'empty_body' === $isolate ) {
+                echo 'WAF Isolation Test: Empty Body OK';
+                return;
+            }
+
+            if ( 'basic_html' === $isolate ) {
+                echo '<h1>WAF Isolation Test</h1><p>Basic HTML rendering OK.</p>';
+                return;
+            }
+            
+            if ( 'no_assets' === $isolate ) {
+                // Renders full HTML but skips enqueuing assets or scripts
+                // We proceed to render but we can add a class or flag to stop JS/CSS if needed.
+                // For now, let's just render the basic structure without the complex forms.
+            }
+        }
+        // ==========================================
 
         $nonce = wp_create_nonce( 'brz_static_nonce' );
         ?>

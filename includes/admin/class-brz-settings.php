@@ -1024,11 +1024,10 @@ class BRZ_Settings {
     private static function render_diag_page() {
         ?>
         <div class="wrap">
-            <h1>سیستم تشخیص دقیق خطای فایروال (WAF Diagnostics)</h1>
-            <p>این ابزار به صورت خودکار بخش‌های مختلف ماژول کنترلر استاتیک را تست می‌کند تا دقیقاً مشخص شود کدام کلمه، فایل یا هدر باعث حساسیت فایروال سرور (آروان‌کلود/ModSecurity) شده است.</p>
+            <h1>سیستم تشخیص قطعی و نقطه‌ای WAF (Isolation Test)</h1>
+            <p>این ابزار به روش مهندسی معکوس (Binary Search) درخواست‌ها را تکه‌تکه اجرا می‌کند تا دقیقاً خطی از کد یا کاراکتری که فایروال را حساس می‌کند، پیدا شود.</p>
             
-            <button id="brz-start-diag" class="button button-primary button-large">شروع تست‌های تشخیص</button>
-            <button id="brz-clear-diag" class="button button-secondary button-large">پاک‌کردن نتایج</button>
+            <button id="brz-start-isolation" class="button button-primary button-large">شروع تست نقطه‌ای (Isolation)</button>
 
             <div style="margin-top: 20px; background: #fff; padding: 20px; border: 1px solid #ccd0d4; border-radius: 4px;">
                 <ul id="brz-diag-results" style="font-family: monospace; font-size: 14px; line-height: 1.8;">
@@ -1039,50 +1038,48 @@ class BRZ_Settings {
 
         <script>
         jQuery(document).ready(function($) {
-            $('#brz-start-diag').on('click', function() {
+            $('#brz-start-isolation').on('click', function() {
                 var $results = $('#brz-diag-results');
                 $results.empty();
                 
                 var adminUrl = '<?php echo esc_url(admin_url('admin.php')); ?>';
-                var ajaxUrl = '<?php echo esc_url(admin_url('admin-ajax.php')); ?>';
                 
                 function logMsg(msg, color) {
                     color = color || '#333';
                     $results.append('<li style="color:' + color + ';">' + msg + '</li>');
                 }
 
-                logMsg('شروع تست‌ها...', '#0073aa');
+                logMsg('شروع تست نقطه‌ای (Isolation Tests)...', '#0073aa');
 
                 var tests = [
                     {
-                        name: 'تست ۱: درخواست GET ساده به آدرس تنظیمات کنترلر استاتیک',
-                        url: adminUrl + '?page=buyruz-module-static_controller',
+                        name: 'تست ۱: فقط آدرس URL (بدون هیچ خروجی HTML)',
+                        url: adminUrl + '?page=buyruz-module-static_controller&brz_isolate=empty_body',
                         method: 'GET'
                     },
                     {
-                        name: 'تست ۲: درخواست GET به آدرس نامک‌های قبلی (page_mapper)',
-                        url: adminUrl + '?page=buyruz-module-page_mapper',
+                        name: 'تست ۲: آدرس URL + فقط تگ‌های اصلی HTML (بدون فرم)',
+                        url: adminUrl + '?page=buyruz-module-static_controller&brz_isolate=basic_html',
                         method: 'GET'
                     },
                     {
-                        name: 'تست ۳: درخواست GET با تغییر پارامتر (fake parameter)',
-                        url: adminUrl + '?page=buyruz-module-static_controller&brz_bypass=1',
+                        name: 'تست ۳: آدرس URL + خروجی کامل بدون بارگذاری استایل/اسکریپت',
+                        url: adminUrl + '?page=buyruz-module-static_controller&brz_isolate=no_assets',
                         method: 'GET'
                     },
                     {
-                        name: 'تست ۴: درخواست AJAX برای دریافت تنظیمات (API)',
-                        url: ajaxUrl,
-                        method: 'POST',
-                        data: {
-                            action: 'brz_static_get_settings',
-                            _ajax_nonce: '<?php echo wp_create_nonce("brz_static_nonce"); ?>'
-                        }
+                        name: 'تست ۴: آدرس URL نامرتبط برای مقایسه WAF',
+                        url: adminUrl + '?page=buyruz-dummy-page-12345',
+                        method: 'GET'
                     }
                 ];
 
                 function runTest(index) {
                     if (index >= tests.length) {
-                        logMsg('<b>تست‌ها به پایان رسید. لطفاً از نتایج بالا اسکرین‌شات بگیرید و ارسال کنید.</b>', '#0073aa');
+                        logMsg('<br><b>تست‌ها تمام شد.</b>', '#000');
+                        logMsg('<b>اگر "تست ۱" خطا داد:</b> فایروال به کلمه static_controller در URL حساس است.', 'purple');
+                        logMsg('<b>اگر "تست ۱" موفق بود ولی "تست ۲ یا ۳" خطا داد:</b> فایروال به ساختار HTML گیر می‌دهد.', 'purple');
+                        logMsg('لطفاً از این صفحه اسکرین‌شات بگیرید.', 'red');
                         return;
                     }
 
@@ -1092,16 +1089,15 @@ class BRZ_Settings {
                     $.ajax({
                         url: test.url,
                         method: test.method,
-                        data: test.data || {},
                         success: function(res, status, xhr) {
-                            logMsg('✅ موفق (کد ' + xhr.status + ') - فایروال مسدود نکرد.', 'green');
+                            logMsg('✅ موفق (200 OK) - فایروال این بخش را مسدود نکرد.', 'green');
                             runTest(index + 1);
                         },
                         error: function(xhr) {
                             if (xhr.status === 403) {
-                                logMsg('❌ مسدود شد (خطای 403 Forbidden) - فایروال این درخواست را متوقف کرد!', 'red');
+                                logMsg('❌ مسدود شد (403 Forbidden) - <b>نقطه حساسیت فایروال همینجاست!</b>', 'red');
                             } else {
-                                logMsg('⚠️ خطای ناشناخته (کد ' + xhr.status + ').', 'orange');
+                                logMsg('⚠️ خطای ' + xhr.status, 'orange');
                             }
                             runTest(index + 1);
                         }
@@ -1109,10 +1105,6 @@ class BRZ_Settings {
                 }
 
                 runTest(0);
-            });
-
-            $('#brz-clear-diag').on('click', function() {
-                $('#brz-diag-results').html('<li>آماده برای شروع تست...</li>');
             });
         });
         </script>
