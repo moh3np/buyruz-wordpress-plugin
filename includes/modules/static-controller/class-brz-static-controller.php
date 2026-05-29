@@ -100,7 +100,14 @@ class BRZ_Static_Controller {
             ? $options[ self::OPTION_KEY ]
             : array();
 
-        return wp_parse_args( $settings, self::default_settings() );
+        $parsed_settings = wp_parse_args( $settings, self::default_settings() );
+
+        // If the bad default was saved in the database, override it
+        if ( isset( $parsed_settings['output_path'] ) && $parsed_settings['output_path'] === '/home/user/static-data/urls-map.json' ) {
+            $parsed_settings['output_path'] = '/static-data/urls-map.json';
+        }
+
+        return $parsed_settings;
     }
 
     /**
