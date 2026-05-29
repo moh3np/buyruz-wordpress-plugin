@@ -67,8 +67,8 @@ class BRZ_Plugin {
         $opts = get_option( BRZ_OPTION, array() );
         if ( isset( $opts['modules'] ) && is_array( $opts['modules'] ) ) {
             $slug_renames = array(
-                'static_controller' => 'urlgen',
-                'page_mapper'       => 'urlgen',
+                'urlgen'      => 'static_controller',
+                'page_mapper' => 'static_controller',
             );
             $changed = false;
             foreach ( $slug_renames as $old => $new ) {

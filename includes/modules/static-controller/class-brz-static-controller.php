@@ -109,7 +109,7 @@ class BRZ_Static_Controller {
      * @param string $hook The current admin page hook suffix.
      */
     public static function enqueue_admin_assets( string $hook ): void {
-        if ( strpos( $hook, 'buyruz-module-urlgen' ) === false ) {
+        if ( strpos( $hook, 'buyruz-module-static_controller' ) === false ) {
             return;
         }
 
