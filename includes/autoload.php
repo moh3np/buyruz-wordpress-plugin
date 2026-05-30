@@ -42,6 +42,8 @@ spl_autoload_register( function( $class ) {
         'BRZ_Static_Map_Generator'   => 'modules/static-controller/class-brz-static-map-generator.php',
         'BRZ_Static_Change_Trigger'  => 'modules/static-controller/class-brz-static-change-trigger.php',
         'BRZ_Static_Modal_Injector'  => 'modules/static-controller/class-brz-static-modal-injector.php',
+        'BRZ_Static_Sitemap_Importer' => 'modules/static-controller/class-brz-static-sitemap-importer.php',
+        'BRZ_Static_Manual_Page_Manager' => 'modules/static-controller/class-brz-static-manual-page-manager.php',
     );
 
     $map = apply_filters( 'brz/autoload_map', $map );

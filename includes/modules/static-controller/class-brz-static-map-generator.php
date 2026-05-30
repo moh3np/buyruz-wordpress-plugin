@@ -26,9 +26,19 @@ class BRZ_Static_Map_Generator {
     private const BATCH_LIMIT = 100;
 
     /**
+     * Maximum number of regeneration history entries to keep.
+     */
+    private const MAX_HISTORY = 10;
+
+    /**
      * Interval in seconds between scheduled batches.
      */
     private const BATCH_INTERVAL = 60;
+
+    /**
+     * Maximum consecutive generation failures before a page is excluded from auto-retry.
+     */
+    const MAX_ERROR_COUNT = 3;
 
     /**
      * Get the configured output file path.
@@ -109,19 +119,27 @@ class BRZ_Static_Map_Generator {
     /**
      * Build the map data structure for selected pages.
      *
-     * Constructs metadata (generation_timestamp, total_count, plugin_version)
-     * and pages array (url, page_type, modal) for each selected page with
-     * 'publish' status.
+     * Constructs metadata (generation_timestamp, total_count, pending_count,
+     * pending_pages, plugin_version) and pages array (url, page_type,
+     * page_source, page_status, lastmod, error_count, modal) for each
+     * selected page with 'publish' status.
      *
      * @param array $selected_pages Array of selected page entries with 'id', 'type', and optionally 'taxonomy'.
      * @return array{metadata: array, pages: array} The complete map data structure.
      */
     public static function build_map_data( array $selected_pages ): array {
-        $pages = [];
+        $pages         = [];
+        $pending_pages = [];
 
         foreach ( $selected_pages as $page_entry ) {
             $id   = (int) ( $page_entry['id'] ?? 0 );
             $type = $page_entry['type'] ?? 'post';
+
+            // Extract enhanced fields with defaults.
+            $page_source = $page_entry['page_source'] ?? 'manual';
+            $page_status = $page_entry['page_status'] ?? 'pending';
+            $lastmod     = $page_entry['lastmod'] ?? null;
+            $error_count = (int) ( $page_entry['error_count'] ?? 0 );
 
             if ( $id <= 0 ) {
                 continue;
@@ -138,11 +156,17 @@ class BRZ_Static_Map_Generator {
                 $page_type = BRZ_Static_Page_Detector::detect_term( $id, $taxonomy );
                 $modal     = BRZ_Static_Modal_Injector::get_modal_for_page( $id );
 
-                $pages[] = [
-                    'url'       => $url,
-                    'page_type' => $page_type,
-                    'modal'     => $modal,
+                $entry = [
+                    'url'         => $url,
+                    'page_type'   => $page_type,
+                    'page_source' => $page_source,
+                    'page_status' => $page_status,
+                    'lastmod'     => $lastmod,
+                    'error_count' => $error_count,
+                    'modal'       => $modal,
                 ];
+
+                $pages[] = $entry;
             } else {
                 // type === 'post'
                 $post = get_post( $id );
@@ -155,18 +179,31 @@ class BRZ_Static_Map_Generator {
                 $page_type = BRZ_Static_Page_Detector::detect( $id );
                 $modal     = BRZ_Static_Modal_Injector::get_modal_for_page( $id );
 
-                $pages[] = [
-                    'url'       => $url,
-                    'page_type' => $page_type,
-                    'modal'     => $modal,
+                $entry = [
+                    'url'         => $url,
+                    'page_type'   => $page_type,
+                    'page_source' => $page_source,
+                    'page_status' => $page_status,
+                    'lastmod'     => $lastmod,
+                    'error_count' => $error_count,
+                    'modal'       => $modal,
                 ];
+
+                $pages[] = $entry;
+            }
+
+            // Collect pending pages: status "pending" OR (status "error" AND error_count < 3).
+            if ( $page_status === 'pending' || ( $page_status === 'error' && $error_count < 3 ) ) {
+                $pending_pages[] = $url;
             }
         }
 
         $metadata = [
             'generation_timestamp' => gmdate( 'c' ),
             'total_count'          => count( $pages ),
+            'pending_count'        => count( $pending_pages ),
             'plugin_version'       => defined( 'BRZ_VERSION' ) ? BRZ_VERSION : '1.0.0',
+            'pending_pages'        => $pending_pages,
         ];
 
         return [
@@ -284,11 +321,24 @@ class BRZ_Static_Map_Generator {
             // Merge all batches and write final output.
             $all_pages = self::merge_batch_results( $total_pages, $limit );
 
+            // Compute pending_pages from merged results.
+            $pending_pages = [];
+            foreach ( $all_pages as $page ) {
+                $status      = $page['page_status'] ?? 'pending';
+                $error_count = (int) ( $page['error_count'] ?? 0 );
+
+                if ( $status === 'pending' || ( $status === 'error' && $error_count < 3 ) ) {
+                    $pending_pages[] = $page['url'];
+                }
+            }
+
             $final_data = [
                 'metadata' => [
                     'generation_timestamp' => gmdate( 'c' ),
                     'total_count'          => count( $all_pages ),
+                    'pending_count'        => count( $pending_pages ),
                     'plugin_version'       => defined( 'BRZ_VERSION' ) ? BRZ_VERSION : '1.0.0',
+                    'pending_pages'        => $pending_pages,
                 ],
                 'pages' => $all_pages,
             ];
@@ -396,6 +446,247 @@ class BRZ_Static_Map_Generator {
         if ( $last_generated !== null ) {
             $settings['last_generated'] = $last_generated;
         }
+
+        if ( ! is_array( $options ) ) {
+            $options = [];
+        }
+
+        $options[ self::OPTION_KEY ] = $settings;
+        update_option( 'brz_options', $options );
+    }
+
+    /**
+     * Record a regeneration event in the history.
+     *
+     * Prepends the event to the regeneration_history array and trims
+     * to MAX_HISTORY (10) entries, keeping the most recent first (FIFO).
+     *
+     * @param string $trigger_type The trigger type (e.g., "manual" or "auto").
+     * @param int    $pages_count  Number of pages included in this regeneration.
+     */
+    public static function record_regeneration( string $trigger_type, int $pages_count ): void {
+        $options  = get_option( 'brz_options', [] );
+        $settings = isset( $options[ self::OPTION_KEY ] ) && is_array( $options[ self::OPTION_KEY ] )
+            ? $options[ self::OPTION_KEY ]
+            : [];
+
+        $history = isset( $settings['regeneration_history'] ) && is_array( $settings['regeneration_history'] )
+            ? $settings['regeneration_history']
+            : [];
+
+        $event = [
+            'timestamp'    => gmdate( 'c' ),
+            'trigger_type' => $trigger_type,
+            'pages_count'  => $pages_count,
+        ];
+
+        // Prepend new event (most recent first).
+        array_unshift( $history, $event );
+
+        // Trim to max 10 entries.
+        if ( count( $history ) > self::MAX_HISTORY ) {
+            $history = array_slice( $history, 0, self::MAX_HISTORY );
+        }
+
+        $settings['regeneration_history'] = $history;
+
+        if ( ! is_array( $options ) ) {
+            $options = [];
+        }
+
+        $options[ self::OPTION_KEY ] = $settings;
+        update_option( 'brz_options', $options );
+    }
+
+    /**
+     * Get the regeneration history.
+     *
+     * Returns the last 10 regeneration events ordered by timestamp descending
+     * (most recent first).
+     *
+     * @return array Array of regeneration event entries, each containing
+     *               'timestamp', 'trigger_type', and 'pages_count'.
+     */
+    public static function get_regeneration_history(): array {
+        $options  = get_option( 'brz_options', [] );
+        $settings = isset( $options[ self::OPTION_KEY ] ) && is_array( $options[ self::OPTION_KEY ] )
+            ? $options[ self::OPTION_KEY ]
+            : [];
+
+        $history = isset( $settings['regeneration_history'] ) && is_array( $settings['regeneration_history'] )
+            ? $settings['regeneration_history']
+            : [];
+
+        // Ensure we never return more than MAX_HISTORY entries.
+        return array_slice( $history, 0, self::MAX_HISTORY );
+    }
+
+    /**
+     * Regenerate the full URLs_Map and mark pending/error pages as synced on success.
+     *
+     * Builds the complete map data from all selected pages, writes atomically,
+     * then transitions pending pages to "synced" status. On failure, increments
+     * error_count for affected pages.
+     *
+     * @return bool|\WP_Error True on success, WP_Error on failure.
+     */
+    public static function generate_pending_only(): bool|\WP_Error {
+        $settings       = BRZ_Static_Controller::get_settings();
+        $selected_pages = $settings['selected_pages'] ?? [];
+        $output_path    = $settings['output_path'];
+
+        // Identify pending/error URLs (with error_count < MAX_ERROR_COUNT).
+        $pending_urls = [];
+        foreach ( $selected_pages as $page_entry ) {
+            $status      = $page_entry['page_status'] ?? 'pending';
+            $error_count = (int) ( $page_entry['error_count'] ?? 0 );
+
+            if ( 'pending' === $status || ( 'error' === $status && $error_count < self::MAX_ERROR_COUNT ) ) {
+                $url = $page_entry['url'] ?? '';
+                if ( ! empty( $url ) ) {
+                    $pending_urls[] = $url;
+                }
+            }
+        }
+
+        // If no pending pages, nothing to do.
+        if ( empty( $pending_urls ) ) {
+            return true;
+        }
+
+        // Update status to generating.
+        self::update_generation_status( 'generating' );
+
+        // Build the full map data for all selected pages.
+        $map_data = self::build_map_data( $selected_pages );
+
+        $json = json_encode(
+            $map_data,
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
+
+        if ( $json === false ) {
+            self::update_generation_status( 'error' );
+            self::handle_generation_failure( $pending_urls );
+
+            return new \WP_Error(
+                'json_encode_failed',
+                'خطا در تبدیل داده‌ها به JSON.'
+            );
+        }
+
+        // Ensure output directory exists.
+        $dir_result = self::ensure_directory( $output_path );
+
+        if ( is_wp_error( $dir_result ) ) {
+            self::update_generation_status( 'error' );
+            self::handle_generation_failure( $pending_urls );
+
+            return $dir_result;
+        }
+
+        // Atomic write to output path.
+        $write_result = self::atomic_write( $output_path, $json );
+
+        if ( is_wp_error( $write_result ) ) {
+            self::update_generation_status( 'error' );
+            self::handle_generation_failure( $pending_urls );
+
+            return $write_result;
+        }
+
+        // Success: mark pending pages as synced.
+        self::mark_pages_synced( $pending_urls );
+
+        // Update generation status.
+        self::update_generation_status( 'success', gmdate( 'c' ) );
+
+        return true;
+    }
+
+    /**
+     * Mark processed pages as synced and reset their error_count.
+     *
+     * For each URL in the provided array, sets page_status to "synced"
+     * and error_count to 0 in the stored selected_pages.
+     *
+     * @param array $processed_urls Array of URL strings that were successfully processed.
+     */
+    private static function mark_pages_synced( array $processed_urls ): void {
+        $options  = get_option( 'brz_options', [] );
+        $settings = isset( $options[ self::OPTION_KEY ] ) && is_array( $options[ self::OPTION_KEY ] )
+            ? $options[ self::OPTION_KEY ]
+            : [];
+
+        $selected_pages = $settings['selected_pages'] ?? [];
+        $url_set        = array_flip( $processed_urls );
+
+        foreach ( $selected_pages as &$page_entry ) {
+            $url = $page_entry['url'] ?? '';
+
+            if ( isset( $url_set[ $url ] ) ) {
+                $page_entry['page_status'] = 'synced';
+                $page_entry['error_count'] = 0;
+            }
+        }
+        unset( $page_entry );
+
+        $settings['selected_pages'] = $selected_pages;
+
+        if ( ! is_array( $options ) ) {
+            $options = [];
+        }
+
+        $options[ self::OPTION_KEY ] = $settings;
+        update_option( 'brz_options', $options );
+    }
+
+    /**
+     * Handle generation failure for affected pages.
+     *
+     * Increments error_count for each URL. If error_count reaches MAX_ERROR_COUNT (3),
+     * sets page_status to "error" and logs a warning to the WordPress debug log.
+     * Pages with error_count >= MAX_ERROR_COUNT are excluded from future auto-retry.
+     *
+     * @param array $failed_urls Array of URL strings that failed generation.
+     */
+    private static function handle_generation_failure( array $failed_urls ): void {
+        $options  = get_option( 'brz_options', [] );
+        $settings = isset( $options[ self::OPTION_KEY ] ) && is_array( $options[ self::OPTION_KEY ] )
+            ? $options[ self::OPTION_KEY ]
+            : [];
+
+        $selected_pages = $settings['selected_pages'] ?? [];
+        $url_set        = array_flip( $failed_urls );
+
+        foreach ( $selected_pages as &$page_entry ) {
+            $url = $page_entry['url'] ?? '';
+
+            if ( ! isset( $url_set[ $url ] ) ) {
+                continue;
+            }
+
+            $error_count = (int) ( $page_entry['error_count'] ?? 0 );
+            $error_count++;
+            $page_entry['error_count'] = $error_count;
+
+            if ( $error_count >= self::MAX_ERROR_COUNT ) {
+                $page_entry['page_status'] = 'error';
+
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    error_log(
+                        sprintf(
+                            '[BRZ Static Controller] Page excluded from auto-retry (error_count=%d): %s',
+                            $error_count,
+                            $url
+                        )
+                    );
+                }
+            }
+        }
+        unset( $page_entry );
+
+        $settings['selected_pages'] = $selected_pages;
 
         if ( ! is_array( $options ) ) {
             $options = [];

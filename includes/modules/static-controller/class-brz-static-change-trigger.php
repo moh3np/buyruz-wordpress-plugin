@@ -32,6 +32,14 @@ class BRZ_Static_Change_Trigger {
     public const RETRY_SECONDS = 120;
 
     /**
+     * Post meta key for storing content hash.
+     *
+     * Used to detect actual content changes by comparing MD5 hashes
+     * of post_content + post_title + post_excerpt.
+     */
+    public const HASH_META_KEY = '_brz_static_content_hash';
+
+    /**
      * Register all change detection hooks.
      *
      * Hooks into save_post, transition_post_status, before_delete_post,
@@ -39,7 +47,7 @@ class BRZ_Static_Change_Trigger {
      * is active.
      */
     public static function init(): void {
-        add_action( 'save_post', [ __CLASS__, 'on_save_post' ], 10, 3 );
+        add_action( 'save_post', [ __CLASS__, 'on_save_post_enhanced' ], 10, 3 );
         add_action( 'transition_post_status', [ __CLASS__, 'on_post_transition' ], 10, 3 );
         add_action( 'before_delete_post', [ __CLASS__, 'on_delete_post' ], 10, 1 );
 
@@ -105,10 +113,12 @@ class BRZ_Static_Change_Trigger {
     }
 
     /**
-     * Handle save_post for selected pages.
+     * Handle save_post for selected pages (legacy).
      *
      * Skips autosaves, revisions, and non-publish posts. Only triggers
      * regeneration if the saved post is in the selected_pages list.
+     *
+     * @deprecated Use on_save_post_enhanced() which includes content hash comparison.
      *
      * @param int      $post_id Post ID.
      * @param \WP_Post $post    Post object.
@@ -150,6 +160,215 @@ class BRZ_Static_Change_Trigger {
         } catch ( \Throwable ) {
             // Graceful degradation — do not throw exceptions to WordPress.
         }
+    }
+
+    /**
+     * Enhanced save_post handler with content hash comparison.
+     *
+     * Compares MD5(post_content + post_title + post_excerpt) against the
+     * previously stored hash. Only marks the page as "pending" if the content
+     * has actually changed, preventing unnecessary regeneration cycles.
+     *
+     * Skips autosaves, revisions, and non-publish posts. Only acts on posts
+     * that are in the selected_pages list.
+     *
+     * @param int      $post_id Post ID.
+     * @param \WP_Post $post    Post object.
+     * @param bool     $update  Whether this is an update (vs new post).
+     */
+    public static function on_save_post_enhanced( int $post_id, \WP_Post $post, bool $update ): void {
+        try {
+            // Skip autosaves.
+            if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+                return;
+            }
+
+            // Skip revisions.
+            if ( wp_is_post_revision( $post_id ) ) {
+                return;
+            }
+
+            // Skip non-publish posts.
+            if ( $post->post_status !== 'publish' ) {
+                return;
+            }
+
+            // Check if this post_id is in the selected_pages list.
+            $settings       = BRZ_Static_Controller::get_settings();
+            $selected_pages = $settings['selected_pages'] ?? [];
+
+            $is_selected = false;
+            foreach ( $selected_pages as $page_entry ) {
+                $entry_id = (int) ( $page_entry['id'] ?? 0 );
+                if ( $entry_id === $post_id ) {
+                    $is_selected = true;
+                    break;
+                }
+            }
+
+            if ( ! $is_selected ) {
+                return;
+            }
+
+            // Compute current content hash.
+            $current_hash = self::compute_content_hash( $post );
+
+            // Get previously stored hash from post meta.
+            $stored_hash = get_post_meta( $post_id, self::HASH_META_KEY, true );
+
+            // Always store the current hash.
+            update_post_meta( $post_id, self::HASH_META_KEY, $current_hash );
+
+            // If hash is identical, content hasn't changed — skip.
+            if ( $stored_hash === $current_hash ) {
+                return;
+            }
+
+            // Content changed — mark page as pending and schedule regeneration.
+            self::mark_page_pending_by_id( $post_id );
+            self::schedule_regeneration_if_auto();
+        } catch ( \Throwable ) {
+            // Graceful degradation — do not throw exceptions to WordPress.
+        }
+    }
+
+    /**
+     * Compute content hash for change detection.
+     *
+     * Generates an MD5 hash of the concatenation of post_content,
+     * post_title, and post_excerpt. Used to detect actual content
+     * changes vs. metadata-only saves.
+     *
+     * @param \WP_Post $post Post object to hash.
+     * @return string MD5 hash string (32 hex characters).
+     */
+    public static function compute_content_hash( \WP_Post $post ): string {
+        $content = $post->post_content . $post->post_title . $post->post_excerpt;
+        return md5( $content );
+    }
+
+    /**
+     * Mark a page as "pending" by its URL.
+     *
+     * Finds the page in selected_pages by URL and sets its page_status
+     * to "pending". Persists the change to brz_options.
+     *
+     * @param string $url The absolute URL of the page to mark.
+     */
+    public static function mark_page_pending( string $url ): void {
+        try {
+            $settings       = BRZ_Static_Controller::get_settings();
+            $selected_pages = $settings['selected_pages'] ?? [];
+            $changed        = false;
+
+            foreach ( $selected_pages as &$page_entry ) {
+                $entry_url = $page_entry['url'] ?? '';
+                if ( $entry_url === $url && ( $page_entry['page_status'] ?? '' ) !== 'pending' ) {
+                    $page_entry['page_status'] = 'pending';
+                    $changed = true;
+                    break;
+                }
+            }
+            unset( $page_entry );
+
+            if ( $changed ) {
+                $settings['selected_pages'] = $selected_pages;
+                self::persist_settings( $settings );
+            }
+        } catch ( \Throwable ) {
+            // Graceful degradation — do not throw exceptions to WordPress.
+        }
+    }
+
+    /**
+     * Mark a page as "pending" by its post ID.
+     *
+     * Finds the page in selected_pages by post ID and sets its page_status
+     * to "pending". Persists the change to brz_options.
+     *
+     * @param int $post_id The WordPress post ID of the page to mark.
+     */
+    public static function mark_page_pending_by_id( int $post_id ): void {
+        try {
+            $settings       = BRZ_Static_Controller::get_settings();
+            $selected_pages = $settings['selected_pages'] ?? [];
+            $changed        = false;
+
+            foreach ( $selected_pages as &$page_entry ) {
+                $entry_id = (int) ( $page_entry['id'] ?? 0 );
+                if ( $entry_id === $post_id && ( $page_entry['page_status'] ?? '' ) !== 'pending' ) {
+                    $page_entry['page_status'] = 'pending';
+                    $changed = true;
+                    break;
+                }
+            }
+            unset( $page_entry );
+
+            if ( $changed ) {
+                $settings['selected_pages'] = $selected_pages;
+                self::persist_settings( $settings );
+            }
+        } catch ( \Throwable ) {
+            // Graceful degradation — do not throw exceptions to WordPress.
+        }
+    }
+
+    /**
+     * Get the count of pages with "pending" status.
+     *
+     * @return int Number of pages with page_status="pending".
+     */
+    public static function get_pending_count(): int {
+        try {
+            $settings       = BRZ_Static_Controller::get_settings();
+            $selected_pages = $settings['selected_pages'] ?? [];
+
+            $count = 0;
+            foreach ( $selected_pages as $page_entry ) {
+                if ( ( $page_entry['page_status'] ?? '' ) === 'pending' ) {
+                    $count++;
+                }
+            }
+
+            return $count;
+        } catch ( \Throwable ) {
+            return 0;
+        }
+    }
+
+    /**
+     * Schedule regeneration only if automatic regeneration is enabled.
+     *
+     * Checks the `auto_regenerate_enabled` setting before scheduling.
+     * This respects the user's preference for manual vs. automatic regeneration.
+     */
+    public static function schedule_regeneration_if_auto(): void {
+        try {
+            $settings = BRZ_Static_Controller::get_settings();
+
+            if ( ! empty( $settings['auto_regenerate_enabled'] ) ) {
+                self::schedule_regeneration();
+            }
+        } catch ( \Throwable ) {
+            // Graceful degradation — do not throw exceptions to WordPress.
+        }
+    }
+
+    /**
+     * Persist settings to brz_options.
+     *
+     * Helper method to save the static_controller settings array
+     * back to the WordPress options table.
+     *
+     * @param array $settings The full settings array to persist.
+     */
+    private static function persist_settings( array $settings ): void {
+        $options = get_option( 'brz_options', array() );
+        if ( ! is_array( $options ) ) {
+            $options = array();
+        }
+        $options[ BRZ_Static_Controller::OPTION_KEY ] = $settings;
+        update_option( 'brz_options', $options );
     }
 
     /**

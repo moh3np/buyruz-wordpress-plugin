@@ -1,7 +1,5 @@
-// هشدار: پیش از هر تغییر، حتماً فایل CONTRIBUTING.md را با دقت کامل بخوانید و بی‌قید و شرط اجرا کنید و پس از اتمام کار تطابق را دوباره چک کنید.
-
 /* ==========================================================================
-   Buyruz Static Controller - Admin JavaScript
+   Buyruz Static Controller - Admin JavaScript (Tabbed Interface)
    ========================================================================== */
 
 jQuery(document).ready(function ($) {
@@ -13,34 +11,33 @@ jQuery(document).ready(function ($) {
   }
 
   /* ==========================================================================
-     1. STATE & DOM REFERENCES
+     1. STATE MANAGEMENT
      ========================================================================== */
 
-  // Selected pages array: [{id, type, taxonomy?}]
-  var selectedPages = [];
-
-  // Current search/pagination state
-  var currentSearch = '';
-  var currentPage   = 1;
-  var debounceTimer = null;
-
-  // DOM elements
-  var $searchInput    = $('#brz-static-search-input');
-  var $pageList       = $('#brz-static-page-list');
-  var $pagination     = $('#brz-static-pagination');
-  var $outputPath     = $('#brz-static-output-path');
-  var $modalCode      = $('#brz-static-modal-code');
-  var $regenerateBtn  = $('#brz-static-regenerate-btn');
-  var $savePagesBtn   = $('#brz-static-save-pages-btn');
-  var $saveSettingsBtn = $('#brz-static-save-settings-btn');
-  var $saveModalBtn   = $('#brz-static-save-modal-btn');
+  var state = {
+    activeTab: 'dashboard',
+    tabsLoaded: { dashboard: false, sitemap: false, manual: false, settings: false },
+    sitemapPages: {
+      page: 1,
+      perPage: 25,
+      search: '',
+      filterType: '',
+      filterStatus: '',
+      total: 0,
+      totalPages: 0,
+      selected: []
+    },
+    debounceTimer: null
+  };
 
   /* ==========================================================================
-     2. HELPERS
+     2. SHARED UTILITIES
      ========================================================================== */
 
   /**
    * Escape HTML entities for safe DOM insertion.
+   * @param {string} str
+   * @return {string}
    */
   function escapeHtml(str) {
     var div = document.createElement('div');
@@ -54,419 +51,940 @@ jQuery(document).ready(function ($) {
    * @param {string} type    - 'success' or 'error'
    */
   function showSnackbar(message, type) {
-    // Remove existing snackbar
     $('.brz-static-snackbar').remove();
 
-    var cssClass = type === 'success'
-      ? 'brz-static-snackbar brz-static-snackbar--success'
-      : 'brz-static-snackbar brz-static-snackbar--error';
-
+    var cssClass = 'brz-static-snackbar brz-static-snackbar--' + (type || 'success');
     var $snackbar = $('<div class="' + cssClass + '">' + escapeHtml(message) + '</div>');
     $('body').append($snackbar);
 
-    // Animate in
     setTimeout(function () {
       $snackbar.addClass('is-visible');
     }, 10);
 
-    // Auto-dismiss after 4 seconds
-    setTimeout(function () {
-      $snackbar.removeClass('is-visible');
+    // Auto-dismiss for success (3s), persistent for error
+    if (type === 'success') {
       setTimeout(function () {
-        $snackbar.remove();
-      }, 300);
-    }, 4000);
-  }
-
-  /**
-   * Check if a page is currently selected.
-   * @param {number} id   - Page/term ID
-   * @param {string} type - 'post' or 'term'
-   * @return {boolean}
-   */
-  function isSelected(id, type) {
-    for (var i = 0; i < selectedPages.length; i++) {
-      if (selectedPages[i].id === id && selectedPages[i].type === type) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Add a page to the selected array.
-   * @param {object} page - {id, type, taxonomy?}
-   */
-  function addSelection(page) {
-    if (!isSelected(page.id, page.type)) {
-      selectedPages.push(page);
+        $snackbar.removeClass('is-visible');
+        setTimeout(function () { $snackbar.remove(); }, 300);
+      }, 3000);
+    } else {
+      // Add dismiss button for errors
+      var $dismiss = $('<button class="brz-static-snackbar__dismiss">&times;</button>');
+      $snackbar.append($dismiss);
+      $dismiss.on('click', function () {
+        $snackbar.removeClass('is-visible');
+        setTimeout(function () { $snackbar.remove(); }, 300);
+      });
     }
   }
 
   /**
-   * Remove a page from the selected array.
-   * @param {number} id   - Page/term ID
-   * @param {string} type - 'post' or 'term'
+   * Show loading overlay on a container.
+   * @param {string} selector - CSS selector for the container
    */
-  function removeSelection(id, type) {
-    selectedPages = selectedPages.filter(function (p) {
-      return !(p.id === id && p.type === type);
+  function showLoading(selector) {
+    var $el = $(selector);
+    if (!$el.find('.brz-static-loading-overlay').length) {
+      $el.css('position', 'relative');
+      $el.append('<div class="brz-static-loading-overlay"><span class="brz-static-spinner"></span></div>');
+    }
+    $el.find('button, input, select').prop('disabled', true);
+  }
+
+  /**
+   * Hide loading overlay from a container.
+   * @param {string} selector - CSS selector for the container
+   */
+  function hideLoading(selector) {
+    var $el = $(selector);
+    $el.find('.brz-static-loading-overlay').remove();
+    $el.find('button, input, select').prop('disabled', false);
+  }
+
+  /**
+   * Show a confirmation dialog.
+   * @param {string}   title     - Dialog title
+   * @param {string}   message   - Dialog message (can contain HTML)
+   * @param {function} onConfirm - Callback on confirm
+   */
+  function showConfirmDialog(title, message, onConfirm) {
+    $('.brz-static-confirm-dialog').remove();
+
+    var html =
+      '<div class="brz-static-confirm-dialog">' +
+        '<div class="brz-static-confirm-dialog__backdrop"></div>' +
+        '<div class="brz-static-confirm-dialog__box">' +
+          '<h3 class="brz-static-confirm-dialog__title">' + escapeHtml(title) + '</h3>' +
+          '<div class="brz-static-confirm-dialog__message">' + message + '</div>' +
+          '<div class="brz-static-confirm-dialog__actions">' +
+            '<button type="button" class="brz-static-confirm-dialog__cancel">' +
+              (config.strings.cancel || 'انصراف') +
+            '</button>' +
+            '<button type="button" class="brz-static-confirm-dialog__confirm">' +
+              (config.strings.confirm || 'تأیید') +
+            '</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    var $dialog = $(html);
+    $('body').append($dialog);
+
+    setTimeout(function () { $dialog.addClass('is-visible'); }, 10);
+
+    $dialog.find('.brz-static-confirm-dialog__confirm').on('click', function () {
+      $dialog.removeClass('is-visible');
+      setTimeout(function () { $dialog.remove(); }, 300);
+      if (onConfirm) { onConfirm(); }
+    });
+
+    $dialog.find('.brz-static-confirm-dialog__cancel, .brz-static-confirm-dialog__backdrop').on('click', function () {
+      $dialog.removeClass('is-visible');
+      setTimeout(function () { $dialog.remove(); }, 300);
     });
   }
 
-  /* ==========================================================================
-     3. INITIAL LOAD - Populate selected pages from server
-     ========================================================================== */
-
   /**
-   * Load initial selected pages and trigger first search.
+   * AJAX wrapper with loading state management and error handling.
+   * @param {object} options - {action, data, container, onSuccess, onError}
    */
-  function initSelectedPages() {
-    // Load selected pages from the page list data attribute if available
-    var $dataEl = $('#brz-static-selected-data');
-    if ($dataEl.length && $dataEl.val()) {
-      try {
-        selectedPages = JSON.parse($dataEl.val());
-      } catch (e) {
-        selectedPages = [];
-      }
+  function ajaxRequest(options) {
+    var container = options.container || '.brz-static-tabs__panel.is-visible';
+
+    if (options.showLoading !== false) {
+      showLoading(container);
     }
 
-    // Trigger initial search to populate the page list
-    doSearch('', 1);
-  }
-
-  /* ==========================================================================
-     4. SEARCH WITH DEBOUNCE (300ms)
-     ========================================================================== */
-
-  /**
-   * Perform AJAX search for pages.
-   * @param {string} search - Search term
-   * @param {number} page   - Page number
-   */
-  function doSearch(search, page) {
-    currentSearch = search;
-    currentPage   = page;
-
-    // Show loading state
-    $pageList.html('<p class="brz-static-loading">' + escapeHtml(config.strings.loading) + '</p>');
+    var requestData = $.extend({
+      _ajax_nonce: config.nonce
+    }, options.data || {});
 
     $.ajax({
       url: config.ajax_url,
       method: 'POST',
-      data: {
-        action: 'brz_static_search_pages',
-        _ajax_nonce: config.nonce,
-        search: search,
-        page: page
-      },
+      data: requestData,
       success: function (response) {
-        if (response.success && response.data) {
-          renderPageList(response.data.items);
-          renderPagination(response.data.pages, page);
+        if (options.showLoading !== false) {
+          hideLoading(container);
+        }
+        if (response.success) {
+          if (options.onSuccess) { options.onSuccess(response.data); }
         } else {
-          $pageList.html('<p class="brz-static-empty">' + escapeHtml(config.strings.search_empty) + '</p>');
-          $pagination.empty();
+          var msg = (response.data && response.data.message)
+            ? response.data.message
+            : (config.strings.generic_error || 'خطایی رخ داد');
+          showSnackbar(msg, 'error');
+          if (options.onError) { options.onError(response.data); }
         }
       },
       error: function () {
-        showSnackbar(config.strings.network_error, 'error');
+        if (options.showLoading !== false) {
+          hideLoading(container);
+        }
+        showSnackbar(config.strings.network_error || 'خطا در ارتباط با سرور', 'error');
+        if (options.onError) { options.onError(null); }
       }
     });
   }
 
-  // Debounced search input handler
-  $searchInput.on('input', function () {
-    var term = $.trim($(this).val());
-
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
-
-    debounceTimer = setTimeout(function () {
-      doSearch(term, 1);
-    }, 300);
-  });
-
   /* ==========================================================================
-     5. RENDER PAGE LIST
+     3. TAB NAVIGATION SYSTEM
      ========================================================================== */
 
   /**
-   * Render the list of pages with checkboxes.
-   * @param {Array} items - Array of {id, title, url, type, page_type, taxonomy?}
+   * Initialize tab navigation.
    */
-  function renderPageList(items) {
-    $pageList.empty();
+  function initTabs() {
+    var $tabs = $('.brz-static-tabs__btn');
+    var $panels = $('.brz-static-tabs__panel');
+
+    $tabs.on('click', function () {
+      var tabId = $(this).data('tab');
+      if (tabId === state.activeTab) { return; }
+
+      // Update active tab button
+      $tabs.removeClass('is-active');
+      $(this).addClass('is-active');
+
+      // Switch panels with smooth transition
+      $panels.removeClass('is-visible');
+      var $targetPanel = $('[data-panel="' + tabId + '"]');
+      // Small delay for CSS transition
+      setTimeout(function () {
+        $targetPanel.addClass('is-visible');
+      }, 50);
+
+      state.activeTab = tabId;
+
+      // Lazy load tab data on first activation
+      if (!state.tabsLoaded[tabId]) {
+        loadTabData(tabId);
+        state.tabsLoaded[tabId] = true;
+      }
+    });
+
+    // Load initial tab (dashboard)
+    loadTabData('dashboard');
+    state.tabsLoaded.dashboard = true;
+  }
+
+  /**
+   * Load data for a specific tab.
+   * @param {string} tabId - Tab identifier
+   */
+  function loadTabData(tabId) {
+    switch (tabId) {
+      case 'dashboard':
+        loadDashboard();
+        break;
+      case 'sitemap':
+        loadSitemapPages(1, {});
+        break;
+      case 'manual':
+        loadManualPages();
+        break;
+      case 'settings':
+        loadSettings();
+        break;
+    }
+  }
+
+  /* ==========================================================================
+     4. DASHBOARD TAB
+     ========================================================================== */
+
+  /**
+   * Load dashboard data and render summary cards.
+   */
+  function loadDashboard() {
+    ajaxRequest({
+      data: { action: 'brz_static_get_dashboard' },
+      container: '[data-panel="dashboard"]',
+      onSuccess: function (data) {
+        renderDashboardCards(data);
+        renderRecentActivity(data.regeneration_history || []);
+      }
+    });
+  }
+
+  /**
+   * Render dashboard summary cards.
+   * @param {object} data - Dashboard data from server
+   */
+  function renderDashboardCards(data) {
+    var $cards = $('.brz-static-dashboard__cards');
+    if (!$cards.length) { return; }
+
+    // Total pages card
+    $cards.find('[data-metric="total_pages"] .brz-static-dashboard__card-value')
+      .text(data.total_pages || 0);
+
+    // Pending count card
+    $cards.find('[data-metric="pending_count"] .brz-static-dashboard__card-value')
+      .text(data.pending_count || 0);
+
+    // Last sync card
+    var lastSync = data.last_sync || (config.strings.never || 'هنوز انجام نشده');
+    $cards.find('[data-metric="last_sync"] .brz-static-dashboard__card-value')
+      .text(lastSync);
+
+    // System status card
+    var statusMap = {
+      healthy: config.strings.status_healthy || 'سالم',
+      attention: config.strings.status_attention || 'نیاز به توجه',
+      error: config.strings.status_error || 'خطا'
+    };
+    var statusText = statusMap[data.system_status] || data.system_status;
+    $cards.find('[data-metric="system_status"] .brz-static-dashboard__card-value')
+      .text(statusText)
+      .removeClass('brz-static-system-status--healthy brz-static-system-status--attention brz-static-system-status--error')
+      .addClass('brz-static-system-status--' + (data.system_status || 'healthy'));
+  }
+
+  /**
+   * Render recent activity list from regeneration history.
+   * @param {Array} history - Array of regeneration events
+   */
+  function renderRecentActivity(history) {
+    var $list = $('.brz-static-dashboard__activity');
+    if (!$list.length) { return; }
+
+    $list.empty();
+
+    if (!history || history.length === 0) {
+      $list.html('<p class="brz-static-empty">' + escapeHtml(config.strings.no_activity || 'فعالیتی ثبت نشده') + '</p>');
+      return;
+    }
+
+    var triggerLabels = {
+      manual: config.strings.trigger_manual || 'دستی',
+      auto: config.strings.trigger_auto || 'خودکار'
+    };
+
+    $.each(history, function (i, event) {
+      var triggerLabel = triggerLabels[event.trigger_type] || event.trigger_type;
+      var html =
+        '<div class="brz-static-dashboard__activity-item">' +
+          '<span class="brz-static-dashboard__activity-time">' + escapeHtml(event.timestamp) + '</span>' +
+          '<span class="brz-static-dashboard__activity-type">' + escapeHtml(triggerLabel) + '</span>' +
+          '<span class="brz-static-dashboard__activity-count">' +
+            escapeHtml(event.pages_count + ' ' + (config.strings.pages || 'صفحه')) +
+          '</span>' +
+        '</div>';
+      $list.append(html);
+    });
+  }
+
+  /**
+   * Dashboard quick actions event handlers.
+   */
+  function initDashboardActions() {
+    // Sitemap sync quick action
+    $(document).on('click', '.brz-static-dashboard__action--sync', function () {
+      triggerSitemapSync();
+    });
+
+    // Regenerate pending quick action
+    $(document).on('click', '.brz-static-dashboard__action--regenerate', function () {
+      regeneratePending();
+    });
+  }
+
+  /**
+   * Regenerate pending pages.
+   */
+  function regeneratePending() {
+    ajaxRequest({
+      data: { action: 'brz_static_regenerate_pending' },
+      container: '[data-panel="dashboard"]',
+      onSuccess: function (data) {
+        showSnackbar(config.strings.regenerate_ok || 'بازسازی با موفقیت انجام شد', 'success');
+        // Refresh dashboard
+        loadDashboard();
+      }
+    });
+  }
+
+  /* ==========================================================================
+     5. SITEMAP PAGES TAB
+     ========================================================================== */
+
+  /**
+   * Load sitemap pages with filters and pagination.
+   * @param {number} page    - Page number
+   * @param {object} filters - Optional filter overrides
+   */
+  function loadSitemapPages(page, filters) {
+    var params = {
+      action: 'brz_static_get_pages',
+      tab: 'sitemap',
+      page: page || 1,
+      per_page: state.sitemapPages.perPage,
+      search: filters && filters.search !== undefined ? filters.search : state.sitemapPages.search,
+      filter_type: filters && filters.filterType !== undefined ? filters.filterType : state.sitemapPages.filterType,
+      filter_status: filters && filters.filterStatus !== undefined ? filters.filterStatus : state.sitemapPages.filterStatus
+    };
+
+    // Update state
+    state.sitemapPages.page = params.page;
+    if (filters) {
+      if (filters.search !== undefined) { state.sitemapPages.search = filters.search; }
+      if (filters.filterType !== undefined) { state.sitemapPages.filterType = filters.filterType; }
+      if (filters.filterStatus !== undefined) { state.sitemapPages.filterStatus = filters.filterStatus; }
+    }
+
+    ajaxRequest({
+      data: params,
+      container: '[data-panel="sitemap"]',
+      onSuccess: function (data) {
+        state.sitemapPages.total = data.total || 0;
+        state.sitemapPages.totalPages = data.total_pages || 0;
+        state.sitemapPages.selected = [];
+        renderSitemapPageList(data.items || []);
+        renderSitemapPagination();
+        updateBulkCheckbox();
+      }
+    });
+  }
+
+  /**
+   * Render the sitemap page list.
+   * @param {Array} items - Array of page objects
+   */
+  function renderSitemapPageList(items) {
+    var $list = $('.brz-static-sitemap__list');
+    if (!$list.length) { return; }
+
+    $list.empty();
 
     if (!items || items.length === 0) {
-      $pageList.html('<p class="brz-static-empty">' + escapeHtml(config.strings.search_empty) + '</p>');
+      $list.html('<p class="brz-static-empty">' + escapeHtml(config.strings.no_pages || 'صفحه‌ای یافت نشد') + '</p>');
       return;
     }
 
     $.each(items, function (i, item) {
-      var checked = isSelected(item.id, item.type) ? ' checked' : '';
-      var taxonomy = item.taxonomy ? ' data-taxonomy="' + escapeHtml(item.taxonomy) + '"' : '';
+      var statusIcon = '🟢';
+      if (item.page_status === 'pending') { statusIcon = '🟠'; }
+      if (item.page_status === 'error') { statusIcon = '🔴'; }
+
+      var sourceLabel = item.page_source === 'manual'
+        ? '<span class="brz-static-badge brz-static-badge--manual">' + escapeHtml(config.strings.manual || 'دستی') + '</span>'
+        : '<span class="brz-static-badge brz-static-badge--sitemap">' + escapeHtml(config.strings.sitemap || 'سایت‌مپ') + '</span>';
 
       var html =
-        '<div class="brz-static-page-item" data-id="' + item.id + '" data-type="' + escapeHtml(item.type) + '"' + taxonomy + '>' +
+        '<div class="brz-static-page-item" data-url="' + escapeHtml(item.url) + '">' +
           '<label class="brz-static-page-item__checkbox">' +
-            '<input type="checkbox"' + checked + '>' +
+            '<input type="checkbox" class="brz-static-bulk-item">' +
           '</label>' +
-          '<span class="brz-static-page-item__title">' + escapeHtml(item.title) + '</span>' +
-          '<span class="brz-static-page-item__type">' + escapeHtml(item.page_type) + '</span>' +
+          '<span class="brz-static-page-item__status">' + statusIcon + '</span>' +
+          '<span class="brz-static-page-item__title">' + escapeHtml(item.title || item.url) + '</span>' +
+          '<span class="brz-static-page-item__type">' + escapeHtml(item.page_type || 'unknown') + '</span>' +
+          sourceLabel +
           '<span class="brz-static-page-item__url" dir="ltr">' + escapeHtml(item.url) + '</span>' +
         '</div>';
 
-      $pageList.append(html);
+      $list.append(html);
     });
   }
 
-  /* ==========================================================================
-     6. PAGE SELECTION / DESELECTION
-     ========================================================================== */
-
-  // Event delegation for checkbox changes in the page list
-  $pageList.on('change', 'input[type="checkbox"]', function () {
-    var $item    = $(this).closest('.brz-static-page-item');
-    var id       = parseInt($item.data('id'), 10);
-    var type     = $item.data('type');
-    var taxonomy = $item.data('taxonomy') || null;
-
-    if ($(this).is(':checked')) {
-      var page = { id: id, type: type };
-      if (taxonomy) {
-        page.taxonomy = taxonomy;
-      }
-      addSelection(page);
-    } else {
-      removeSelection(id, type);
-    }
-  });
-
-  /* ==========================================================================
-     7. SAVE SELECTED PAGES
-     ========================================================================== */
-
   /**
-   * Save selected pages via AJAX.
+   * Render pagination controls for sitemap pages.
    */
-  function saveSelectedPages() {
-    var $btn = $savePagesBtn.length ? $savePagesBtn : $saveModalBtn;
-    $btn.prop('disabled', true);
+  function renderSitemapPagination() {
+    var $pagination = $('.brz-static-sitemap__pagination');
+    if (!$pagination.length) { return; }
 
-    $.ajax({
-      url: config.ajax_url,
-      method: 'POST',
-      data: {
-        action: 'brz_static_save_pages',
-        _ajax_nonce: config.nonce,
-        selected: JSON.stringify(selectedPages)
-      },
-      success: function (response) {
-        if (response.success) {
-          showSnackbar(config.strings.save_success, 'success');
-        } else {
-          var msg = (response.data && response.data.message)
-            ? response.data.message
-            : config.strings.save_error;
-          showSnackbar(msg, 'error');
-        }
-      },
-      error: function () {
-        showSnackbar(config.strings.network_error, 'error');
-        // Preserve unsaved selections on error — no state reset
-      },
-      complete: function () {
-        $btn.prop('disabled', false);
-      }
-    });
-  }
-
-  // Bind save pages button
-  if ($savePagesBtn.length) {
-    $savePagesBtn.on('click', saveSelectedPages);
-  }
-
-  /* ==========================================================================
-     8. PAGINATION
-     ========================================================================== */
-
-  /**
-   * Render pagination controls.
-   * @param {number} totalPages  - Total number of pages
-   * @param {number} activePage  - Currently active page
-   */
-  function renderPagination(totalPages, activePage) {
     $pagination.empty();
 
-    if (!totalPages || totalPages <= 1) {
-      return;
+    var totalPages = state.sitemapPages.totalPages;
+    var currentPage = state.sitemapPages.page;
+
+    if (totalPages <= 1) { return; }
+
+    // Previous button
+    if (currentPage > 1) {
+      $pagination.append(
+        '<button type="button" class="brz-static-pagination__btn" data-page="' + (currentPage - 1) + '">&laquo;</button>'
+      );
     }
 
-    for (var i = 1; i <= totalPages; i++) {
-      var activeClass = (i === activePage) ? ' is-active' : '';
+    // Page numbers (show max 7 pages with ellipsis)
+    var startPage = Math.max(1, currentPage - 3);
+    var endPage = Math.min(totalPages, currentPage + 3);
+
+    if (startPage > 1) {
+      $pagination.append('<button type="button" class="brz-static-pagination__btn" data-page="1">1</button>');
+      if (startPage > 2) {
+        $pagination.append('<span class="brz-static-pagination__ellipsis">...</span>');
+      }
+    }
+
+    for (var i = startPage; i <= endPage; i++) {
+      var activeClass = (i === currentPage) ? ' is-active' : '';
       $pagination.append(
         '<button type="button" class="brz-static-pagination__btn' + activeClass + '" data-page="' + i + '">' + i + '</button>'
       );
     }
-  }
 
-  // Event delegation for pagination clicks
-  $pagination.on('click', '.brz-static-pagination__btn', function () {
-    var page = parseInt($(this).data('page'), 10);
-    if (page && page !== currentPage) {
-      doSearch(currentSearch, page);
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        $pagination.append('<span class="brz-static-pagination__ellipsis">...</span>');
+      }
+      $pagination.append('<button type="button" class="brz-static-pagination__btn" data-page="' + totalPages + '">' + totalPages + '</button>');
     }
-  });
 
-  /* ==========================================================================
-     9. SAVE SETTINGS (Output Path + Modal Code)
-     ========================================================================== */
+    // Next button
+    if (currentPage < totalPages) {
+      $pagination.append(
+        '<button type="button" class="brz-static-pagination__btn" data-page="' + (currentPage + 1) + '">&raquo;</button>'
+      );
+    }
+  }
 
   /**
-   * Save settings (output path and modal code) via AJAX.
+   * Initialize sitemap tab event handlers.
    */
-  function saveSettings() {
-    var $btn = $saveSettingsBtn.length ? $saveSettingsBtn : $saveModalBtn;
-    $btn.prop('disabled', true);
+  function initSitemapHandlers() {
+    // Filter dropdowns
+    $(document).on('change', '.brz-static-filters__select--type', function () {
+      loadSitemapPages(1, { filterType: $(this).val() });
+    });
 
-    $.ajax({
-      url: config.ajax_url,
-      method: 'POST',
-      data: {
-        action: 'brz_static_save_settings',
-        _ajax_nonce: config.nonce,
-        output_path: $.trim($outputPath.val()),
-        modal_global: $modalCode.val()
-      },
-      success: function (response) {
-        if (response.success) {
-          showSnackbar(config.strings.save_success, 'success');
-        } else {
-          var msg = (response.data && response.data.message)
-            ? response.data.message
-            : config.strings.save_error;
-          showSnackbar(msg, 'error');
-        }
-      },
-      error: function () {
-        showSnackbar(config.strings.network_error, 'error');
-        // Preserve unsaved data on error
-      },
-      complete: function () {
-        $btn.prop('disabled', false);
+    $(document).on('change', '.brz-static-filters__select--status', function () {
+      loadSitemapPages(1, { filterStatus: $(this).val() });
+    });
+
+    // Search input with 300ms debounce
+    $(document).on('input', '.brz-static-filters__search', function () {
+      var term = $.trim($(this).val());
+
+      if (state.debounceTimer) {
+        clearTimeout(state.debounceTimer);
+      }
+
+      state.debounceTimer = setTimeout(function () {
+        loadSitemapPages(1, { search: term });
+      }, 300);
+    });
+
+    // Per-page selector
+    $(document).on('change', '.brz-static-pagination__per-page', function () {
+      state.sitemapPages.perPage = parseInt($(this).val(), 10) || 25;
+      loadSitemapPages(1, {});
+    });
+
+    // Pagination clicks
+    $(document).on('click', '.brz-static-sitemap__pagination .brz-static-pagination__btn', function () {
+      var page = parseInt($(this).data('page'), 10);
+      if (page && page !== state.sitemapPages.page) {
+        loadSitemapPages(page, {});
       }
     });
-  }
 
-  // Bind save settings button
-  if ($saveSettingsBtn.length) {
-    $saveSettingsBtn.on('click', saveSettings);
-  }
-
-  // Bind save modal button (combines settings save with page save)
-  if ($saveModalBtn.length) {
-    $saveModalBtn.on('click', function () {
-      saveSettings();
-      saveSelectedPages();
+    // Sitemap sync button
+    $(document).on('click', '.brz-static-sitemap__sync-btn', function () {
+      triggerSitemapSync();
     });
   }
 
-  /* ==========================================================================
-     10. MANUAL REGENERATION
-     ========================================================================== */
+  /**
+   * Trigger sitemap sync with preview confirmation.
+   */
+  function triggerSitemapSync() {
+    ajaxRequest({
+      data: { action: 'brz_static_sitemap_sync' },
+      container: '[data-panel="sitemap"]',
+      onSuccess: function (data) {
+        // Show preview confirmation dialog
+        var message = '<div class="brz-static-sync-preview">';
+        message += '<p><strong>' + escapeHtml(config.strings.total_urls || 'تعداد کل URL') + ':</strong> ' + (data.total_urls || 0) + '</p>';
 
-  $regenerateBtn.on('click', function () {
-    var $btn = $(this);
-    $btn.prop('disabled', true);
+        if (data.groups && data.groups.length > 0) {
+          message += '<ul class="brz-static-sync-preview__groups">';
+          $.each(data.groups, function (i, group) {
+            message += '<li>' + escapeHtml(group.label || group.prefix) + ': ' + group.count + '</li>';
+          });
+          message += '</ul>';
+        }
 
-    $.ajax({
-      url: config.ajax_url,
-      method: 'POST',
-      data: {
-        action: 'brz_static_regenerate',
-        _ajax_nonce: config.nonce
-      },
-      success: function (response) {
-        if (response.success) {
-          showSnackbar(config.strings.regenerate_ok, 'success');
+        if (data.new_urls) {
+          message += '<p class="brz-static-sync-preview__new">' + escapeHtml(config.strings.new_urls || 'URL جدید') + ': ' + data.new_urls + '</p>';
+        }
+        if (data.changed_urls) {
+          message += '<p class="brz-static-sync-preview__changed">' + escapeHtml(config.strings.changed_urls || 'URL تغییریافته') + ': ' + data.changed_urls + '</p>';
+        }
+        if (data.removed_urls) {
+          message += '<p class="brz-static-sync-preview__removed">' + escapeHtml(config.strings.removed_urls || 'URL حذف‌شده') + ': ' + data.removed_urls + '</p>';
+        }
 
-          // Update status display if timestamp returned
-          if (response.data && response.data.timestamp) {
-            $('#brz-static-last-generated').text(response.data.timestamp);
+        message += '</div>';
+
+        showConfirmDialog(
+          config.strings.sync_confirm_title || 'تأیید همگام‌سازی سایت‌مپ',
+          message,
+          function () {
+            confirmSitemapImport();
           }
-        } else {
-          var msg = (response.data && response.data.message)
-            ? response.data.message
-            : config.strings.regenerate_err;
-          showSnackbar(msg, 'error');
-        }
-      },
-      error: function () {
-        showSnackbar(config.strings.network_error, 'error');
-      },
-      complete: function () {
-        $btn.prop('disabled', false);
+        );
       }
     });
-  });
+  }
+
+  /**
+   * Confirm and execute sitemap import.
+   */
+  function confirmSitemapImport() {
+    ajaxRequest({
+      data: { action: 'brz_static_sitemap_confirm_import' },
+      container: '[data-panel="sitemap"]',
+      onSuccess: function (data) {
+        showSnackbar(config.strings.sync_success || 'همگام‌سازی با موفقیت انجام شد', 'success');
+        // Reload sitemap pages
+        loadSitemapPages(1, {});
+        // Refresh dashboard if loaded
+        if (state.tabsLoaded.dashboard) {
+          loadDashboard();
+        }
+      }
+    });
+  }
 
   /* ==========================================================================
-     11. INITIALIZATION & DATA LOADING
+     6. BULK ACTIONS
      ========================================================================== */
 
   /**
-   * Load settings via AJAX to prevent WAF blocks on HTML responses.
+   * Initialize bulk action handlers.
+   */
+  function initBulkActions() {
+    // Select all checkbox
+    $(document).on('change', '.brz-static-bulk__checkbox-all', function () {
+      var isChecked = $(this).is(':checked');
+      $('.brz-static-bulk-item').prop('checked', isChecked);
+      updateBulkSelection();
+    });
+
+    // Individual checkbox change
+    $(document).on('change', '.brz-static-bulk-item', function () {
+      updateBulkSelection();
+      updateBulkCheckbox();
+    });
+
+    // Execute bulk action
+    $(document).on('click', '.brz-static-bulk__execute', function () {
+      executeBulkAction();
+    });
+  }
+
+  /**
+   * Update the selected URLs array from checkboxes.
+   */
+  function updateBulkSelection() {
+    state.sitemapPages.selected = [];
+    $('.brz-static-bulk-item:checked').each(function () {
+      var url = $(this).closest('.brz-static-page-item').data('url');
+      if (url) {
+        state.sitemapPages.selected.push(url);
+      }
+    });
+  }
+
+  /**
+   * Update the select-all checkbox state.
+   */
+  function updateBulkCheckbox() {
+    var $all = $('.brz-static-bulk-item');
+    var $checked = $('.brz-static-bulk-item:checked');
+    var $selectAll = $('.brz-static-bulk__checkbox-all');
+
+    if ($all.length > 0 && $all.length === $checked.length) {
+      $selectAll.prop('checked', true).prop('indeterminate', false);
+    } else if ($checked.length > 0) {
+      $selectAll.prop('checked', false).prop('indeterminate', true);
+    } else {
+      $selectAll.prop('checked', false).prop('indeterminate', false);
+    }
+  }
+
+  /**
+   * Execute the selected bulk action.
+   */
+  function executeBulkAction() {
+    var action = $('.brz-static-bulk__select').val();
+    var selected = state.sitemapPages.selected;
+
+    if (!action) {
+      showSnackbar(config.strings.select_action || 'لطفاً یک عملیات انتخاب کنید', 'error');
+      return;
+    }
+
+    if (selected.length === 0) {
+      showSnackbar(config.strings.select_pages || 'لطفاً صفحاتی را انتخاب کنید', 'error');
+      return;
+    }
+
+    // For remove action, show confirmation
+    if (action === 'remove') {
+      showConfirmDialog(
+        config.strings.remove_confirm_title || 'حذف صفحات',
+        '<p>' + escapeHtml((config.strings.remove_confirm_message || 'آیا از حذف {count} صفحه اطمینان دارید؟').replace('{count}', selected.length)) + '</p>',
+        function () {
+          doBulkAction(action, selected);
+        }
+      );
+      return;
+    }
+
+    doBulkAction(action, selected);
+  }
+
+  /**
+   * Perform the bulk action AJAX call.
+   * @param {string} action   - Bulk action type
+   * @param {Array}  selected - Array of selected URLs
+   */
+  function doBulkAction(action, selected) {
+    ajaxRequest({
+      data: {
+        action: 'brz_static_bulk_action',
+        bulk_action: action,
+        urls: JSON.stringify(selected)
+      },
+      container: '[data-panel="sitemap"]',
+      onSuccess: function (data) {
+        showSnackbar(
+          (config.strings.bulk_success || 'عملیات روی {count} صفحه انجام شد').replace('{count}', data.affected || selected.length),
+          'success'
+        );
+        // Reload page list
+        loadSitemapPages(state.sitemapPages.page, {});
+        // Refresh dashboard
+        if (state.tabsLoaded.dashboard) {
+          loadDashboard();
+        }
+      }
+    });
+  }
+
+  /* ==========================================================================
+     7. MANUAL PAGES TAB
+     ========================================================================== */
+
+  /**
+   * Load manual pages list.
+   */
+  function loadManualPages() {
+    ajaxRequest({
+      data: {
+        action: 'brz_static_get_pages',
+        tab: 'manual',
+        page: 1,
+        per_page: 100
+      },
+      container: '[data-panel="manual"]',
+      onSuccess: function (data) {
+        renderManualPageList(data.items || []);
+      }
+    });
+  }
+
+  /**
+   * Render the manual pages list.
+   * @param {Array} items - Array of manual page objects
+   */
+  function renderManualPageList(items) {
+    var $list = $('.brz-static-manual__list');
+    if (!$list.length) { return; }
+
+    $list.empty();
+
+    if (!items || items.length === 0) {
+      $list.html('<p class="brz-static-empty">' + escapeHtml(config.strings.no_manual_pages || 'صفحه دستی وجود ندارد') + '</p>');
+      return;
+    }
+
+    $.each(items, function (i, item) {
+      var statusIcon = '🟢';
+      if (item.page_status === 'pending') { statusIcon = '🟠'; }
+      if (item.page_status === 'error') { statusIcon = '🔴'; }
+
+      var html =
+        '<div class="brz-static-page-item brz-static-page-item--manual" data-url="' + escapeHtml(item.url) + '">' +
+          '<span class="brz-static-page-item__status">' + statusIcon + '</span>' +
+          '<span class="brz-static-page-item__url" dir="ltr">' + escapeHtml(item.url) + '</span>' +
+          '<span class="brz-static-page-item__type">' + escapeHtml(item.page_type || 'unknown') + '</span>' +
+          '<button type="button" class="brz-static-page-item__remove" title="' + escapeHtml(config.strings.remove || 'حذف') + '">&times;</button>' +
+        '</div>';
+
+      $list.append(html);
+    });
+  }
+
+  /**
+   * Add a manual page via URL input.
+   */
+  function addManualPage() {
+    var $input = $('.brz-static-manual__input');
+    var url = $.trim($input.val());
+
+    if (!url) {
+      showSnackbar(config.strings.enter_url || 'لطفاً یک URL وارد کنید', 'error');
+      return;
+    }
+
+    ajaxRequest({
+      data: {
+        action: 'brz_static_add_manual_page',
+        url: url
+      },
+      container: '[data-panel="manual"]',
+      onSuccess: function (data) {
+        showSnackbar(config.strings.page_added || 'صفحه با موفقیت اضافه شد', 'success');
+        $input.val('');
+        // Reload manual pages list
+        loadManualPages();
+        // Refresh dashboard
+        if (state.tabsLoaded.dashboard) {
+          loadDashboard();
+        }
+      }
+    });
+  }
+
+  /**
+   * Remove a manual page with confirmation.
+   * @param {string} url - URL to remove
+   */
+  function removeManualPage(url) {
+    showConfirmDialog(
+      config.strings.remove_page_title || 'حذف صفحه',
+      '<p>' + escapeHtml((config.strings.remove_page_message || 'آیا از حذف این صفحه اطمینان دارید؟')) + '</p>' +
+      '<p dir="ltr"><code>' + escapeHtml(url) + '</code></p>',
+      function () {
+        ajaxRequest({
+          data: {
+            action: 'brz_static_remove_manual_page',
+            url: url
+          },
+          container: '[data-panel="manual"]',
+          onSuccess: function (data) {
+            showSnackbar(config.strings.page_removed || 'صفحه حذف شد', 'success');
+            // Reload manual pages list
+            loadManualPages();
+            // Refresh dashboard
+            if (state.tabsLoaded.dashboard) {
+              loadDashboard();
+            }
+          }
+        });
+      }
+    );
+  }
+
+  /**
+   * Initialize manual pages tab event handlers.
+   */
+  function initManualHandlers() {
+    // Add manual page button
+    $(document).on('click', '.brz-static-manual__add-btn', function () {
+      addManualPage();
+    });
+
+    // Enter key in URL input
+    $(document).on('keypress', '.brz-static-manual__input', function (e) {
+      if (e.which === 13) {
+        e.preventDefault();
+        addManualPage();
+      }
+    });
+
+    // Remove manual page button
+    $(document).on('click', '.brz-static-page-item__remove', function () {
+      var url = $(this).closest('.brz-static-page-item').data('url');
+      if (url) {
+        removeManualPage(url);
+      }
+    });
+  }
+
+  /* ==========================================================================
+     8. SETTINGS TAB
+     ========================================================================== */
+
+  /**
+   * Load settings from server.
    */
   function loadSettings() {
-    $.ajax({
-      url: config.ajax_url,
-      method: 'POST',
-      data: {
-        action: 'brz_static_get_settings',
-        _ajax_nonce: config.nonce
-      },
-      success: function (response) {
-        if (response.success && response.data) {
-          var data = response.data;
-          
-          // Populate fields
-          $outputPath.val(data.output_path || '');
-          $modalCode.val(data.modal_global || '');
-          
-          // Populate status
-          var lastGen = data.last_generated ? data.last_generated : 'هنوز تولید نشده';
-          $('#brz-static-last-generated').text(lastGen);
-          
-          var statusLabels = {
-            'idle': 'بدون فعالیت',
-            'success': 'موفق',
-            'error': 'خطا',
-            'running': 'در حال اجرا'
-          };
-          var statusLabel = statusLabels[data.generation_status] || data.generation_status;
-          var $statusSpan = $('#brz-static-generation-status');
-          
-          $statusSpan.text(statusLabel)
-                     .removeClass()
-                     .addClass('brz-static-status brz-static-status--' + escapeHtml(data.generation_status));
-        } else {
-          showSnackbar('خطا در بارگذاری تنظیمات', 'error');
-        }
-      },
-      error: function () {
-        showSnackbar(config.strings.network_error, 'error');
-      },
-      complete: function () {
-        // Fade in the UI container
-        $('.brz-static-app-container').css('opacity', '1');
+    ajaxRequest({
+      data: { action: 'brz_static_get_settings' },
+      container: '[data-panel="settings"]',
+      onSuccess: function (data) {
+        populateSettings(data);
       }
     });
   }
 
-  initSelectedPages();
-  loadSettings();
+  /**
+   * Populate settings form fields.
+   * @param {object} data - Settings data from server
+   */
+  function populateSettings(data) {
+    // Text fields
+    $('#brz-static-output-path').val(data.output_path || '');
+    $('#brz-static-sitemap-url').val(data.sitemap_url || '');
+    $('#brz-static-modal-code').val(data.modal_global || '');
+
+    // Toggle switches
+    $('#brz-static-auto-sync').prop('checked', !!data.auto_sync_enabled);
+    $('#brz-static-auto-regenerate').prop('checked', !!data.auto_regenerate_enabled);
+    $('#brz-static-notify-sync').prop('checked', !!data.notify_on_sync);
+
+    // Status info
+    var lastGen = data.last_generated || (config.strings.never || 'هنوز تولید نشده');
+    $('#brz-static-last-generated').text(lastGen);
+
+    var statusLabels = {
+      idle: config.strings.status_idle || 'بدون فعالیت',
+      success: config.strings.status_success || 'موفق',
+      error: config.strings.status_error || 'خطا',
+      running: config.strings.status_running || 'در حال اجرا'
+    };
+    var statusLabel = statusLabels[data.generation_status] || data.generation_status || '';
+    $('#brz-static-generation-status')
+      .text(statusLabel)
+      .removeClass()
+      .addClass('brz-static-status brz-static-status--' + escapeHtml(data.generation_status || 'idle'));
+  }
+
+  /**
+   * Save settings to server.
+   */
+  function saveSettings() {
+    var settingsData = {
+      action: 'brz_static_save_settings',
+      output_path: $.trim($('#brz-static-output-path').val()),
+      sitemap_url: $.trim($('#brz-static-sitemap-url').val()),
+      modal_global: $('#brz-static-modal-code').val(),
+      auto_sync: $('#brz-static-auto-sync').is(':checked') ? '1' : '0',
+      auto_regenerate: $('#brz-static-auto-regenerate').is(':checked') ? '1' : '0',
+      notify_on_sync: $('#brz-static-notify-sync').is(':checked') ? '1' : '0'
+    };
+
+    ajaxRequest({
+      data: settingsData,
+      container: '[data-panel="settings"]',
+      onSuccess: function (data) {
+        showSnackbar(config.strings.save_success || 'تنظیمات ذخیره شد', 'success');
+      }
+    });
+  }
+
+  /**
+   * Initialize settings tab event handlers.
+   */
+  function initSettingsHandlers() {
+    // Save settings button
+    $(document).on('click', '.brz-static-settings__save-btn', function () {
+      saveSettings();
+    });
+
+    // Toggle change handlers for immediate visual feedback
+    $(document).on('change', '#brz-static-auto-sync, #brz-static-auto-regenerate, #brz-static-notify-sync', function () {
+      var $toggle = $(this);
+      var $label = $toggle.closest('.brz-static-toggle');
+      if ($toggle.is(':checked')) {
+        $label.addClass('is-active');
+      } else {
+        $label.removeClass('is-active');
+      }
+    });
+
+    // Regenerate button in settings
+    $(document).on('click', '#brz-static-regenerate-btn', function () {
+      regeneratePending();
+    });
+  }
+
+  /* ==========================================================================
+     9. INITIALIZATION
+     ========================================================================== */
+
+  /**
+   * Initialize all components.
+   */
+  function init() {
+    initTabs();
+    initDashboardActions();
+    initSitemapHandlers();
+    initBulkActions();
+    initManualHandlers();
+    initSettingsHandlers();
+
+    // Fade in the UI container
+    $('.brz-static-app-container').css('opacity', '1');
+  }
+
+  // Start the application
+  init();
 
 });
