@@ -213,14 +213,7 @@ class BRZ_Settings {
             array( __CLASS__, 'render_page' )
         );
 
-        add_submenu_page(
-            self::PARENT_SLUG,
-            'تشخیص WAF',
-            'تشخیص WAF',
-            $capability,
-            'buyruz-diag',
-            array( __CLASS__, 'render_page' )
-        );
+
 
         foreach ( self::module_nav_items() as $slug => $meta ) {
             add_submenu_page(
@@ -256,10 +249,6 @@ class BRZ_Settings {
             return;
         }
 
-        if ( 'buyruz-diag' === $page ) {
-            self::render_diag_page();
-            return;
-        }
 
         if ( 'buyruz-connections' === $page ) {
             $_GET['page'] = 'buyruz-module-smart_linker'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -371,7 +360,11 @@ class BRZ_Settings {
                                             </button>
                                         </form>
                                     </div>
-                                    <a class="brz-link" href="<?php echo esc_url( admin_url( 'admin.php?page=buyruz-module-' . $slug ) ); ?>">تنظیمات</a>
+                                    <?php if ( $enabled ) : ?>
+                                        <a class="brz-link" href="<?php echo esc_url( admin_url( 'admin.php?page=buyruz-module-' . $slug ) ); ?>">تنظیمات</a>
+                                    <?php else : ?>
+                                        <span class="brz-link" style="opacity: 0.5; cursor: not-allowed; text-decoration: none;" title="برای دسترسی به تنظیمات ابتدا ماژول را روشن کنید.">تنظیمات</span>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -1021,95 +1014,7 @@ class BRZ_Settings {
         return $links;
     }
 
-    private static function render_diag_page() {
-        ?>
-        <div class="wrap">
-            <h1>سیستم تشخیص قطعی و نقطه‌ای WAF (Isolation Test)</h1>
-            <p>این ابزار به روش مهندسی معکوس (Binary Search) درخواست‌ها را تکه‌تکه اجرا می‌کند تا دقیقاً خطی از کد یا کاراکتری که فایروال را حساس می‌کند، پیدا شود.</p>
-            
-            <button id="brz-start-isolation" class="button button-primary button-large">شروع تست نقطه‌ای (Isolation)</button>
 
-            <div style="margin-top: 20px; background: #fff; padding: 20px; border: 1px solid #ccd0d4; border-radius: 4px;">
-                <ul id="brz-diag-results" style="font-family: monospace; font-size: 14px; line-height: 1.8;">
-                    <li>آماده برای شروع تست...</li>
-                </ul>
-            </div>
-        </div>
-
-        <script>
-        jQuery(document).ready(function($) {
-            $('#brz-start-isolation').on('click', function() {
-                var $results = $('#brz-diag-results');
-                $results.empty();
-                
-                var adminUrl = '<?php echo esc_url(admin_url('admin.php')); ?>';
-                
-                function logMsg(msg, color) {
-                    color = color || '#333';
-                    $results.append('<li style="color:' + color + ';">' + msg + '</li>');
-                }
-
-                logMsg('شروع تست نقطه‌ای (Isolation Tests)...', '#0073aa');
-
-                var tests = [
-                    {
-                        name: 'تست ۱: فقط آدرس URL (بدون هیچ خروجی HTML)',
-                        url: adminUrl + '?page=buyruz-module-static_controller&brz_isolate=empty_body',
-                        method: 'GET'
-                    },
-                    {
-                        name: 'تست ۲: آدرس URL + فقط تگ‌های اصلی HTML (بدون فرم)',
-                        url: adminUrl + '?page=buyruz-module-static_controller&brz_isolate=basic_html',
-                        method: 'GET'
-                    },
-                    {
-                        name: 'تست ۳: آدرس URL + خروجی کامل بدون بارگذاری استایل/اسکریپت',
-                        url: adminUrl + '?page=buyruz-module-static_controller&brz_isolate=no_assets',
-                        method: 'GET'
-                    },
-                    {
-                        name: 'تست ۴: آدرس URL نامرتبط برای مقایسه WAF',
-                        url: adminUrl + '?page=buyruz-dummy-page-12345',
-                        method: 'GET'
-                    }
-                ];
-
-                function runTest(index) {
-                    if (index >= tests.length) {
-                        logMsg('<br><b>تست‌ها تمام شد.</b>', '#000');
-                        logMsg('<b>اگر "تست ۱" خطا داد:</b> فایروال به کلمه static_controller در URL حساس است.', 'purple');
-                        logMsg('<b>اگر "تست ۱" موفق بود ولی "تست ۲ یا ۳" خطا داد:</b> فایروال به ساختار HTML گیر می‌دهد.', 'purple');
-                        logMsg('لطفاً از این صفحه اسکرین‌شات بگیرید.', 'red');
-                        return;
-                    }
-
-                    var test = tests[index];
-                    logMsg('در حال اجرا: ' + test.name + ' ...', '#555');
-
-                    $.ajax({
-                        url: test.url,
-                        method: test.method,
-                        success: function(res, status, xhr) {
-                            logMsg('✅ موفق (200 OK) - فایروال این بخش را مسدود نکرد.', 'green');
-                            runTest(index + 1);
-                        },
-                        error: function(xhr) {
-                            if (xhr.status === 403) {
-                                logMsg('❌ مسدود شد (403 Forbidden) - <b>نقطه حساسیت فایروال همینجاست!</b>', 'red');
-                            } else {
-                                logMsg('⚠️ خطای ' + xhr.status, 'orange');
-                            }
-                            runTest(index + 1);
-                        }
-                    });
-                }
-
-                runTest(0);
-            });
-        });
-        </script>
-        <?php
-    }
 
     public static function sanitize( $input ) {
         $existing = self::get();

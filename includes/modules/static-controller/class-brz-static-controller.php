@@ -333,10 +333,6 @@ class BRZ_Static_Controller {
             return;
         }
 
-        // ISOLATION TEST: Skip assets if requested.
-        if ( isset( $_GET['brz_isolate'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            return;
-        }
 
         $assets_url = plugin_dir_url( __FILE__ ) . 'assets/';
 
@@ -1186,27 +1182,6 @@ class BRZ_Static_Controller {
             return;
         }
 
-        // ==========================================
-        // ISOLATION TESTS FOR WAF DEBUGGING
-        // ==========================================
-        if ( isset( $_GET['brz_isolate'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            $isolate = sanitize_text_field( wp_unslash( $_GET['brz_isolate'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            
-            if ( 'empty_body' === $isolate ) {
-                echo 'WAF Isolation Test: Empty Body OK';
-                return;
-            }
-
-            if ( 'basic_html' === $isolate ) {
-                echo '<h1>WAF Isolation Test</h1><p>Basic HTML rendering OK.</p>';
-                return;
-            }
-            
-            if ( 'no_assets' === $isolate ) {
-                // Renders full HTML but skips enqueuing assets or scripts.
-            }
-        }
-        // ==========================================
 
         $nonce          = wp_create_nonce( 'brz_static_nonce' );
         $settings       = self::get_settings();
