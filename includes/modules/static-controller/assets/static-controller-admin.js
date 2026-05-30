@@ -272,17 +272,36 @@ jQuery(document).ready(function ($) {
    * @param {object} data - Dashboard data from server
    */
   function renderDashboardCards(data) {
-    // Total pages card
+    // Total pages
     $('#brz-static-dash-total').text(data.total_pages || 0);
 
-    // Pending count card
+    // Sitemap count
+    $('#brz-static-dash-sitemap').text(data.sitemap_count || 0);
+
+    // Manual count
+    $('#brz-static-dash-manual').text(data.manual_count || 0);
+
+    // Pending count
     $('#brz-static-dash-pending').text(data.pending_count || 0);
 
-    // Last sync card
-    var lastSync = data.last_sync || (config.strings.never || 'هنوز انجام نشده');
+    // Last sync
+    var lastSync = data.last_sync || (config.strings.never || '—');
+    if (data.last_sync) {
+      // Show relative time if possible
+      var syncDate = new Date(data.last_sync);
+      var now = new Date();
+      var diffMin = Math.floor((now - syncDate) / 60000);
+      if (diffMin < 60) {
+        lastSync = diffMin + ' دقیقه پیش';
+      } else if (diffMin < 1440) {
+        lastSync = Math.floor(diffMin / 60) + ' ساعت پیش';
+      } else {
+        lastSync = Math.floor(diffMin / 1440) + ' روز پیش';
+      }
+    }
     $('#brz-static-dash-last-sync').text(lastSync);
 
-    // System status card
+    // System status
     var statusMap = {
       healthy: config.strings.status_healthy || 'سالم',
       attention: config.strings.status_attention || 'نیاز به توجه',
@@ -839,7 +858,36 @@ jQuery(document).ready(function ($) {
    * Initialize manual pages tab event handlers.
    */
   function initManualHandlers() {
-    // Add manual page button
+    // Load pages by post type
+    $(document).on('click', '#brz-static-manual-load-btn', function () {
+      loadNonSitemapPages();
+    });
+
+    // Post type dropdown change also triggers load
+    $(document).on('change', '#brz-static-manual-posttype', function () {
+      if ($(this).val()) {
+        loadNonSitemapPages();
+      }
+    });
+
+    // Select all in available list
+    $(document).on('change', '#brz-static-manual-select-all', function () {
+      var isChecked = $(this).is(':checked');
+      $('#brz-static-manual-available-list .brz-static-bulk-item').prop('checked', isChecked);
+      updateManualSelectedCount();
+    });
+
+    // Individual checkbox in available list
+    $(document).on('change', '#brz-static-manual-available-list .brz-static-bulk-item', function () {
+      updateManualSelectedCount();
+    });
+
+    // Add selected pages button
+    $(document).on('click', '#brz-static-manual-add-selected-btn', function () {
+      addSelectedManualPages();
+    });
+
+    // Add manual page button (URL input)
     $(document).on('click', '#brz-static-manual-add-btn', function () {
       addManualPage();
     });
@@ -857,6 +905,100 @@ jQuery(document).ready(function ($) {
       var url = $(this).closest('.brz-static-page-item').data('url');
       if (url) {
         removeManualPage(url);
+      }
+    });
+  }
+
+  /**
+   * Load pages of selected post type that are NOT in sitemap.
+   */
+  function loadNonSitemapPages() {
+    var postType = $('#brz-static-manual-posttype').val();
+    if (!postType) {
+      showSnackbar(config.strings.select_posttype || 'لطفاً یک نوع محتوا انتخاب کنید', 'error');
+      return;
+    }
+
+    ajaxRequest({
+      data: {
+        action: 'brz_static_get_non_sitemap_pages',
+        post_type: postType
+      },
+      container: '[data-panel="manual"]',
+      onSuccess: function (data) {
+        var items = data.items || [];
+        var $available = $('#brz-static-manual-available');
+        var $list = $('#brz-static-manual-available-list');
+        var $info = $('#brz-static-manual-info');
+
+        if (items.length === 0) {
+          $available.hide();
+          $info.text('همه صفحات این نوع محتوا در سایت‌مپ هستند.').show();
+          return;
+        }
+
+        $info.text(items.length + ' صفحه یافت شد که در سایت‌مپ نیستند:').show();
+        $available.show();
+        $list.empty();
+
+        $.each(items, function (i, item) {
+          var html =
+            '<div class="brz-static-page-item" data-id="' + item.id + '" data-url="' + escapeHtml(item.url) + '">' +
+              '<label class="brz-static-page-item__checkbox">' +
+                '<input type="checkbox" class="brz-static-bulk-item">' +
+              '</label>' +
+              '<span class="brz-static-page-item__title">' + escapeHtml(item.title) + '</span>' +
+              '<span class="brz-static-page-item__url" dir="ltr">' + escapeHtml(item.url) + '</span>' +
+            '</div>';
+          $list.append(html);
+        });
+
+        updateManualSelectedCount();
+      }
+    });
+  }
+
+  /**
+   * Update the selected count display.
+   */
+  function updateManualSelectedCount() {
+    var count = $('#brz-static-manual-available-list .brz-static-bulk-item:checked').length;
+    $('#brz-static-manual-selected-count').text(count + ' انتخاب شده');
+  }
+
+  /**
+   * Add selected pages from the post-type browser.
+   */
+  function addSelectedManualPages() {
+    var postIds = [];
+    $('#brz-static-manual-available-list .brz-static-bulk-item:checked').each(function () {
+      var id = $(this).closest('.brz-static-page-item').data('id');
+      if (id) {
+        postIds.push(id);
+      }
+    });
+
+    if (postIds.length === 0) {
+      showSnackbar(config.strings.select_pages || 'لطفاً صفحاتی را انتخاب کنید', 'error');
+      return;
+    }
+
+    ajaxRequest({
+      data: {
+        action: 'brz_static_add_manual_pages_bulk',
+        post_ids: JSON.stringify(postIds)
+      },
+      container: '[data-panel="manual"]',
+      onSuccess: function (data) {
+        showSnackbar((data.added || 0) + ' صفحه اضافه شد', 'success');
+        // Reload the available list (items will be removed since they're now added)
+        loadNonSitemapPages();
+        // Reload manual pages list
+        loadManualPages();
+        // Refresh dashboard
+        if (state.tabsLoaded.dashboard) {
+          loadDashboard();
+        }
       }
     });
   }
@@ -886,7 +1028,6 @@ jQuery(document).ready(function ($) {
     // Text fields
     $('#brz-static-output-path').val(data.output_path || '');
     $('#brz-static-sitemap-url').val(data.sitemap_url || '');
-    $('#brz-static-modal-code').val(data.modal_global || '');
 
     // Toggle switches
     $('#brz-static-auto-sync').prop('checked', !!data.auto_sync_enabled);
@@ -918,7 +1059,6 @@ jQuery(document).ready(function ($) {
       action: 'brz_static_save_settings',
       output_path: $.trim($('#brz-static-output-path').val()),
       sitemap_url: $.trim($('#brz-static-sitemap-url').val()),
-      modal_global: $('#brz-static-modal-code').val(),
       auto_sync: $('#brz-static-auto-sync').is(':checked') ? '1' : '0',
       auto_regenerate: $('#brz-static-auto-regenerate').is(':checked') ? '1' : '0',
       notify_on_sync: $('#brz-static-notify-sync').is(':checked') ? '1' : '0'

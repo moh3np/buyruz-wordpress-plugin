@@ -65,6 +65,8 @@ class BRZ_Static_Controller {
             add_action( 'wp_ajax_brz_static_regenerate_pending', array( __CLASS__, 'ajax_regenerate_pending' ) );
             add_action( 'wp_ajax_brz_static_get_pages', array( __CLASS__, 'ajax_get_pages' ) );
             add_action( 'wp_ajax_brz_static_bulk_action', array( __CLASS__, 'ajax_bulk_action' ) );
+            add_action( 'wp_ajax_brz_static_get_non_sitemap_pages', array( __CLASS__, 'ajax_get_non_sitemap_pages' ) );
+            add_action( 'wp_ajax_brz_static_add_manual_pages_bulk', array( __CLASS__, 'ajax_add_manual_pages_bulk' ) );
 
             // AJAX handler for dismissing admin notices.
             add_action( 'wp_ajax_brz_static_dismiss_notice', array( __CLASS__, 'ajax_dismiss_notice' ) );
@@ -573,18 +575,6 @@ class BRZ_Static_Controller {
             $settings['output_path'] = $output_path;
         }
 
-        // Validate and save modal_global.
-        if ( isset( $_POST['modal_global'] ) ) {
-            $modal_global     = wp_unslash( $_POST['modal_global'] );
-            $modal_validation = BRZ_Static_Modal_Injector::validate( $modal_global );
-
-            if ( is_wp_error( $modal_validation ) ) {
-                wp_send_json_error( array( 'message' => $modal_validation->get_error_message() ) );
-            }
-
-            $settings['modal_global'] = $modal_global;
-        }
-
         // Validate and save sitemap_url.
         if ( isset( $_POST['sitemap_url'] ) ) {
             $sitemap_url = sanitize_text_field( wp_unslash( $_POST['sitemap_url'] ) );
@@ -634,35 +624,6 @@ class BRZ_Static_Controller {
             $settings['notify_on_sync'] = filter_var( wp_unslash( $_POST['notify_on_sync'] ), FILTER_VALIDATE_BOOLEAN );
         }
 
-        // Validate and save modal_per_page.
-        if ( isset( $_POST['modal_per_page'] ) ) {
-            $modal_per_page_raw = wp_unslash( $_POST['modal_per_page'] );
-            $modal_per_page     = json_decode( $modal_per_page_raw, true );
-
-            if ( ! is_array( $modal_per_page ) ) {
-                wp_send_json_error( array( 'message' => 'فرمت داده‌های مودال اختصاصی نامعتبر است.' ) );
-            }
-
-            $validated_per_page = array();
-            foreach ( $modal_per_page as $page_id => $code ) {
-                $code_validation = BRZ_Static_Modal_Injector::validate( (string) $code );
-
-                if ( is_wp_error( $code_validation ) ) {
-                    wp_send_json_error( array(
-                        'message' => sprintf(
-                            'خطا در کد مودال صفحه %d: %s',
-                            (int) $page_id,
-                            $code_validation->get_error_message()
-                        ),
-                    ) );
-                }
-
-                $validated_per_page[ (int) $page_id ] = (string) $code;
-            }
-
-            $settings['modal_per_page'] = $validated_per_page;
-        }
-
         self::save_settings( $settings );
 
         wp_send_json_success( array( 'message' => 'تنظیمات با موفقیت ذخیره شد.' ) );
@@ -705,7 +666,6 @@ class BRZ_Static_Controller {
         
         wp_send_json_success( array(
             'output_path'             => $settings['output_path'],
-            'modal_global'            => $settings['modal_global'],
             'last_generated'          => $settings['last_generated'],
             'generation_status'       => $settings['generation_status'],
             'sitemap_url'             => $settings['sitemap_url'] ?? '',
@@ -874,9 +834,16 @@ class BRZ_Static_Controller {
         $total_pages   = count( $selected_pages );
         $pending_count = BRZ_Static_Change_Trigger::get_pending_count();
 
-        // Count pages with status "error".
-        $error_count = 0;
+        // Count pages by source.
+        $sitemap_count = 0;
+        $manual_count  = 0;
+        $error_count   = 0;
         foreach ( $selected_pages as $page ) {
+            if ( ( $page['page_source'] ?? '' ) === 'sitemap' ) {
+                $sitemap_count++;
+            } else {
+                $manual_count++;
+            }
             if ( ( $page['page_status'] ?? '' ) === 'error' ) {
                 $error_count++;
             }
@@ -898,6 +865,8 @@ class BRZ_Static_Controller {
 
         wp_send_json_success( array(
             'total_pages'             => $total_pages,
+            'sitemap_count'           => $sitemap_count,
+            'manual_count'            => $manual_count,
             'pending_count'           => $pending_count,
             'error_count'             => $error_count,
             'last_sync'               => $settings['last_sync_timestamp'] ?? null,
@@ -1116,6 +1085,139 @@ class BRZ_Static_Controller {
     }
 
     /**
+     * AJAX handler: Get pages of a specific post type that are NOT in the sitemap.
+     *
+     * Returns published pages of the requested post_type whose URLs are not
+     * already in the selected_pages list with page_source="sitemap".
+     *
+     * @return void Sends JSON response and terminates.
+     */
+    public static function ajax_get_non_sitemap_pages(): void {
+        check_ajax_referer( 'brz_static_nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'دسترسی غیرمجاز.' ), 403 );
+        }
+
+        $post_type = isset( $_POST['post_type'] ) ? sanitize_text_field( wp_unslash( $_POST['post_type'] ) ) : '';
+
+        if ( empty( $post_type ) || ! post_type_exists( $post_type ) ) {
+            wp_send_json_error( array( 'message' => 'نوع محتوای نامعتبر.' ) );
+        }
+
+        // Get all URLs currently in selected_pages (both sitemap and manual).
+        $settings       = self::get_settings();
+        $selected_pages = $settings['selected_pages'] ?? array();
+        $existing_urls  = array();
+        foreach ( $selected_pages as $page ) {
+            if ( ! empty( $page['url'] ) ) {
+                $existing_urls[ $page['url'] ] = true;
+            }
+        }
+
+        // Query all published posts of this type.
+        $posts = get_posts( array(
+            'post_type'      => $post_type,
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'orderby'        => 'title',
+            'order'          => 'ASC',
+            'fields'         => 'ids',
+        ) );
+
+        $items = array();
+        foreach ( $posts as $post_id ) {
+            $url = get_permalink( $post_id );
+            if ( ! $url ) {
+                continue;
+            }
+
+            // Skip if already in selected_pages (sitemap or manual).
+            if ( isset( $existing_urls[ $url ] ) ) {
+                continue;
+            }
+
+            $items[] = array(
+                'id'    => $post_id,
+                'title' => get_the_title( $post_id ),
+                'url'   => $url,
+            );
+        }
+
+        wp_send_json_success( array(
+            'items'     => $items,
+            'total'     => count( $items ),
+            'post_type' => $post_type,
+        ) );
+    }
+
+    /**
+     * AJAX handler: Add multiple manual pages by post IDs.
+     *
+     * @return void Sends JSON response and terminates.
+     */
+    public static function ajax_add_manual_pages_bulk(): void {
+        check_ajax_referer( 'brz_static_nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'دسترسی غیرمجاز.' ), 403 );
+        }
+
+        $post_ids_raw = isset( $_POST['post_ids'] ) ? wp_unslash( $_POST['post_ids'] ) : '';
+        $post_ids     = json_decode( $post_ids_raw, true );
+
+        if ( ! is_array( $post_ids ) || empty( $post_ids ) ) {
+            wp_send_json_error( array( 'message' => 'لیست صفحات خالی است.' ) );
+        }
+
+        $settings       = self::get_settings();
+        $selected_pages = $settings['selected_pages'] ?? array();
+
+        // Build existing URL index.
+        $existing_urls = array();
+        foreach ( $selected_pages as $page ) {
+            if ( ! empty( $page['url'] ) ) {
+                $existing_urls[ $page['url'] ] = true;
+            }
+        }
+
+        $added = 0;
+        foreach ( $post_ids as $post_id ) {
+            $post_id = absint( $post_id );
+            if ( $post_id <= 0 ) {
+                continue;
+            }
+
+            $url = get_permalink( $post_id );
+            if ( ! $url || isset( $existing_urls[ $url ] ) ) {
+                continue;
+            }
+
+            $page_type = BRZ_Static_Page_Detector::detect( $post_id );
+
+            $selected_pages[] = array(
+                'id'           => $post_id,
+                'type'         => 'post',
+                'url'          => $url,
+                'page_type'    => $page_type,
+                'page_source'  => 'manual',
+                'page_status'  => 'pending',
+                'lastmod'      => null,
+                'error_count'  => 0,
+                'content_hash' => null,
+            );
+
+            $existing_urls[ $url ] = true;
+            $added++;
+        }
+
+        $settings['selected_pages'] = $selected_pages;
+        self::save_settings( $settings );
+
+        wp_send_json_success( array( 'added' => $added ) );
+    }
+
+    /**
      * Validate the output file path.
      *
      * Checks that the path:
@@ -1252,31 +1354,36 @@ class BRZ_Static_Controller {
                  data-panel="dashboard"
                  id="brz-static-panel-dashboard" aria-labelledby="brz-static-tab-dashboard">
 
-                <!-- Summary Cards -->
-                <div class="brz-static-dashboard">
-                    <div class="brz-static-dashboard__card brz-card">
-                        <div class="brz-card__body">
-                            <span class="brz-static-dashboard__card-value" id="brz-static-dash-total">—</span>
-                            <span class="brz-static-dashboard__card-label">کل صفحات</span>
-                        </div>
+                <!-- Compact Stats Bar -->
+                <div class="brz-static-stats-bar" id="brz-static-stats-bar">
+                    <div class="brz-static-stats-bar__item">
+                        <span class="brz-static-stats-bar__value" id="brz-static-dash-total">—</span>
+                        <span class="brz-static-stats-bar__label">کل صفحات</span>
                     </div>
-                    <div class="brz-static-dashboard__card brz-card">
-                        <div class="brz-card__body">
-                            <span class="brz-static-dashboard__card-value" id="brz-static-dash-pending">—</span>
-                            <span class="brz-static-dashboard__card-label">در انتظار بازسازی</span>
-                        </div>
+                    <div class="brz-static-stats-bar__divider"></div>
+                    <div class="brz-static-stats-bar__item">
+                        <span class="brz-static-stats-bar__value" id="brz-static-dash-sitemap">—</span>
+                        <span class="brz-static-stats-bar__label">سایت‌مپ</span>
                     </div>
-                    <div class="brz-static-dashboard__card brz-card">
-                        <div class="brz-card__body">
-                            <span class="brz-static-dashboard__card-value" id="brz-static-dash-last-sync">—</span>
-                            <span class="brz-static-dashboard__card-label">آخرین همگام‌سازی</span>
-                        </div>
+                    <div class="brz-static-stats-bar__divider"></div>
+                    <div class="brz-static-stats-bar__item">
+                        <span class="brz-static-stats-bar__value" id="brz-static-dash-manual">—</span>
+                        <span class="brz-static-stats-bar__label">دستی</span>
                     </div>
-                    <div class="brz-static-dashboard__card brz-card">
-                        <div class="brz-card__body">
-                            <span class="brz-static-dashboard__card-value brz-static-system-status" id="brz-static-dash-status">—</span>
-                            <span class="brz-static-dashboard__card-label">وضعیت سیستم</span>
-                        </div>
+                    <div class="brz-static-stats-bar__divider"></div>
+                    <div class="brz-static-stats-bar__item brz-static-stats-bar__item--pending">
+                        <span class="brz-static-stats-bar__value" id="brz-static-dash-pending">—</span>
+                        <span class="brz-static-stats-bar__label">در انتظار</span>
+                    </div>
+                    <div class="brz-static-stats-bar__divider"></div>
+                    <div class="brz-static-stats-bar__item">
+                        <span class="brz-static-stats-bar__value" id="brz-static-dash-last-sync">—</span>
+                        <span class="brz-static-stats-bar__label">آخرین sync</span>
+                    </div>
+                    <div class="brz-static-stats-bar__divider"></div>
+                    <div class="brz-static-stats-bar__item">
+                        <span class="brz-static-stats-bar__value brz-static-system-status" id="brz-static-dash-status">—</span>
+                        <span class="brz-static-stats-bar__label">وضعیت</span>
                     </div>
                 </div>
 
@@ -1375,15 +1482,61 @@ class BRZ_Static_Controller {
                 </div>
             </div>
 
-            <!-- Panel 3: Manual Pages -->
+            <!-- Panel 3: Manual Pages (Post Type Browser) -->
             <div class="brz-static-tabs__panel" role="tabpanel"
                  data-panel="manual"
                  id="brz-static-panel-manual" aria-labelledby="brz-static-tab-manual">
 
-                <!-- Add URL Input -->
+                <!-- Post Type Filter -->
                 <div class="brz-card">
                     <div class="brz-card__header">
-                        <h3>افزودن صفحه دستی</h3>
+                        <h3>افزودن صفحات دستی</h3>
+                        <p class="brz-card__desc">صفحاتی که در سایت‌مپ نیستند و می‌خواهید استاتیک شوند</p>
+                    </div>
+                    <div class="brz-card__body">
+                        <!-- Post Type Selector -->
+                        <div class="brz-static-manual-filter">
+                            <label for="brz-static-manual-posttype">نوع محتوا:</label>
+                            <select id="brz-static-manual-posttype" class="brz-static-filters__select">
+                                <option value="">انتخاب کنید...</option>
+                                <option value="page">برگه‌ها (page)</option>
+                                <option value="post">نوشته‌ها (post)</option>
+                                <option value="product">محصولات (product)</option>
+                            </select>
+                            <button type="button" class="button" id="brz-static-manual-load-btn">
+                                نمایش صفحات
+                            </button>
+                        </div>
+
+                        <!-- Info text -->
+                        <p class="brz-static-manual-info" id="brz-static-manual-info">
+                            یک نوع محتوا انتخاب کنید تا صفحاتی که در سایت‌مپ نیستند نمایش داده شوند.
+                        </p>
+
+                        <!-- Available pages list (not in sitemap) -->
+                        <div class="brz-static-manual-available" id="brz-static-manual-available" style="display:none;">
+                            <div class="brz-static-bulk" id="brz-static-manual-bulk">
+                                <label class="brz-static-bulk__checkbox">
+                                    <input type="checkbox" id="brz-static-manual-select-all">
+                                    انتخاب همه
+                                </label>
+                                <button type="button" class="button button-primary" id="brz-static-manual-add-selected-btn">
+                                    افزودن انتخاب‌شده‌ها
+                                </button>
+                                <span class="brz-static-manual-count" id="brz-static-manual-selected-count">0 انتخاب شده</span>
+                            </div>
+                            <div class="brz-static-page-list" id="brz-static-manual-available-list">
+                                <!-- Populated via JS/AJAX -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Custom URL Input (fallback) -->
+                <div class="brz-card">
+                    <div class="brz-card__header">
+                        <h3>افزودن URL دستی</h3>
+                        <p class="brz-card__desc">برای صفحاتی که در لیست بالا نیستند</p>
                     </div>
                     <div class="brz-card__body">
                         <div class="brz-static-manual-add">
@@ -1400,9 +1553,16 @@ class BRZ_Static_Controller {
                     </div>
                 </div>
 
-                <!-- Manual Pages List -->
-                <div class="brz-static-page-list" id="brz-static-manual-page-list">
-                    <!-- Populated via JS/AJAX -->
+                <!-- Currently Added Manual Pages -->
+                <div class="brz-card">
+                    <div class="brz-card__header">
+                        <h3>صفحات دستی فعلی</h3>
+                    </div>
+                    <div class="brz-card__body">
+                        <div class="brz-static-page-list" id="brz-static-manual-page-list">
+                            <!-- Populated via JS/AJAX -->
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1461,26 +1621,6 @@ class BRZ_Static_Controller {
                                     <input type="checkbox" id="brz-static-notify-sync">
                                     اطلاع‌رسانی پس از همگام‌سازی
                                 </label>
-                            </div>
-
-                            <!-- Modal Code Section -->
-                            <div class="brz-static-settings-field">
-                                <label>کد مودال:</label>
-                                <div class="brz-static-modal-scope">
-                                    <label>
-                                        <input type="radio" name="brz_static_modal_scope" value="global" checked>
-                                        عمومی
-                                    </label>
-                                    <label>
-                                        <input type="radio" name="brz_static_modal_scope" value="per-page">
-                                        اختصاصی هر صفحه
-                                    </label>
-                                </div>
-                                <textarea id="brz-static-modal-code"
-                                          rows="10"
-                                          dir="ltr"
-                                          class="brz-static-code-editor"
-                                          placeholder="کد HTML/JS مودال را اینجا وارد کنید..."></textarea>
                             </div>
 
                             <!-- Save Button -->

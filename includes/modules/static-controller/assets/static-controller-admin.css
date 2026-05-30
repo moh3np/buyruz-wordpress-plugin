@@ -429,49 +429,55 @@
 }
 
 /* ==========================================================================
-   12. DASHBOARD CARDS
+   12. DASHBOARD — COMPACT STATS BAR
    ========================================================================== */
 
-.brz-static-dashboard {
+.brz-static-stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: var(--md-space-md) var(--md-space-lg);
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-radius-sm);
+  background: var(--md-surface);
   margin-bottom: var(--md-space-lg);
+  overflow-x: auto;
 }
 
-.brz-static-dashboard__cards {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--md-space-md);
-  margin-bottom: var(--md-space-lg);
-}
-
-.brz-static-dashboard__card {
+.brz-static-stats-bar__item {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--md-space-lg) var(--md-space-md);
-  border: 1px solid var(--md-outline-variant);
-  border-radius: var(--md-radius-sm);
-  background: var(--md-surface);
-  text-align: center;
-  transition: box-shadow var(--md-transition-fast);
+  padding: var(--md-space-sm) var(--md-space-lg);
+  min-width: 80px;
+  flex: 1;
 }
 
-.brz-static-dashboard__card:hover {
-  box-shadow: var(--md-elevation-1);
-}
-
-.brz-static-dashboard__card-value {
-  font-size: 2rem;
+.brz-static-stats-bar__value {
+  font-size: 1.4rem;
   font-weight: 700;
   color: var(--md-on-surface);
   line-height: 1.2;
-  margin-bottom: var(--md-space-xs);
 }
 
-.brz-static-dashboard__card-label {
+.brz-static-stats-bar__label {
   font: var(--md-font-label-sm);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--md-on-surface-variant);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+.brz-static-stats-bar__divider {
+  width: 1px;
+  height: 32px;
+  background: var(--md-outline-variant);
+  flex-shrink: 0;
+}
+
+.brz-static-stats-bar__item--pending .brz-static-stats-bar__value {
+  color: #e65100;
 }
 
 /* ==========================================================================
@@ -870,7 +876,7 @@
 }
 
 /* ==========================================================================
-   22. MANUAL URL INPUT
+   22. MANUAL URL INPUT & POST TYPE BROWSER
    ========================================================================== */
 
 .brz-static-manual-input {
@@ -922,13 +928,89 @@
   cursor: not-allowed;
 }
 
+.brz-static-manual-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--md-space-md);
+  margin-bottom: var(--md-space-md);
+  flex-wrap: wrap;
+}
+
+.brz-static-manual-filter label {
+  font: var(--md-font-label-md);
+  color: var(--md-on-surface);
+  white-space: nowrap;
+}
+
+.brz-static-manual-info {
+  font: var(--md-font-body-md);
+  font-size: 13px;
+  color: var(--md-on-surface-variant);
+  margin: var(--md-space-md) 0;
+}
+
+.brz-static-manual-add {
+  display: flex;
+  gap: var(--md-space-sm);
+  align-items: center;
+}
+
+.brz-static-manual-add input {
+  flex: 1;
+  padding: var(--md-space-md) var(--md-space-lg);
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-radius-sm);
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  font-family: monospace;
+  font-size: 13px;
+  direction: ltr;
+  text-align: left;
+  transition: border-color var(--md-transition-fast);
+}
+
+.brz-static-manual-add input:focus {
+  outline: none;
+  border-color: var(--md-primary);
+  box-shadow: 0 0 0 2px var(--md-primary-container);
+}
+
+.brz-static-manual-count {
+  font: var(--md-font-label-sm);
+  font-size: 12px;
+  color: var(--md-on-surface-variant);
+  margin-right: auto;
+}
+
+.brz-card__desc {
+  font: var(--md-font-body-md);
+  font-size: 12px;
+  color: var(--md-on-surface-variant);
+  margin-top: 4px;
+}
+
 /* ==========================================================================
    23. RESPONSIVE (Tablet & Small Screens)
    ========================================================================== */
 
 @media (max-width: 768px) {
-  .brz-static-dashboard__cards {
-    grid-template-columns: repeat(2, 1fr);
+  .brz-static-stats-bar {
+    flex-wrap: wrap;
+    gap: var(--md-space-sm);
+    padding: var(--md-space-sm);
+  }
+
+  .brz-static-stats-bar__item {
+    min-width: 60px;
+    padding: var(--md-space-xs) var(--md-space-sm);
+  }
+
+  .brz-static-stats-bar__value {
+    font-size: 1.1rem;
+  }
+
+  .brz-static-stats-bar__divider {
+    height: 24px;
   }
 
   .brz-static-tabs__nav {
