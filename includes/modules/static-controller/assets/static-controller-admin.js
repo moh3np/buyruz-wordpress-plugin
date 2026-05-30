@@ -272,21 +272,15 @@ jQuery(document).ready(function ($) {
    * @param {object} data - Dashboard data from server
    */
   function renderDashboardCards(data) {
-    var $cards = $('.brz-static-dashboard__cards');
-    if (!$cards.length) { return; }
-
     // Total pages card
-    $cards.find('[data-metric="total_pages"] .brz-static-dashboard__card-value')
-      .text(data.total_pages || 0);
+    $('#brz-static-dash-total').text(data.total_pages || 0);
 
     // Pending count card
-    $cards.find('[data-metric="pending_count"] .brz-static-dashboard__card-value')
-      .text(data.pending_count || 0);
+    $('#brz-static-dash-pending').text(data.pending_count || 0);
 
     // Last sync card
     var lastSync = data.last_sync || (config.strings.never || 'هنوز انجام نشده');
-    $cards.find('[data-metric="last_sync"] .brz-static-dashboard__card-value')
-      .text(lastSync);
+    $('#brz-static-dash-last-sync').text(lastSync);
 
     // System status card
     var statusMap = {
@@ -295,7 +289,7 @@ jQuery(document).ready(function ($) {
       error: config.strings.status_error || 'خطا'
     };
     var statusText = statusMap[data.system_status] || data.system_status;
-    $cards.find('[data-metric="system_status"] .brz-static-dashboard__card-value')
+    $('#brz-static-dash-status')
       .text(statusText)
       .removeClass('brz-static-system-status--healthy brz-static-system-status--attention brz-static-system-status--error')
       .addClass('brz-static-system-status--' + (data.system_status || 'healthy'));
@@ -306,7 +300,7 @@ jQuery(document).ready(function ($) {
    * @param {Array} history - Array of regeneration events
    */
   function renderRecentActivity(history) {
-    var $list = $('.brz-static-dashboard__activity');
+    var $list = $('#brz-static-activity-list');
     if (!$list.length) { return; }
 
     $list.empty();
@@ -340,12 +334,12 @@ jQuery(document).ready(function ($) {
    */
   function initDashboardActions() {
     // Sitemap sync quick action
-    $(document).on('click', '.brz-static-dashboard__action--sync', function () {
+    $(document).on('click', '#brz-static-sync-sitemap-btn', function () {
       triggerSitemapSync();
     });
 
     // Regenerate pending quick action
-    $(document).on('click', '.brz-static-dashboard__action--regenerate', function () {
+    $(document).on('click', '#brz-static-regenerate-pending-btn', function () {
       regeneratePending();
     });
   }
@@ -412,7 +406,7 @@ jQuery(document).ready(function ($) {
    * @param {Array} items - Array of page objects
    */
   function renderSitemapPageList(items) {
-    var $list = $('.brz-static-sitemap__list');
+    var $list = $('#brz-static-sitemap-page-list');
     if (!$list.length) { return; }
 
     $list.empty();
@@ -451,7 +445,7 @@ jQuery(document).ready(function ($) {
    * Render pagination controls for sitemap pages.
    */
   function renderSitemapPagination() {
-    var $pagination = $('.brz-static-sitemap__pagination');
+    var $pagination = $('#brz-static-sitemap-pagination');
     if (!$pagination.length) { return; }
 
     $pagination.empty();
@@ -506,16 +500,16 @@ jQuery(document).ready(function ($) {
    */
   function initSitemapHandlers() {
     // Filter dropdowns
-    $(document).on('change', '.brz-static-filters__select--type', function () {
+    $(document).on('change', '#brz-static-filter-type', function () {
       loadSitemapPages(1, { filterType: $(this).val() });
     });
 
-    $(document).on('change', '.brz-static-filters__select--status', function () {
+    $(document).on('change', '#brz-static-filter-status', function () {
       loadSitemapPages(1, { filterStatus: $(this).val() });
     });
 
     // Search input with 300ms debounce
-    $(document).on('input', '.brz-static-filters__search', function () {
+    $(document).on('input', '#brz-static-filter-search', function () {
       var term = $.trim($(this).val());
 
       if (state.debounceTimer) {
@@ -534,7 +528,7 @@ jQuery(document).ready(function ($) {
     });
 
     // Pagination clicks
-    $(document).on('click', '.brz-static-sitemap__pagination .brz-static-pagination__btn', function () {
+    $(document).on('click', '#brz-static-sitemap-pagination .brz-static-pagination__btn', function () {
       var page = parseInt($(this).data('page'), 10);
       if (page && page !== state.sitemapPages.page) {
         loadSitemapPages(page, {});
@@ -542,7 +536,7 @@ jQuery(document).ready(function ($) {
     });
 
     // Sitemap sync button
-    $(document).on('click', '.brz-static-sitemap__sync-btn', function () {
+    $(document).on('click', '#brz-static-sync-sitemap-btn', function () {
       triggerSitemapSync();
     });
   }
@@ -618,7 +612,7 @@ jQuery(document).ready(function ($) {
    */
   function initBulkActions() {
     // Select all checkbox
-    $(document).on('change', '.brz-static-bulk__checkbox-all', function () {
+    $(document).on('change', '#brz-static-bulk-select-all', function () {
       var isChecked = $(this).is(':checked');
       $('.brz-static-bulk-item').prop('checked', isChecked);
       updateBulkSelection();
@@ -631,7 +625,7 @@ jQuery(document).ready(function ($) {
     });
 
     // Execute bulk action
-    $(document).on('click', '.brz-static-bulk__execute', function () {
+    $(document).on('click', '#brz-static-bulk-execute-btn', function () {
       executeBulkAction();
     });
   }
@@ -655,7 +649,7 @@ jQuery(document).ready(function ($) {
   function updateBulkCheckbox() {
     var $all = $('.brz-static-bulk-item');
     var $checked = $('.brz-static-bulk-item:checked');
-    var $selectAll = $('.brz-static-bulk__checkbox-all');
+    var $selectAll = $('#brz-static-bulk-select-all');
 
     if ($all.length > 0 && $all.length === $checked.length) {
       $selectAll.prop('checked', true).prop('indeterminate', false);
@@ -670,7 +664,7 @@ jQuery(document).ready(function ($) {
    * Execute the selected bulk action.
    */
   function executeBulkAction() {
-    var action = $('.brz-static-bulk__select').val();
+    var action = $('#brz-static-bulk-action').val();
     var selected = state.sitemapPages.selected;
 
     if (!action) {
@@ -753,7 +747,7 @@ jQuery(document).ready(function ($) {
    * @param {Array} items - Array of manual page objects
    */
   function renderManualPageList(items) {
-    var $list = $('.brz-static-manual__list');
+    var $list = $('#brz-static-manual-page-list');
     if (!$list.length) { return; }
 
     $list.empty();
@@ -784,7 +778,7 @@ jQuery(document).ready(function ($) {
    * Add a manual page via URL input.
    */
   function addManualPage() {
-    var $input = $('.brz-static-manual__input');
+    var $input = $('#brz-static-manual-url-input');
     var url = $.trim($input.val());
 
     if (!url) {
@@ -846,12 +840,12 @@ jQuery(document).ready(function ($) {
    */
   function initManualHandlers() {
     // Add manual page button
-    $(document).on('click', '.brz-static-manual__add-btn', function () {
+    $(document).on('click', '#brz-static-manual-add-btn', function () {
       addManualPage();
     });
 
     // Enter key in URL input
-    $(document).on('keypress', '.brz-static-manual__input', function (e) {
+    $(document).on('keypress', '#brz-static-manual-url-input', function (e) {
       if (e.which === 13) {
         e.preventDefault();
         addManualPage();
@@ -944,7 +938,7 @@ jQuery(document).ready(function ($) {
    */
   function initSettingsHandlers() {
     // Save settings button
-    $(document).on('click', '.brz-static-settings__save-btn', function () {
+    $(document).on('click', '#brz-static-save-settings-btn', function () {
       saveSettings();
     });
 
@@ -981,7 +975,7 @@ jQuery(document).ready(function ($) {
     initSettingsHandlers();
 
     // Fade in the UI container
-    $('.brz-static-app-container').css('opacity', '1');
+    $('#brz-static-tabs').css('opacity', '1');
   }
 
   // Start the application

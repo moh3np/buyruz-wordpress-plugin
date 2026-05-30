@@ -1248,7 +1248,8 @@ class BRZ_Static_Controller {
             </nav>
 
             <!-- Panel 1: Dashboard -->
-            <div class="brz-static-tabs__panel is-active" role="tabpanel"
+            <div class="brz-static-tabs__panel is-visible" role="tabpanel"
+                 data-panel="dashboard"
                  id="brz-static-panel-dashboard" aria-labelledby="brz-static-tab-dashboard">
 
                 <!-- Summary Cards -->
@@ -1311,7 +1312,8 @@ class BRZ_Static_Controller {
 
             <!-- Panel 2: Sitemap Pages -->
             <div class="brz-static-tabs__panel" role="tabpanel"
-                 id="brz-static-panel-sitemap" aria-labelledby="brz-static-tab-sitemap" hidden>
+                 data-panel="sitemap"
+                 id="brz-static-panel-sitemap" aria-labelledby="brz-static-tab-sitemap">
 
                 <!-- Filters Bar -->
                 <div class="brz-static-filters">
@@ -1375,7 +1377,8 @@ class BRZ_Static_Controller {
 
             <!-- Panel 3: Manual Pages -->
             <div class="brz-static-tabs__panel" role="tabpanel"
-                 id="brz-static-panel-manual" aria-labelledby="brz-static-tab-manual" hidden>
+                 data-panel="manual"
+                 id="brz-static-panel-manual" aria-labelledby="brz-static-tab-manual">
 
                 <!-- Add URL Input -->
                 <div class="brz-card">
@@ -1405,7 +1408,8 @@ class BRZ_Static_Controller {
 
             <!-- Panel 4: Settings -->
             <div class="brz-static-tabs__panel" role="tabpanel"
-                 id="brz-static-panel-settings" aria-labelledby="brz-static-tab-settings" hidden>
+                 data-panel="settings"
+                 id="brz-static-panel-settings" aria-labelledby="brz-static-tab-settings">
 
                 <div class="brz-card">
                     <div class="brz-card__header">
