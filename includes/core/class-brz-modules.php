@@ -35,6 +35,11 @@ class BRZ_Modules {
                 'description' => 'مدیریت صفحات و تولید نقشه URL برای ژنراتور استاتیک',
                 'class'       => 'BRZ_Static_Controller',
             ),
+            'price_queue' => array(
+                'label'       => 'صف قیمت آفلاین',
+                'description' => 'اعمال تغییرات قیمت از Google Sheet بدون نیاز به اتصال مستقیم',
+                'class'       => 'BRZ_Price_Queue',
+            ),
         );
     }
 
