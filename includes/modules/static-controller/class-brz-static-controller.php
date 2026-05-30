@@ -1380,11 +1380,6 @@ class BRZ_Static_Controller {
                         <span class="brz-static-stats-bar__value" id="brz-static-dash-last-sync">—</span>
                         <span class="brz-static-stats-bar__label">آخرین sync</span>
                     </div>
-                    <div class="brz-static-stats-bar__divider"></div>
-                    <div class="brz-static-stats-bar__item">
-                        <span class="brz-static-stats-bar__value brz-static-system-status" id="brz-static-dash-status">—</span>
-                        <span class="brz-static-stats-bar__label">وضعیت</span>
-                    </div>
                 </div>
 
                 <!-- Quick Actions -->
