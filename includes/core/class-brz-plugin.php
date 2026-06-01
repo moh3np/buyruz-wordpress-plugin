@@ -84,6 +84,11 @@ class BRZ_Plugin {
             }
         }
 
+        // Ensure Change Log table exists
+        if ( class_exists( 'BRZ_Change_Log' ) ) {
+            BRZ_Change_Log::ensure_table();
+        }
+
         update_option( 'brz_db_version', BRZ_VERSION, false );
     }
 }

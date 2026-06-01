@@ -408,6 +408,30 @@ class BRZ_Settings {
                         </form>
                     </div>
                 </div>
+
+                <div class="brz-card">
+                    <div class="brz-card__header">
+                        <h3>تنظیمات پل آفلاین</h3>
+                    </div>
+                    <div class="brz-card__body">
+                        <p>مدت زمان نگهداری لاگ تغییرات محصولات.</p>
+                        <form method="post" action="options.php" class="brz-settings-form" data-context="offline-bridge">
+                            <?php
+                            settings_fields( 'brz_group' );
+                            $retention = (int) BRZ_Settings::get( 'log_retention_days', 30 );
+                            ?>
+                            <input type="hidden" name="<?php echo BRZ_OPTION; ?>[brz_form_context]" value="offline_bridge" />
+                            <label>
+                                مدت نگهداری لاگ (روز):
+                                <input type="number" min="1" name="<?php echo BRZ_OPTION; ?>[log_retention_days]" value="<?php echo esc_attr( $retention ); ?>" class="small-text" />
+                            </label>
+                            <p class="description">لاگ‌های قدیمی‌تر از این تعداد روز به صورت خودکار حذف می‌شوند. (پیش‌فرض: ۳۰ روز)</p>
+                            <div class="brz-save-bar">
+                                <?php submit_button( 'ذخیره تنظیمات', 'primary', 'submit', false ); ?>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
             <?php
         } );
@@ -1080,6 +1104,18 @@ class BRZ_Settings {
         // Compare table settings.
         if ( 'compare' === $context ) {
             // فیلدهای پیش‌فرض جدول مقایسه حذف شده‌اند.
+        }
+
+        // Offline Bridge settings.
+        if ( 'offline_bridge' === $context || isset( $input['log_retention_days'] ) ) {
+            if ( isset( $input['log_retention_days'] ) ) {
+                $retention_val = $input['log_retention_days'];
+                if ( is_numeric( $retention_val ) && (int) $retention_val > 0 ) {
+                    $output['log_retention_days'] = (int) $retention_val;
+                }
+                // Non-positive or non-numeric values are rejected; previous value is retained.
+                unset( $input['log_retention_days'] );
+            }
         }
 
 

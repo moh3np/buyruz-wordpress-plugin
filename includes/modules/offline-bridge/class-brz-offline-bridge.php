@@ -13,7 +13,7 @@ class BRZ_Offline_Bridge {
     const NONCE_ACTION = 'brz_offline_bridge_apply';
     const CAPABILITY   = 'manage_woocommerce';
     const MENU_SLUG    = 'buyruz-offline-bridge';
-    const MAX_ITEMS    = 500;
+    const MAX_ITEMS    = 5000;
 
     const SUPPORTED_FIELDS = array(
         'regular_price',
@@ -127,10 +127,9 @@ class BRZ_Offline_Bridge {
                                     <table class="widefat">
                                         <thead>
                                             <tr>
-                                                <th>آیدی محصول</th>
+                                                <th>اس‌کا‌یو</th>
                                                 <th>نام محصول</th>
-                                                <th>فیلد</th>
-                                                <th>مقدار جدید</th>
+                                                <th>تغییرات</th>
                                                 <th>مبدأ</th>
                                                 <th>زمان</th>
                                             </tr>
@@ -139,20 +138,34 @@ class BRZ_Offline_Bridge {
                                             <?php foreach ( $entries as $entry ) :
                                                 $product = wc_get_product( (int) $entry->product_id );
                                                 $product_name = $product ? $product->get_name() : '-';
-                                                $field_label = BRZ_Change_Log::get_field_label( $entry->field_name );
-                                                $edit_url = $product ? admin_url( 'post.php?post=' . $entry->product_id . '&action=edit' ) : '';
+                                                $product_sku  = $product && $product->get_sku() ? $product->get_sku() : '-';
+                                                $product_url  = $product ? get_permalink( $product->get_id() ) : '';
+
+                                                // Convert comma-separated field names to Persian labels
+                                                $fields = explode( ',', $entry->field_names );
+                                                $labels = array();
+                                                foreach ( $fields as $f ) {
+                                                    $labels[] = BRZ_Change_Log::get_field_label( trim( $f ) );
+                                                }
+                                                $labels = array_unique( $labels );
+                                                $changes_text = implode( '، ', $labels );
                                             ?>
                                             <tr>
                                                 <td>
-                                                    <?php if ( $edit_url ) : ?>
-                                                        <a class="brz-ob-product-link" href="<?php echo esc_url( $edit_url ); ?>" target="_blank"><?php echo esc_html( $entry->product_id ); ?></a>
+                                                    <?php if ( $product_url ) : ?>
+                                                        <a class="brz-ob-clean-link" href="<?php echo esc_url( $product_url ); ?>" target="_blank"><?php echo esc_html( $product_sku ); ?></a>
                                                     <?php else : ?>
-                                                        <?php echo esc_html( $entry->product_id ); ?>
+                                                        <?php echo esc_html( $product_sku ); ?>
                                                     <?php endif; ?>
                                                 </td>
-                                                <td><?php echo esc_html( $product_name ); ?></td>
-                                                <td><?php echo esc_html( $field_label ); ?></td>
-                                                <td dir="ltr"><?php echo esc_html( $entry->new_value ?? '-' ); ?></td>
+                                                <td>
+                                                    <?php if ( $product_url ) : ?>
+                                                        <a class="brz-ob-clean-link" href="<?php echo esc_url( $product_url ); ?>" target="_blank"><?php echo esc_html( $product_name ); ?></a>
+                                                    <?php else : ?>
+                                                        <?php echo esc_html( $product_name ); ?>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td><?php echo esc_html( $changes_text ); ?></td>
                                                 <td><?php echo esc_html( $entry->source ); ?></td>
                                                 <td dir="ltr"><?php echo esc_html( $entry->created_at ); ?></td>
                                             </tr>
@@ -323,6 +336,8 @@ class BRZ_Offline_Bridge {
                 foreach ( $result['fields_applied'] as $label ) {
                     $log_entries[] = array(
                         'product_id'   => $result['id'],
+                        'sku'          => $result['sku'],
+                        'url'          => $result['url'],
                         'product_name' => $result['product_name'],
                         'field_name'   => $label,
                         'source'       => BRZ_Change_Log::SOURCE_PLUGIN,
@@ -352,6 +367,8 @@ class BRZ_Offline_Bridge {
         if ( ! isset( $item['id'] ) || ! is_numeric( $item['id'] ) || (int) $item['id'] <= 0 ) {
             return array(
                 'id'             => isset( $item['id'] ) ? $item['id'] : null,
+                'sku'            => '-',
+                'url'            => '',
                 'product_name'   => '-',
                 'fields_applied' => array(),
                 'success'        => false,
@@ -363,10 +380,14 @@ class BRZ_Offline_Bridge {
         $product_id   = (int) $item['id'];
         $product      = wc_get_product( $product_id );
         $product_name = $product ? $product->get_name() : '-';
+        $product_sku  = $product && $product->get_sku() ? $product->get_sku() : '-';
+        $product_url  = $product ? get_permalink( $product_id ) : '';
 
         if ( ! $product ) {
             return array(
                 'id'             => $product_id,
+                'sku'            => $product_sku,
+                'url'            => $product_url,
                 'product_name'   => $product_name,
                 'fields_applied' => array(),
                 'success'        => false,
@@ -408,6 +429,8 @@ class BRZ_Offline_Bridge {
                 self::$skip_hook_logging = false;
                 return array(
                     'id'             => $product_id,
+                    'sku'            => $product_sku,
+                    'url'            => $product_url,
                     'product_name'   => $product_name,
                     'fields_applied' => array(),
                     'success'        => false,
@@ -419,6 +442,8 @@ class BRZ_Offline_Bridge {
 
         return array(
             'id'             => $product_id,
+            'sku'            => $product_sku,
+            'url'            => $product_url,
             'product_name'   => $product_name,
             'fields_applied' => $fields_applied,
             'success'        => true,
@@ -500,7 +525,15 @@ class BRZ_Offline_Bridge {
                     placeholder='[{"id": 123, "regular_price": "500000", "stock_quantity": 10}, {"id": 456, "sku": "BRZ-001", "sale_price": "450000"}]'
                 ></textarea>
                 <div id="brz-ob-error" class="brz-ob-inline-error" style="display:none;"></div>
-                <div id="brz-ob-progress" class="brz-ob-progress" style="display:none;"></div>
+                <div id="brz-ob-progress-container" class="brz-ob-progress-container" style="display:none;">
+                    <div class="brz-ob-progress-info">
+                        <span id="brz-ob-progress-text" class="brz-ob-progress-text">در حال پردازش...</span>
+                        <span id="brz-ob-progress-percent" class="brz-ob-progress-percent">0%</span>
+                    </div>
+                    <div class="brz-ob-progress-bar-bg">
+                        <div id="brz-ob-progress-bar" class="brz-ob-progress-bar" style="width: 0%;"></div>
+                    </div>
+                </div>
                 <div class="brz-ob-actions">
                     <button type="button" id="brz-ob-apply" class="brz-button brz-button--primary">🔗 اعمال تغییرات</button>
                 </div>

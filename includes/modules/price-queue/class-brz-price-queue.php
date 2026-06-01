@@ -2,10 +2,12 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 /**
- * Buyruz Price Queue - اعمال آفلاین قیمت محصولات از Google Sheet
+ * Buyruz Price Queue - DEPRECATED
  *
- * وقتی ارسال قیمت از شیت به سایت ناموفق باشه (مثلاً به دلیل VPN)،
- * تغییرات توی یه JSON ذخیره میشن و از طریق این ماژول اعمال میشن.
+ * این کلاس منسوخ شده و توسط BRZ_Offline_Bridge جایگزین شده است.
+ * فقط برای سازگاری با نسخه‌های قدیمی نگه داشته شده.
+ *
+ * @deprecated Use BRZ_Offline_Bridge instead.
  */
 class BRZ_Price_Queue {
 
@@ -13,11 +15,11 @@ class BRZ_Price_Queue {
     const CAPABILITY   = 'manage_woocommerce';
 
     /**
-     * Bootstrap hooks.
+     * Bootstrap hooks — DEPRECATED, does nothing.
+     * All functionality moved to BRZ_Offline_Bridge.
      */
     public static function init() {
-        add_action( 'admin_menu', array( __CLASS__, 'register_menu' ), 90 );
-        add_action( 'wp_ajax_brz_price_queue_apply', array( __CLASS__, 'ajax_apply' ) );
+        // Intentionally empty — replaced by BRZ_Offline_Bridge.
     }
 
     /**
