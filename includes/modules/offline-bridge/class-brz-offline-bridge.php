@@ -26,17 +26,43 @@ class BRZ_Offline_Bridge {
     const STOCK_STATUS_VALUES = array( 'instock', 'outofstock', 'onbackorder' );
 
     /**
+     * Stores old product field values before save for change detection.
+     *
+     * @var array
+     */
+    private static $old_values = array();
+
+    /**
+     * Flag to prevent double-logging when the plugin itself saves a product.
+     *
+     * @var bool
+     */
+    private static $skip_hook_logging = false;
+
+    /**
      * Bootstrap hooks.
      */
     public static function init() {
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
         add_action( 'admin_init', array( __CLASS__, 'handle_legacy_redirect' ) );
+        add_action( 'admin_menu', array( __CLASS__, 'register_log_menu' ), 91 );
 
         // New AJAX action
         add_action( 'wp_ajax_brz_offline_bridge_apply', array( __CLASS__, 'ajax_apply' ) );
 
         // Legacy AJAX action for backward compatibility
         add_action( 'wp_ajax_brz_price_queue_apply', array( __CLASS__, 'ajax_apply' ) );
+
+        // WooCommerce product save hooks for change detection
+        add_action( 'woocommerce_before_product_object_save', array( __CLASS__, 'capture_old_values' ) );
+        add_action( 'woocommerce_after_product_object_save', array( __CLASS__, 'on_product_save' ) );
+        add_action( BRZ_Change_Log::CRON_HOOK, array( 'BRZ_Change_Log', 'handle_cron' ) );
+
+        // Schedule cron for log cleanup
+        BRZ_Change_Log::schedule_cron();
+
+        // Unschedule cron on plugin deactivation
+        register_deactivation_hook( BRZ_PATH . 'buyruz-settings.php', array( 'BRZ_Change_Log', 'unschedule_cron' ) );
     }
 
     /**
@@ -51,6 +77,110 @@ class BRZ_Offline_Bridge {
             self::MENU_SLUG,
             array( __CLASS__, 'render_page' )
         );
+    }
+
+    /**
+     * Register the Change Log sub-menu page.
+     */
+    public static function register_log_menu() {
+        add_submenu_page(
+            'buyruz-dashboard',
+            'لاگ تغییرات',
+            '📋 لاگ تغییرات',
+            self::CAPABILITY,
+            'buyruz-module-offline_bridge_log',
+            array( __CLASS__, 'render_log_page' )
+        );
+    }
+
+    /**
+     * Render the Change Log sub-page.
+     */
+    public static function render_log_page() {
+        $page     = isset( $_GET['paged'] ) ? max( 1, (int) $_GET['paged'] ) : 1;
+        $per_page = 50;
+        $total    = BRZ_Change_Log::count();
+        $entries  = BRZ_Change_Log::query( array( 'page' => $page, 'per_page' => $per_page ) );
+        $total_pages = ceil( $total / $per_page );
+        ?>
+        <div class="brz-admin-wrap" dir="rtl">
+            <div class="brz-hero">
+                <div class="brz-hero__content">
+                    <div class="brz-hero__title-row">
+                        <h1>📋 لاگ تغییرات</h1>
+                        <span class="brz-hero__version">نسخه <?php echo esc_html( BRZ_VERSION ); ?></span>
+                    </div>
+                    <p>تاریخچه تغییرات فیلدهای محصولات از تمام منابع.</p>
+                </div>
+            </div>
+            <div class="brz-layout brz-layout--single brz-ob-fullwidth">
+                <div class="brz-content">
+                    <div class="brz-card">
+                        <div class="brz-card__header">
+                            <h3>لاگ تغییرات (<?php echo esc_html( number_format_i18n( $total ) ); ?> مورد)</h3>
+                        </div>
+                        <div class="brz-card__body">
+                            <?php if ( empty( $entries ) ) : ?>
+                                <p style="text-align:center;color:var(--md-on-surface-variant);">هنوز لاگی ثبت نشده.</p>
+                            <?php else : ?>
+                                <div class="brz-table-responsive">
+                                    <table class="widefat">
+                                        <thead>
+                                            <tr>
+                                                <th>آیدی محصول</th>
+                                                <th>نام محصول</th>
+                                                <th>فیلد</th>
+                                                <th>مقدار جدید</th>
+                                                <th>مبدأ</th>
+                                                <th>زمان</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ( $entries as $entry ) :
+                                                $product = wc_get_product( (int) $entry->product_id );
+                                                $product_name = $product ? $product->get_name() : '-';
+                                                $field_label = BRZ_Change_Log::get_field_label( $entry->field_name );
+                                                $edit_url = $product ? admin_url( 'post.php?post=' . $entry->product_id . '&action=edit' ) : '';
+                                            ?>
+                                            <tr>
+                                                <td>
+                                                    <?php if ( $edit_url ) : ?>
+                                                        <a class="brz-ob-product-link" href="<?php echo esc_url( $edit_url ); ?>" target="_blank"><?php echo esc_html( $entry->product_id ); ?></a>
+                                                    <?php else : ?>
+                                                        <?php echo esc_html( $entry->product_id ); ?>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td><?php echo esc_html( $product_name ); ?></td>
+                                                <td><?php echo esc_html( $field_label ); ?></td>
+                                                <td dir="ltr"><?php echo esc_html( $entry->new_value ?? '-' ); ?></td>
+                                                <td><?php echo esc_html( $entry->source ); ?></td>
+                                                <td dir="ltr"><?php echo esc_html( $entry->created_at ); ?></td>
+                                            </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <?php if ( $total_pages > 1 ) : ?>
+                                    <div style="margin-top:var(--md-space-lg);display:flex;justify-content:center;gap:var(--md-space-sm);">
+                                        <?php for ( $i = 1; $i <= $total_pages; $i++ ) :
+                                            $url = admin_url( 'admin.php?page=buyruz-module-offline_bridge_log&paged=' . $i );
+                                            $is_current = ( $i === $page );
+                                        ?>
+                                            <?php if ( $is_current ) : ?>
+                                                <span class="brz-button" style="opacity:0.5;pointer-events:none;"><?php echo $i; ?></span>
+                                            <?php else : ?>
+                                                <a class="brz-button brz-button--outlined" href="<?php echo esc_url( $url ); ?>"><?php echo $i; ?></a>
+                                            <?php endif; ?>
+                                        <?php endfor; ?>
+                                    </div>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php
     }
 
     /**
@@ -131,15 +261,13 @@ class BRZ_Offline_Bridge {
      */
     public static function render_page() {
         ?>
-        <div class="brz-admin-wrap" dir="rtl">
-            <div id="brz-snackbar" class="brz-snackbar" aria-live="polite"></div>
-            <?php self::render_hero(); ?>
-            <div class="brz-layout brz-layout--single">
-                <div class="brz-content">
-                    <?php self::render_input_card(); ?>
-                    <div id="brz-ob-stats" class="brz-ob-stats" style="display:none;"></div>
-                    <div id="brz-ob-results" style="display:none;"></div>
-                </div>
+        <div id="brz-snackbar" class="brz-snackbar" aria-live="polite"></div>
+        <?php self::render_hero(); ?>
+        <div class="brz-layout brz-layout--single brz-ob-fullwidth">
+            <div class="brz-content">
+                <?php self::render_input_card(); ?>
+                <div id="brz-ob-stats" class="brz-ob-stats" style="display:none;"></div>
+                <div id="brz-ob-results" style="display:none;"></div>
             </div>
         </div>
         <?php
@@ -188,11 +316,28 @@ class BRZ_Offline_Bridge {
             }
         }
 
+        // Collect session log entries for the log preview
+        $log_entries = array();
+        foreach ( $results as $result ) {
+            if ( ! empty( $result['success'] ) && ! empty( $result['fields_applied'] ) ) {
+                foreach ( $result['fields_applied'] as $label ) {
+                    $log_entries[] = array(
+                        'product_id'   => $result['id'],
+                        'product_name' => $result['product_name'],
+                        'field_name'   => $label,
+                        'source'       => BRZ_Change_Log::SOURCE_PLUGIN,
+                        'created_at'   => current_time( 'mysql', true ),
+                    );
+                }
+            }
+        }
+
         wp_send_json_success( array(
             'total'         => count( $results ),
             'success_count' => $success_count,
             'failed_count'  => $failed_count,
             'results'       => $results,
+            'log_entries'   => $log_entries,
         ) );
     }
 
@@ -200,13 +345,14 @@ class BRZ_Offline_Bridge {
      * Apply a single queue item to its product.
      *
      * @param array $item The queue item with id and field values.
-     * @return array Result array with id, fields_applied, success, warnings, error.
+     * @return array Result array with id, product_name, fields_applied, success, warnings, error.
      */
     private static function apply_item( array $item ): array {
         // Validate ID field: must exist, be numeric, and > 0.
         if ( ! isset( $item['id'] ) || ! is_numeric( $item['id'] ) || (int) $item['id'] <= 0 ) {
             return array(
                 'id'             => isset( $item['id'] ) ? $item['id'] : null,
+                'product_name'   => '-',
                 'fields_applied' => array(),
                 'success'        => false,
                 'warnings'       => array(),
@@ -214,12 +360,14 @@ class BRZ_Offline_Bridge {
             );
         }
 
-        $product_id = (int) $item['id'];
-        $product    = wc_get_product( $product_id );
+        $product_id   = (int) $item['id'];
+        $product      = wc_get_product( $product_id );
+        $product_name = $product ? $product->get_name() : '-';
 
         if ( ! $product ) {
             return array(
                 'id'             => $product_id,
+                'product_name'   => $product_name,
                 'fields_applied' => array(),
                 'success'        => false,
                 'warnings'       => array(),
@@ -239,7 +387,9 @@ class BRZ_Offline_Bridge {
                 $warning = self::apply_field( $product, $field, $value );
 
                 if ( null === $warning ) {
-                    $fields_applied[] = $field;
+                    $fields_applied[] = BRZ_Change_Log::get_field_label( $field );
+                    // Record to change log
+                    BRZ_Change_Log::insert( $product_id, $field, $value, BRZ_Change_Log::SOURCE_PLUGIN );
                 } else {
                     $warnings[] = $warning;
                 }
@@ -251,10 +401,14 @@ class BRZ_Offline_Bridge {
         // Save product only if at least one field was applied.
         if ( ! empty( $fields_applied ) ) {
             try {
+                self::$skip_hook_logging = true;
                 $product->save();
+                self::$skip_hook_logging = false;
             } catch ( \Exception $e ) {
+                self::$skip_hook_logging = false;
                 return array(
                     'id'             => $product_id,
+                    'product_name'   => $product_name,
                     'fields_applied' => array(),
                     'success'        => false,
                     'warnings'       => $warnings,
@@ -265,6 +419,7 @@ class BRZ_Offline_Bridge {
 
         return array(
             'id'             => $product_id,
+            'product_name'   => $product_name,
             'fields_applied' => $fields_applied,
             'success'        => true,
             'warnings'       => $warnings,
@@ -352,5 +507,73 @@ class BRZ_Offline_Bridge {
             </div>
         </div>
         <?php
+    }
+
+    /**
+     * Capture old product field values before save for change detection.
+     *
+     * @param \WC_Product $product The product being saved.
+     */
+    public static function capture_old_values( $product ) {
+        if ( self::$skip_hook_logging ) {
+            return;
+        }
+        if ( ! $product instanceof \WC_Product ) {
+            return;
+        }
+        $id = $product->get_id();
+        if ( ! $id ) {
+            return;
+        }
+        self::$old_values[ $id ] = array(
+            'regular_price'  => $product->get_regular_price( 'edit' ),
+            'sale_price'     => $product->get_sale_price( 'edit' ),
+            'stock_quantity' => $product->get_stock_quantity( 'edit' ),
+            'stock_status'   => $product->get_stock_status( 'edit' ),
+            'sku'            => $product->get_sku( 'edit' ),
+        );
+    }
+
+    /**
+     * Detect and log product field changes after save.
+     *
+     * @param \WC_Product $product The product that was saved.
+     */
+    public static function on_product_save( $product ) {
+        if ( self::$skip_hook_logging ) {
+            return;
+        }
+        if ( ! $product instanceof \WC_Product ) {
+            return;
+        }
+        $id = $product->get_id();
+        if ( ! $id || ! isset( self::$old_values[ $id ] ) ) {
+            return;
+        }
+
+        // Detect source
+        if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+            $source = BRZ_Change_Log::SOURCE_API;
+        } else {
+            $source = BRZ_Change_Log::SOURCE_ADMIN;
+        }
+
+        $old = self::$old_values[ $id ];
+        $new_values = array(
+            'regular_price'  => $product->get_regular_price( 'edit' ),
+            'sale_price'     => $product->get_sale_price( 'edit' ),
+            'stock_quantity' => $product->get_stock_quantity( 'edit' ),
+            'stock_status'   => $product->get_stock_status( 'edit' ),
+            'sku'            => $product->get_sku( 'edit' ),
+        );
+
+        foreach ( $new_values as $field => $new_val ) {
+            $old_val = isset( $old[ $field ] ) ? $old[ $field ] : null;
+            if ( (string) $old_val !== (string) $new_val ) {
+                BRZ_Change_Log::insert( $id, $field, $new_val, $source );
+            }
+        }
+
+        unset( self::$old_values[ $id ] );
     }
 }
