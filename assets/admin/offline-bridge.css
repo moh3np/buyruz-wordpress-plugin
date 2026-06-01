@@ -1,0 +1,141 @@
+/* ==========================================================================
+   Buyruz Offline Bridge - Module Styles
+   Extends the Design System defined in settings.css
+   All values use var(--md-*) tokens. No hard-coded pixel values for spacing.
+   ========================================================================== */
+
+/* ==========================================================================
+   1. JSON INPUT TEXTAREA
+   ========================================================================== */
+
+.brz-ob-textarea {
+  width: 100%;
+  min-height: 240px;
+  resize: vertical;
+  font: var(--md-font-body-md);
+  font-family: 'Courier New', Courier, monospace;
+  direction: ltr;
+  text-align: left;
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-radius-sm);
+  padding: var(--md-space-md) var(--md-space-lg);
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  transition: all var(--md-transition-fast);
+}
+
+.brz-ob-textarea:focus {
+  outline: none;
+  border-color: var(--md-primary);
+  box-shadow: 0 0 0 2px var(--md-primary-container);
+}
+
+.brz-ob-textarea::placeholder {
+  color: var(--md-on-surface-variant);
+}
+
+/* ==========================================================================
+   2. STATS PANEL
+   ========================================================================== */
+
+.brz-ob-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--md-space-md);
+  margin-top: var(--md-space-lg);
+}
+
+.brz-ob-stat {
+  background: var(--md-surface);
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-radius-md);
+  padding: var(--md-space-lg);
+  text-align: center;
+  box-shadow: var(--md-elevation-1);
+}
+
+.brz-ob-stat__value {
+  font: var(--md-font-headline-md);
+  margin-bottom: var(--md-space-xs);
+}
+
+.brz-ob-stat__value--success {
+  color: var(--md-success);
+}
+
+.brz-ob-stat__value--error {
+  color: var(--md-error);
+}
+
+.brz-ob-stat__value--total {
+  color: var(--md-on-surface);
+}
+
+.brz-ob-stat__label {
+  font: var(--md-font-label-md);
+  color: var(--md-on-surface-variant);
+}
+
+/* ==========================================================================
+   3. INLINE ERROR / VALIDATION MESSAGE
+   ========================================================================== */
+
+.brz-ob-inline-error {
+  margin-top: var(--md-space-md);
+  border: 1px dashed var(--md-warning);
+  background: var(--md-warning-container);
+  color: #5f4b0b;
+  border-radius: var(--md-radius-md);
+  padding: var(--md-space-md) var(--md-space-lg);
+  font: var(--md-font-body-md);
+}
+
+/* ==========================================================================
+   4. PROGRESS MESSAGE
+   ========================================================================== */
+
+.brz-ob-progress {
+  font: var(--md-font-label-lg);
+  color: var(--md-primary);
+  margin-top: var(--md-space-md);
+}
+
+/* ==========================================================================
+   5. BUTTON LOADING STATE
+   ========================================================================== */
+
+.brz-ob-button--loading {
+  opacity: 0.6;
+  pointer-events: none;
+  position: relative;
+}
+
+.brz-ob-button--loading::after {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-inline-start: var(--md-space-sm);
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: var(--md-radius-full);
+  animation: brz-ob-spin 0.6s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes brz-ob-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ==========================================================================
+   6. ACTIONS ROW
+   ========================================================================== */
+
+.brz-ob-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--md-space-md);
+  margin-top: var(--md-space-lg);
+}

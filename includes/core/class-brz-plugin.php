@@ -69,6 +69,7 @@ class BRZ_Plugin {
             $slug_renames = array(
                 'urlgen'      => 'static_controller',
                 'page_mapper' => 'static_controller',
+                'price_queue' => 'offline_bridge',
             );
             $changed = false;
             foreach ( $slug_renames as $old => $new ) {

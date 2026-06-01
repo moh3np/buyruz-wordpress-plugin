@@ -31,6 +31,7 @@ spl_autoload_register( function( $class ) {
         'BRZ_Smart_Linker_SEO'       => 'modules/smart-linker/class-brz-smart-linker-seo.php',
         'BRZ_Smart_Linker_Health'    => 'modules/smart-linker/class-brz-smart-linker-health.php',
         'BRZ_Price_Queue'            => 'modules/price-queue/class-brz-price-queue.php',
+        'BRZ_Offline_Bridge'         => 'modules/offline-bridge/class-brz-offline-bridge.php',
         'BRZ_GSheet'                 => 'integration/class-brz-gsheet.php',
         'BRZ_Connections'            => 'admin/class-brz-connections.php',
         'BRZ_WC_Shortcodes'          => 'integration/class-brz-wc-shortcodes.php',

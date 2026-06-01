@@ -541,6 +541,11 @@ class BRZ_Settings {
                 return;
             }
 
+            if ( 'offline_bridge' === $module_slug ) {
+                BRZ_Offline_Bridge::render_page();
+                return;
+            }
+
             $label = isset( $modules[ $module_slug ]['label'] ) ? $modules[ $module_slug ]['label'] : $module_slug;
             self::render_generic_module_card( $label, $active );
         } );
