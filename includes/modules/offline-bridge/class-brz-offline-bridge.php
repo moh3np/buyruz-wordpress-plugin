@@ -41,6 +41,8 @@ class BRZ_Offline_Bridge {
         'meta_data',
         'short_name',
         'english_name',
+        'description',
+        'short_description',
     );
 
     const STOCK_STATUS_VALUES = array( 'instock', 'outofstock', 'onbackorder' );
@@ -786,6 +788,14 @@ class BRZ_Offline_Bridge {
 
             case 'english_name':
                 $product->update_meta_data( 'product_english_name', sanitize_text_field( $value ) );
+                return null;
+
+            case 'description':
+                $product->set_description( wp_kses_post( $value ) );
+                return null;
+
+            case 'short_description':
+                $product->set_short_description( wp_kses_post( $value ) );
                 return null;
 
             default:
