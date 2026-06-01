@@ -329,8 +329,93 @@ class BRZ_Offline_Bridge {
         $raw_items = isset( $_POST['items'] ) ? wp_unslash( $_POST['items'] ) : '';
         $items     = json_decode( $raw_items, true );
 
-        if ( ! is_array( $items ) || empty( $items ) ) {
-            wp_send_json_error( array( 'message' => 'آرایه خالی یا نامعتبر.' ), 400 );
+        if ( empty( $items ) ) {
+            wp_send_json_error( array( 'message' => 'داده ورودی خالی یا نامعتبر.' ), 400 );
+        }
+
+        $dependency_ids = array();
+
+        // Support for "create_dependencies" JSON object structure
+        if ( is_array( $items ) && isset( $items['create_dependencies'] ) && $items['create_dependencies'] ) {
+            
+            if ( ! empty( $items['brands'] ) && is_array( $items['brands'] ) ) {
+                $dependency_ids['new_brands'] = array();
+                foreach ( $items['brands'] as $brand ) {
+                    if ( empty( $brand['name'] ) ) continue;
+                    $term = term_exists( $brand['name'], 'product_brand' );
+                    if ( ! $term ) {
+                        $inserted = wp_insert_term( $brand['name'], 'product_brand' );
+                        if ( ! is_wp_error( $inserted ) ) {
+                            $dependency_ids['new_brands'][] = array( 'name' => $brand['name'], 'id' => $inserted['term_id'] );
+                        }
+                    }
+                }
+            }
+
+            if ( ! empty( $items['attributes'] ) && is_array( $items['attributes'] ) ) {
+                $dependency_ids['new_attributes'] = array();
+                foreach ( $items['attributes'] as $attr ) {
+                    if ( empty( $attr['name'] ) ) continue;
+                    $slug = wc_sanitize_taxonomy_name( $attr['name'] );
+                    $id = wc_attribute_taxonomy_id_by_name( $attr['name'] );
+                    if ( ! $id ) {
+                        $args = array(
+                            'name'         => $attr['name'],
+                            'slug'         => $slug,
+                            'type'         => 'select',
+                            'order_by'     => 'menu_order',
+                            'has_archives' => false,
+                        );
+                        $id = wc_create_attribute( $args );
+                        if ( ! is_wp_error( $id ) ) {
+                            $dependency_ids['new_attributes'][] = array( 'name' => $attr['name'], 'id' => $id );
+                            register_taxonomy( 'pa_' . $slug, array( 'product' ), array() ); // Register temporarily for terms
+                        }
+                    }
+                }
+            }
+
+            if ( ! empty( $items['terms'] ) && is_array( $items['terms'] ) ) {
+                $dependency_ids['new_terms'] = array();
+                foreach ( $items['terms'] as $term_data ) {
+                    if ( empty( $term_data['name'] ) || empty( $term_data['attribute_id'] ) ) continue;
+                    $attr_id = $term_data['attribute_id'];
+                    if ( ! is_numeric( $attr_id ) ) {
+                        $attr_id = wc_attribute_taxonomy_id_by_name( $attr_id );
+                    }
+                    if ( $attr_id ) {
+                        $taxonomy = wc_attribute_taxonomy_name_by_id( $attr_id );
+                        $term = term_exists( $term_data['name'], $taxonomy );
+                        if ( ! $term ) {
+                            $inserted = wp_insert_term( $term_data['name'], $taxonomy );
+                            if ( ! is_wp_error( $inserted ) ) {
+                                $dependency_ids['new_terms'][] = array(
+                                    'name'         => $term_data['name'],
+                                    'attribute_id' => $attr_id,
+                                    'id'           => $inserted['term_id']
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Clean up empty categories
+            foreach ( $dependency_ids as $key => $val ) {
+                if ( empty( $val ) ) {
+                    unset( $dependency_ids[$key] );
+                }
+            }
+
+            wp_send_json_success( array(
+                'dependency_ids' => $dependency_ids
+            ) );
+            exit;
+        }
+
+        // Processing array of products
+        if ( ! wp_is_numeric_array( $items ) ) {
+            wp_send_json_error( array( 'message' => 'آرایه محصولات نامعتبر.' ), 400 );
         }
 
         if ( count( $items ) > self::MAX_ITEMS ) {
@@ -352,9 +437,18 @@ class BRZ_Offline_Bridge {
             }
         }
 
-        // Collect session log entries for the log preview
+        // Collect session log entries & new products
         $log_entries = array();
+        $new_products = array();
+        
         foreach ( $results as $result ) {
+            if ( ! empty( $result['success'] ) && ! empty( $result['is_new'] ) ) {
+                $new_products[] = array(
+                    'sku'  => $result['sku'],
+                    'name' => $result['product_name'],
+                    'id'   => $result['id']
+                );
+            }
             if ( ! empty( $result['success'] ) && ! empty( $result['fields_applied'] ) ) {
                 foreach ( $result['fields_applied'] as $label ) {
                     $log_entries[] = array(
@@ -369,13 +463,18 @@ class BRZ_Offline_Bridge {
                 }
             }
         }
+        
+        if ( ! empty( $new_products ) ) {
+            $dependency_ids['new_products'] = $new_products;
+        }
 
         wp_send_json_success( array(
-            'total'         => count( $results ),
-            'success_count' => $success_count,
-            'failed_count'  => $failed_count,
-            'results'       => $results,
-            'log_entries'   => $log_entries,
+            'total'          => count( $results ),
+            'success_count'  => $success_count,
+            'failed_count'   => $failed_count,
+            'results'        => $results,
+            'log_entries'    => $log_entries,
+            'dependency_ids' => empty( $dependency_ids ) ? null : $dependency_ids,
         ) );
     }
 
@@ -386,22 +485,21 @@ class BRZ_Offline_Bridge {
      * @return array Result array with id, product_name, fields_applied, success, warnings, error.
      */
     private static function apply_item( array $item ): array {
-        // Validate ID field: must exist, be numeric, and > 0.
+        $is_new = false;
+        
+        // Handle Product Creation if ID is missing or invalid
         if ( ! isset( $item['id'] ) || ! is_numeric( $item['id'] ) || (int) $item['id'] <= 0 ) {
-            return array(
-                'id'             => isset( $item['id'] ) ? $item['id'] : null,
-                'sku'            => '-',
-                'url'            => '',
-                'product_name'   => '-',
-                'fields_applied' => array(),
-                'success'        => false,
-                'warnings'       => array(),
-                'error'          => 'آیدی محصول نامعتبر',
-            );
+            $is_new = true;
+            $product = new \WC_Product_Simple();
+            $product->set_name( isset( $item['name'] ) ? sanitize_text_field( $item['name'] ) : 'محصول جدید (آفلاین)' );
+            $product->set_status( isset( $item['status'] ) ? sanitize_text_field( $item['status'] ) : 'draft' );
+            $product->save(); // Get an ID immediately
+            $product_id = $product->get_id();
+        } else {
+            $product_id   = (int) $item['id'];
+            $product      = wc_get_product( $product_id );
         }
 
-        $product_id   = (int) $item['id'];
-        $product      = wc_get_product( $product_id );
         $product_name = $product ? $product->get_name() : '-';
         $product_sku  = $product && $product->get_sku() ? $product->get_sku() : '-';
         $product_url  = $product ? get_permalink( $product_id ) : '';
@@ -416,6 +514,7 @@ class BRZ_Offline_Bridge {
                 'success'        => false,
                 'warnings'       => array(),
                 'error'          => 'محصول یافت نشد',
+                'is_new'         => $is_new,
             );
         }
 
@@ -443,7 +542,7 @@ class BRZ_Offline_Bridge {
         }
 
         // Save product only if at least one field was applied.
-        if ( ! empty( $fields_applied ) ) {
+        if ( ! empty( $fields_applied ) || $is_new ) {
             try {
                 self::$skip_hook_logging = true;
                 $product->save();
@@ -459,6 +558,7 @@ class BRZ_Offline_Bridge {
                     'success'        => false,
                     'warnings'       => $warnings,
                     'error'          => $e->getMessage(),
+                    'is_new'         => $is_new,
                 );
             }
         }
@@ -472,6 +572,7 @@ class BRZ_Offline_Bridge {
             'success'        => true,
             'warnings'       => $warnings,
             'error'          => '',
+            'is_new'         => $is_new,
         );
     }
 

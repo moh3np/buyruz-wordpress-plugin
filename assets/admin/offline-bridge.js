@@ -177,14 +177,11 @@
 
     // 2. Client-side validation
     var raw = inputEl.value;
-
-    // 2a. Empty/whitespace check
     if (!raw || !raw.trim()) {
       showError(i18n.emptyInput || 'کادر خالی است.');
       return;
     }
 
-    // 2b. JSON parse
     var items;
     try {
       items = JSON.parse(raw);
@@ -193,14 +190,14 @@
       return;
     }
 
-    // 2c. Not array or empty array
-    if (!Array.isArray(items) || items.length === 0) {
+    // Determine if it's a Dependency Object Payload or a Product Array Payload
+    var isDependencyPayload = !Array.isArray(items) && items.create_dependencies === true;
+    if (!isDependencyPayload && (!Array.isArray(items) || items.length === 0)) {
       showError(i18n.invalidArray || 'آرایه خالی یا نامعتبر.');
       return;
     }
 
-    // 2d. Max items check
-    if (items.length > maxItems) {
+    if (Array.isArray(items) && items.length > maxItems) {
       showError((i18n.maxExceeded || 'حداکثر %d آیتم مجاز است.').replace('%d', String(maxItems)));
       return;
     }
@@ -208,58 +205,99 @@
     // 3. Start processing
     applyBtn.classList.add('brz-ob-button--loading');
 
-    // Split items into batches of 50
     var BATCH_SIZE = 50;
     var chunks = [];
-    for (var i = 0; i < items.length; i += BATCH_SIZE) {
-      chunks.push(items.slice(i, i + BATCH_SIZE));
+    if (isDependencyPayload) {
+      chunks.push(items);
+    } else {
+      for (var i = 0; i < items.length; i += BATCH_SIZE) {
+        chunks.push(items.slice(i, i + BATCH_SIZE));
+      }
     }
 
     var allResults = [];
     var totalSuccessCount = 0;
     var totalFailedCount = 0;
     var processedCount = 0;
+    var allDependencyIds = null;
+
+    function showDependencyModal(dataObj) {
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,23,42,0.6);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;';
+      
+      var modal = document.createElement('div');
+      modal.style.cssText = 'background:#fff;border-radius:12px;width:90%;max-width:500px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);overflow:hidden;font-family:Tahoma,sans-serif;direction:rtl;';
+      
+      var header = document.createElement('div');
+      header.style.cssText = 'padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;';
+      header.innerHTML = '<h3 style="margin:0;font-size:16px;color:#0f172a;">کدهای بازگشتی برای گوگل شیت</h3>';
+      
+      var body = document.createElement('div');
+      body.style.cssText = 'padding:20px;';
+      
+      var jsonStr = JSON.stringify(dataObj, null, 2);
+      var codeBox = document.createElement('pre');
+      codeBox.style.cssText = 'background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;font-family:monospace;font-size:13px;direction:ltr;text-align:left;overflow-x:auto;max-height:250px;margin:0 0 16px 0;';
+      codeBox.textContent = jsonStr;
+      
+      var copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.style.cssText = 'width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:background 0.2s;';
+      copyBtn.innerHTML = '<span style="margin-left:8px;">📋</span> کپی کدها';
+      
+      copyBtn.addEventListener('click', function() {
+        navigator.clipboard.writeText(jsonStr).then(function() {
+          copyBtn.style.background = '#10b981';
+          copyBtn.innerHTML = '✔️ کپی شد!';
+          setTimeout(function() {
+            copyBtn.style.background = '#2563eb';
+            copyBtn.innerHTML = '<span style="margin-left:8px;">📋</span> کپی کدها';
+          }, 2000);
+        });
+      });
+      
+      var closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.innerHTML = '✕';
+      closeBtn.style.cssText = 'background:transparent;border:none;font-size:18px;cursor:pointer;color:#64748b;';
+      closeBtn.addEventListener('click', function() { document.body.removeChild(overlay); });
+      
+      header.appendChild(closeBtn);
+      body.appendChild(codeBox);
+      body.appendChild(copyBtn);
+      modal.appendChild(header);
+      modal.appendChild(body);
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+    }
 
     function processBatch(batchIndex) {
       if (batchIndex >= chunks.length) {
-        // Complete!
         applyBtn.classList.remove('brz-ob-button--loading');
         if (progressContainer) progressContainer.style.display = 'none';
 
-        var summaryData = {
-          total: items.length,
-          success_count: totalSuccessCount,
-          failed_count: totalFailedCount
-        };
-
-        // Render Stats Panel
-        renderStats(summaryData);
-
-        // Render Results Table
-        if (allResults.length) {
-          renderResults(allResults);
+        if (allDependencyIds && Object.keys(allDependencyIds).length > 0) {
+            showDependencyModal(allDependencyIds);
+            // Even if we showed the modal, we still render results if any were processed
+        } else {
+            // Show snackbar
+            if (totalFailedCount > 0) {
+              showSnackbar((i18n.partial || '%d موفق، %d ناموفق.').replace('%d', String(totalSuccessCount)).replace('%d', String(totalFailedCount)), 8000);
+            } else {
+              showSnackbar((i18n.success || '%d مورد با موفقیت اعمال شد.').replace('%d', String(totalSuccessCount)), 5000);
+            }
         }
 
-        // Show snackbar
-        if (totalFailedCount > 0) {
-          // Partial failure — warning snackbar (8s)
-          var partialMsg = (i18n.partial || '%d موفق، %d ناموفق.')
-            .replace('%d', String(totalSuccessCount))
-            .replace('%d', String(totalFailedCount));
-          showSnackbar(partialMsg, 8000);
-        } else {
-          // All success — success snackbar (5s)
-          var successMsg = (i18n.success || '%d مورد با موفقیت اعمال شد.')
-            .replace('%d', String(totalSuccessCount));
-          showSnackbar(successMsg, 5000);
+        if (!isDependencyPayload) {
+            renderStats({ total: items.length, success_count: totalSuccessCount, failed_count: totalFailedCount });
+            if (allResults.length) renderResults(allResults);
         }
         return;
       }
 
       var currentChunk = chunks[batchIndex];
 
-      // Update progress bar
-      if (progressContainer) {
+      if (progressContainer && !isDependencyPayload) {
         progressContainer.style.display = 'block';
         var pct = Math.round((processedCount / items.length) * 100);
         if (progressBar) progressBar.style.width = pct + '%';
@@ -271,64 +309,51 @@
         }
       }
 
-      // AJAX Request for this chunk
       var formData = new FormData();
       formData.append('action', 'brz_offline_bridge_apply');
       formData.append('_nonce', nonce);
       formData.append('items', JSON.stringify(currentChunk));
 
-      fetch(ajaxUrl, {
-        method: 'POST',
-        credentials: 'same-origin',
-        body: formData
-      })
-        .then(function (response) {
-          return response.json();
-        })
+      fetch(ajaxUrl, { method: 'POST', credentials: 'same-origin', body: formData })
+        .then(function (response) { return response.json(); })
         .then(function (res) {
           if (res.success === true && res.data) {
             var data = res.data;
-            if (data.results) {
-              allResults = allResults.concat(data.results);
-            }
+            if (data.results) allResults = allResults.concat(data.results);
             totalSuccessCount += (data.success_count || 0);
             totalFailedCount += (data.failed_count || 0);
-            processedCount += currentChunk.length;
+            processedCount += isDependencyPayload ? 1 : currentChunk.length;
 
-            // Next batch
+            if (data.dependency_ids) {
+                if (!allDependencyIds) allDependencyIds = {};
+                var deps = data.dependency_ids;
+                if (deps.new_brands) allDependencyIds.new_brands = (allDependencyIds.new_brands || []).concat(deps.new_brands);
+                if (deps.new_attributes) allDependencyIds.new_attributes = (allDependencyIds.new_attributes || []).concat(deps.new_attributes);
+                if (deps.new_terms) allDependencyIds.new_terms = (allDependencyIds.new_terms || []).concat(deps.new_terms);
+                if (deps.new_products) allDependencyIds.new_products = (allDependencyIds.new_products || []).concat(deps.new_products);
+            }
             processBatch(batchIndex + 1);
           } else {
-            // Server error response for this batch
-            var errorMsg = (res.data && res.data.message) || (i18n.networkError || 'خطای شبکه');
-            markChunkAsFailed(currentChunk, errorMsg);
+            markChunkAsFailed(currentChunk, (res.data && res.data.message) || (i18n.networkError || 'خطای شبکه'));
             processBatch(batchIndex + 1);
           }
         })
         .catch(function (err) {
-          // Network error for this batch
-          var errorMsg = (i18n.networkError || 'خطای شبکه') + ': ' + err.message;
-          markChunkAsFailed(currentChunk, errorMsg);
+          markChunkAsFailed(currentChunk, (i18n.networkError || 'خطای شبکه') + ': ' + err.message);
           processBatch(batchIndex + 1);
         });
     }
 
     function markChunkAsFailed(chunk, errorMsg) {
+      if (!Array.isArray(chunk)) return; // skip if dependency object
       for (var k = 0; k < chunk.length; k++) {
         var item = chunk[k];
-        allResults.push({
-          id: item.id || null,
-          product_name: '-',
-          fields_applied: [],
-          success: false,
-          warnings: [],
-          error: errorMsg
-        });
+        allResults.push({ id: item.id || null, product_name: '-', fields_applied: [], success: false, warnings: [], error: errorMsg });
         totalFailedCount++;
       }
       processedCount += chunk.length;
     }
 
-    // Start with the first batch
     processBatch(0);
 
   });
