@@ -153,98 +153,7 @@
     resultsEl.style.display = '';
   }
 
-  function renderLogPreview(logEntries) {
-    var container = document.getElementById('brz-ob-log-preview');
 
-    // Create container if it doesn't exist
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'brz-ob-log-preview';
-      // Insert after results container
-      if (resultsEl && resultsEl.parentNode) {
-        resultsEl.parentNode.insertBefore(container, resultsEl.nextSibling);
-      } else {
-        return;
-      }
-    }
-
-    // If no entries, hide and return
-    if (!logEntries || !logEntries.length) {
-      container.style.display = 'none';
-      container.innerHTML = '';
-      return;
-    }
-
-    // Group log entries by product_id
-    var grouped = {};
-    for (var i = 0; i < logEntries.length; i++) {
-      var entry = logEntries[i];
-      var pid = entry.product_id;
-      if (!grouped[pid]) {
-        grouped[pid] = {
-          sku: entry.sku || '-',
-          url: entry.url || '',
-          product_name: entry.product_name || '-',
-          fields: [],
-          source: entry.source || '-',
-          created_at: entry.created_at || '-'
-        };
-      }
-      grouped[pid].fields.push(entry.field_name);
-    }
-
-    var rows = '';
-    for (var pid in grouped) {
-      if (grouped.hasOwnProperty(pid)) {
-        var group = grouped[pid];
-        var skuCell = '';
-        if (group.url && group.sku !== '-') {
-          skuCell = '<a class="brz-ob-clean-link" href="' + group.url + '" target="_blank">' + group.sku + '</a>';
-        } else {
-          skuCell = group.sku;
-        }
-
-        var nameCell = '';
-        if (group.url && group.product_name !== '-') {
-          nameCell = '<a class="brz-ob-clean-link" href="' + group.url + '" target="_blank">' + group.product_name + '</a>';
-        } else {
-          nameCell = group.product_name;
-        }
-
-        var fieldsText = group.fields.join('، ');
-
-        rows +=
-          '<tr>' +
-            '<td>' + skuCell + '</td>' +
-            '<td>' + nameCell + '</td>' +
-            '<td>' + fieldsText + '</td>' +
-            '<td>' + group.source + '</td>' +
-            '<td dir="ltr">' + group.created_at + '</td>' +
-          '</tr>';
-      }
-    }
-
-    container.innerHTML =
-      '<div class="brz-card brz-ob-log-preview-card">' +
-        '<div class="brz-card__header"><h3>پیش‌نمایش لاگ تغییرات</h3></div>' +
-        '<div class="brz-card__body">' +
-          '<div class="brz-table-responsive">' +
-            '<table class="widefat">' +
-              '<thead><tr>' +
-                '<th>اس‌کا‌یو</th>' +
-                '<th>نام محصول</th>' +
-                '<th>تغییرات</th>' +
-                '<th>مبدأ</th>' +
-                '<th>زمان</th>' +
-              '</tr></thead>' +
-              '<tbody>' + rows + '</tbody>' +
-            '</table>' +
-          '</div>' +
-        '</div>' +
-      '</div>';
-
-    container.style.display = '';
-  }
 
   /* ==========================================================================
      3. BUTTON CLICK HANDLER
@@ -264,12 +173,7 @@
     }
     if (snackbar) snackbar.classList.remove('is-visible');
 
-    // Clear previous log preview
-    var logPreviewEl = document.getElementById('brz-ob-log-preview');
-    if (logPreviewEl) {
-      logPreviewEl.style.display = 'none';
-      logPreviewEl.innerHTML = '';
-    }
+
 
     // 2. Client-side validation
     var raw = inputEl.value;
@@ -312,7 +216,6 @@
     }
 
     var allResults = [];
-    var allLogEntries = [];
     var totalSuccessCount = 0;
     var totalFailedCount = 0;
     var processedCount = 0;
@@ -335,11 +238,6 @@
         // Render Results Table
         if (allResults.length) {
           renderResults(allResults);
-        }
-
-        // Render Log Preview
-        if (allLogEntries.length) {
-          renderLogPreview(allLogEntries);
         }
 
         // Show snackbar
@@ -392,9 +290,6 @@
             var data = res.data;
             if (data.results) {
               allResults = allResults.concat(data.results);
-            }
-            if (data.log_entries) {
-              allLogEntries = allLogEntries.concat(data.log_entries);
             }
             totalSuccessCount += (data.success_count || 0);
             totalFailedCount += (data.failed_count || 0);
