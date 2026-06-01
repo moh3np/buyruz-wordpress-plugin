@@ -281,15 +281,107 @@ class BRZ_Settings {
         <?php
     }
 
+    private static function get_page_metadata( $active_slug ) {
+        $meta = array(
+            'buyruz-dashboard' => array(
+                'title'       => 'پیشخوان',
+                'description' => 'پیشخوان مدیریت و کنترل سریع ماژول‌های فعال بایروز.',
+            ),
+            'buyruz-general' => array(
+                'title'       => 'تنظیمات عمومی',
+                'description' => 'تنظیمات همگانی، گزینه‌های پردازش شورت‌کد و دوره‌های پاکسازی لاگ‌ها.',
+            ),
+            'buyruz-connections' => array(
+                'title'       => 'ارتباطات',
+                'description' => 'مدیریت کلیدهای امنیتی و همگام‌سازی ارتباط بین سایت‌ها.',
+            ),
+            'buyruz-style' => array(
+                'title'       => 'استایل',
+                'description' => 'سفارشی‌سازی ظاهر، انیمیشن‌ها، رنگ برند و قوانین استایل‌دهی جداول.',
+            ),
+            'buyruz-module-compare_table' => array(
+                'title'       => 'جدول متا',
+                'description' => 'تنظیمات پیش‌فرض، نام ستون‌ها و مدیریت فعال‌سازی جدول مقایسهٔ محصول.',
+            ),
+            'buyruz-module-faq_rankmath' => array(
+                'title'       => 'سوالات متداول (Rank Math)',
+                'description' => 'تبدیل خودکار خروجی FAQ افزونه Rank Math به آکاردئون متحرک بایروز.',
+            ),
+            'buyruz-module-smart_linker' => array(
+                'title'       => 'لینک‌ساز هوشمند',
+                'description' => 'لینک‌سازی داخلی هوشمند با AI - سینک یکپارچه بین سایت‌ها.',
+            ),
+            'buyruz-module-bi_exporter' => array(
+                'title'       => 'تحلیل سایت',
+                'description' => 'اجرای پس‌زمینه و دریافت فایل JSON فشرده برای ممیزی سئو و داده.',
+            ),
+            'buyruz-module-outbound_guard' => array(
+                'title'       => 'فایروال HTTP',
+                'description' => 'کنترل و فیلتر کردن هوشمند درخواست‌های خروجی وردپرس برای امنیت بیشتر.',
+            ),
+            'buyruz-module-static_controller' => array(
+                'title'       => 'کنترلر استاتیک',
+                'description' => 'تولید و مدیریت کش استاتیک صفحات برای افزایش سرعت فوق‌العاده سایت.',
+            ),
+            'buyruz-module-offline_bridge' => array(
+                'title'       => 'پل آفلاین',
+                'description' => 'اعمال آفلاین تغییرات محصولات از Google Sheet — وقتی ارسال مستقیم ممکن نیست.',
+            ),
+            'buyruz-module-offline_bridge_log' => array(
+                'title'       => 'لاگ تغییرات',
+                'description' => 'تاریخچه تغییرات فیلدهای محصولات از تمام منابع.',
+            ),
+        );
+
+        return isset( $meta[ $active_slug ] ) ? $meta[ $active_slug ] : array(
+            'title'       => 'تنظیمات',
+            'description' => '',
+        );
+    }
+
     private static function render_hero( $active_slug ) {
+        $metadata = self::get_page_metadata( $active_slug );
+        $is_dashboard = ( 'buyruz-dashboard' === $active_slug );
+        
+        // Check if it's a module and get its status
+        $actions_html = '';
+        if ( strpos( $active_slug, 'buyruz-module-' ) === 0 ) {
+            $module_slug = substr( $active_slug, strlen( 'buyruz-module-' ) );
+            if ( 'offline_bridge_log' === $module_slug ) {
+                $module_slug = 'offline_bridge';
+            }
+            $states  = BRZ_Modules::get_states();
+            if ( isset( $states[ $module_slug ] ) ) {
+                $active = ! empty( $states[ $module_slug ] );
+                $status_text = $active ? 'فعال است' : 'غیرفعال است';
+                $status_class = $active ? 'is-on' : 'is-off';
+                $actions_html = '<span class="brz-status ' . $status_class . '">' . esc_html( $status_text ) . '</span>';
+            }
+        }
         ?>
         <div class="brz-hero">
             <div class="brz-hero__content">
                 <div class="brz-hero__title-row">
-                    <h1>پنل تنظیمات</h1>
+                    <?php if ( $is_dashboard ) : ?>
+                        <h1>تنظیمات بایروز</h1>
+                    <?php else : ?>
+                        <div class="brz-hero__breadcrumbs">
+                            <span class="brz-hero__plugin-title">تنظیمات بایروز</span>
+                            <span class="brz-hero__separator">/</span>
+                            <h1><?php echo esc_html( $metadata['title'] ); ?></h1>
+                        </div>
+                    <?php endif; ?>
                     <span class="brz-hero__version">نسخه <?php echo esc_html( BRZ_VERSION ); ?></span>
                 </div>
+                <?php if ( ! empty( $metadata['description'] ) ) : ?>
+                    <p class="brz-hero__desc" style="margin-top:var(--md-space-sm);"><?php echo esc_html( $metadata['description'] ); ?></p>
+                <?php endif; ?>
             </div>
+            <?php if ( ! empty( $actions_html ) ) : ?>
+                <div class="brz-hero__actions" style="display:flex; align-items:center; gap:var(--md-space-md);">
+                    <?php echo $actions_html; ?>
+                </div>
+            <?php endif; ?>
         </div>
         <?php
     }
@@ -377,12 +469,7 @@ class BRZ_Settings {
         self::render_shell( 'buyruz-general', function() {
             self::render_notices();
             ?>
-            <div class="brz-section-header">
-                <div>
-                    <h2>تنظیمات عمومی</h2>
-                    <p>کنترل قابلیت‌های عمومی افزونه.</p>
-                </div>
-            </div>
+
 
             <div class="brz-single-column">
                 <div class="brz-card">
@@ -440,12 +527,7 @@ class BRZ_Settings {
     private static function render_style_settings() {
         self::render_shell( 'buyruz-style', function() {
             ?>
-            <div class="brz-section-header">
-                <div>
-                    <h2>استایل</h2>
-                    <p>تنظیمات نمایش و استایل‌های بایروز.</p>
-                </div>
-            </div>
+
             <div class="brz-single-column">
                 <form method="post" action="options.php" class="brz-settings-form" data-context="general">
                     <?php
@@ -476,15 +558,7 @@ class BRZ_Settings {
                 $compare_msg = isset( $_GET['brz-compare-msg'] ) ? sanitize_key( wp_unslash( $_GET['brz-compare-msg'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
                 $compare_product = isset( $_GET['product'] ) ? absint( $_GET['product'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
                 ?>
-                <div class="brz-section-header">
-                    <div>
-                        <h2>جدول متا</h2>
-                        <p>تنظیمات پیش‌فرض و مدیریت فعال‌سازی جدول مقایسهٔ محصول.</p>
-                    </div>
-                    <div class="brz-section-actions">
-                        <span class="brz-status <?php echo $active ? 'is-on' : 'is-off'; ?>"><?php echo $active ? 'فعال است' : 'غیرفعال است'; ?></span>
-                    </div>
-                </div>
+
 
                 <?php if ( ! empty( $compare_msg ) ) : ?>
                     <?php
@@ -578,15 +652,7 @@ class BRZ_Settings {
     private static function render_rankmath_module_card( $active ) {
         $rankmath_active = class_exists( '\RankMath\Schema\DB' );
         ?>
-        <div class="brz-section-header">
-            <div>
-                <h2>سوالات متداول محصولات (Rank Math)</h2>
-                <p>خروجی FAQ Rank Math را به آکاردئون بایروز تبدیل می‌کند.</p>
-            </div>
-            <div class="brz-section-actions">
-                <span class="brz-status <?php echo $active ? 'is-on' : 'is-off'; ?>"><?php echo $active ? 'فعال است' : 'غیرفعال است'; ?></span>
-            </div>
-        </div>
+
 
         <div class="brz-grid">
             <div class="brz-grid__main">

@@ -176,6 +176,25 @@
   font: var(--md-font-label-md);
 }
 
+.brz-hero__breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--md-space-sm);
+  flex-wrap: wrap;
+}
+
+.brz-hero__plugin-title {
+  font: var(--md-font-headline-lg);
+  color: var(--md-on-surface-variant);
+  font-weight: 500;
+}
+
+.brz-hero__separator {
+  font: var(--md-font-headline-lg);
+  color: var(--md-outline);
+  font-weight: 400;
+}
+
 .brz-hero__desc,
 .brz-hero p {
   margin: 0;

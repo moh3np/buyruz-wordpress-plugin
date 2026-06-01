@@ -805,15 +805,7 @@ class BRZ_BI_Exporter {
             }
         }
         ?>
-        <div class="brz-section-header">
-            <div>
-                <h2>تحلیل سایت</h2>
-                <p>اجرای پس‌زمینه و دریافت فایل JSON فشرده برای ممیزی سئو و داده.</p>
-            </div>
-            <div class="brz-section-actions">
-                <span class="brz-status <?php echo ( ! empty( $state['status'] ) && 'finished' === $state['status'] ) ? 'is-on' : 'is-off'; ?>"><?php echo esc_html( $status_text ); ?></span>
-            </div>
-        </div>
+
 
         <div class="brz-single-column">
             <div class="brz-card">

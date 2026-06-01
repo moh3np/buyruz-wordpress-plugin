@@ -107,10 +107,14 @@ class BRZ_Offline_Bridge {
             <div class="brz-hero">
                 <div class="brz-hero__content">
                     <div class="brz-hero__title-row">
-                        <h1>📋 لاگ تغییرات</h1>
+                        <div class="brz-hero__breadcrumbs">
+                            <span class="brz-hero__plugin-title">تنظیمات بایروز</span>
+                            <span class="brz-hero__separator">/</span>
+                            <h1>📋 لاگ تغییرات</h1>
+                        </div>
                         <span class="brz-hero__version">نسخه <?php echo esc_html( BRZ_VERSION ); ?></span>
                     </div>
-                    <p>تاریخچه تغییرات فیلدهای محصولات از تمام منابع.</p>
+                    <p class="brz-hero__desc" style="margin-top:var(--md-space-sm);">تاریخچه تغییرات فیلدهای محصولات از تمام منابع.</p>
                 </div>
             </div>
             <div class="brz-layout brz-layout--single brz-ob-fullwidth">
@@ -275,7 +279,6 @@ class BRZ_Offline_Bridge {
     public static function render_page() {
         ?>
         <div id="brz-snackbar" class="brz-snackbar" aria-live="polite"></div>
-        <?php self::render_hero(); ?>
         <div class="brz-layout brz-layout--single brz-ob-fullwidth">
             <div class="brz-content">
                 <?php self::render_input_card(); ?>
@@ -490,22 +493,7 @@ class BRZ_Offline_Bridge {
         }
     }
 
-    /**
-     * Render the hero section of the page.
-     */
-    private static function render_hero(): void {
-        ?>
-        <div class="brz-hero">
-            <div class="brz-hero__content">
-                <div class="brz-hero__title-row">
-                    <h1>🔗 پل آفلاین</h1>
-                    <span class="brz-hero__version">نسخه <?php echo esc_html( BRZ_VERSION ); ?></span>
-                </div>
-                <p>اعمال تغییرات محصولات از Google Sheet — وقتی ارسال مستقیم ممکن نیست.</p>
-            </div>
-        </div>
-        <?php
-    }
+
 
     /**
      * Render the JSON input card.

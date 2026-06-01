@@ -1299,55 +1299,50 @@ class BRZ_Static_Controller {
             $system_status = 'healthy';
         }
         ?>
-        <!-- Section Header -->
-        <div class="brz-section-header">
-            <div>
-                <h2>کنترلر استاتیک</h2>
-            </div>
-            <div class="brz-section-actions">
-                <span class="brz-static-system-status brz-static-system-status--<?php echo esc_attr( $system_status ); ?>" id="brz-static-system-badge">
-                    <?php
-                    if ( $system_status === 'healthy' ) {
-                        echo esc_html( 'سالم' );
-                    } elseif ( $system_status === 'attention' ) {
-                        echo esc_html( 'نیاز به توجه' );
-                    } else {
-                        echo esc_html( 'خطا' );
-                    }
-                    ?>
-                </span>
-                <?php if ( $pending_count > 0 ) : ?>
-                    <span class="brz-static-pending-badge" id="brz-static-pending-count">
-                        <?php echo esc_html( $pending_count ); ?> در انتظار
-                    </span>
-                <?php endif; ?>
-            </div>
-        </div>
-
         <!-- Tab Navigation -->
         <div class="brz-static-tabs" id="brz-static-tabs">
-            <nav class="brz-static-tabs__nav" role="tablist">
-                <button type="button" class="brz-static-tabs__btn is-active" role="tab"
-                        aria-selected="true" aria-controls="brz-static-panel-dashboard"
-                        data-tab="dashboard" id="brz-static-tab-dashboard">
-                    داشبورد
-                </button>
-                <button type="button" class="brz-static-tabs__btn" role="tab"
-                        aria-selected="false" aria-controls="brz-static-panel-sitemap"
-                        data-tab="sitemap" id="brz-static-tab-sitemap">
-                    صفحات سایت‌مپ
-                </button>
-                <button type="button" class="brz-static-tabs__btn" role="tab"
-                        aria-selected="false" aria-controls="brz-static-panel-manual"
-                        data-tab="manual" id="brz-static-tab-manual">
-                    صفحات دستی
-                </button>
-                <button type="button" class="brz-static-tabs__btn" role="tab"
-                        aria-selected="false" aria-controls="brz-static-panel-settings"
-                        data-tab="settings" id="brz-static-tab-settings">
-                    تنظیمات
-                </button>
-            </nav>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--md-space-md); flex-wrap:wrap; gap:10px; width:100%;">
+                <nav class="brz-static-tabs__nav" role="tablist" style="margin-bottom:0;">
+                    <button type="button" class="brz-static-tabs__btn is-active" role="tab"
+                            aria-selected="true" aria-controls="brz-static-panel-dashboard"
+                            data-tab="dashboard" id="brz-static-tab-dashboard">
+                        داشبورد
+                    </button>
+                    <button type="button" class="brz-static-tabs__btn" role="tab"
+                            aria-selected="false" aria-controls="brz-static-panel-sitemap"
+                            data-tab="sitemap" id="brz-static-tab-sitemap">
+                        صفحات سایت‌مپ
+                    </button>
+                    <button type="button" class="brz-static-tabs__btn" role="tab"
+                            aria-selected="false" aria-controls="brz-static-panel-manual"
+                            data-tab="manual" id="brz-static-tab-manual">
+                        صفحات دستی
+                    </button>
+                    <button type="button" class="brz-static-tabs__btn" role="tab"
+                            aria-selected="false" aria-controls="brz-static-panel-settings"
+                            data-tab="settings" id="brz-static-tab-settings">
+                        تنظیمات
+                    </button>
+                </nav>
+                <div class="brz-static-header-status-row" style="display:flex; gap:8px;">
+                    <span class="brz-static-system-status brz-static-system-status--<?php echo esc_attr( $system_status ); ?>" id="brz-static-system-badge">
+                        <?php
+                        if ( $system_status === 'healthy' ) {
+                            echo esc_html( 'سالم' );
+                        } elseif ( $system_status === 'attention' ) {
+                            echo esc_html( 'نیاز به توجه' );
+                        } else {
+                            echo esc_html( 'خطا' );
+                        }
+                        ?>
+                    </span>
+                    <?php if ( $pending_count > 0 ) : ?>
+                        <span class="brz-static-pending-badge" id="brz-static-pending-count">
+                            <?php echo esc_html( $pending_count ); ?> در انتظار
+                        </span>
+                    <?php endif; ?>
+                </div>
+            </div>
 
             <!-- Panel 1: Dashboard -->
             <div class="brz-static-tabs__panel is-visible" role="tabpanel"

@@ -80,15 +80,7 @@ class BRZ_Firewall {
         $domains     = $settings[ $active_mode ];
         $nonce       = wp_create_nonce( 'brz_firewall_nonce' );
         ?>
-        <div class="brz-section-header">
-            <div>
-                <h2>فایروال HTTP</h2>
-                <p>کنترل درخواست‌های خروجی وردپرس</p>
-            </div>
-            <div class="brz-section-actions">
-                <span class="brz-status is-on">فعال</span>
-            </div>
-        </div>
+
 
         <div class="brz-single-column">
             <!-- Mode Selector Card -->

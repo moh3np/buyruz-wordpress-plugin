@@ -294,31 +294,9 @@ class BRZ_Smart_Linker {
         .wrap { margin: 0 !important; max-width: none !important; }
         .brz-admin-wrap { margin: 0 !important; padding: 0 !important; }
         .brz-content-wrapper { margin: 0 !important; padding: 0 !important; max-width: none !important; }
-        .brz-admin-wrap .brz-hero:not(:first-of-type) { display: none; }
         .brz-admin-wrap .brz-side-nav:not(:first-of-type) { display: none; }
         
-        /* Hero Section - با فاصله مناسب */
-        .brz-sl-hero { 
-            margin: 0; 
-            padding: 28px 40px; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between;
-            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
-        }
-        .brz-sl-hero h2 { margin: 0 0 6px 0; font-size: 26px; color: #fff; font-weight: 700; }
-        .brz-sl-hero p { margin: 0; color: rgba(255,255,255,0.9); font-size: 14px; }
-        .brz-sl-badge { 
-            background: rgba(255,255,255,0.2); 
-            backdrop-filter: blur(10px);
-            color: #fff; 
-            border-radius: 999px; 
-            padding: 8px 16px; 
-            font-size: 12px; 
-            font-weight: 600;
-            border: 1px solid rgba(255,255,255,0.3);
-        }
+
         
         /* Shell Container - فاصله مناسب از اطراف */
         .brz-sl-shell { 
@@ -500,13 +478,7 @@ class BRZ_Smart_Linker {
         }
         </style>
 
-        <div class="brz-sl-hero">
-            <div>
-                <h2>لینک‌ساز هوشمند v3.1</h2>
-                <p>لینک‌سازی داخلی هوشمند با AI - سینک یکپارچه بین سایت‌ها</p>
-            </div>
-            <span class="brz-sl-badge">Smart Linker</span>
-        </div>
+
 
         <div class="brz-sl-shell">
             <div class="brz-sl-tabs" role="tablist">
