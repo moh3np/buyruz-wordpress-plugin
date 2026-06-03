@@ -278,7 +278,11 @@
 
         if (allDependencyIds && Object.keys(allDependencyIds).length > 0) {
             showDependencyModal(allDependencyIds);
-            // Even if we showed the modal, we still render results if any were processed
+            var depCount = 0;
+            Object.keys(allDependencyIds).forEach(function(k) { depCount += allDependencyIds[k].length; });
+            showSnackbar(depCount + ' مورد وابستگی پردازش شد.', 5000);
+        } else if (isDependencyPayload) {
+            showSnackbar('هیچ وابستگی جدید یا موجودی یافت نشد. لطفاً لاگ سرور را بررسی کنید.', 8000);
         } else {
             // Show snackbar
             if (totalFailedCount > 0) {

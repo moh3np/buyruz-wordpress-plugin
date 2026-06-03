@@ -339,7 +339,9 @@ class BRZ_Offline_Bridge {
 
         // Support for "create_dependencies" JSON object structure
         if ( is_array( $items ) && isset( $items['create_dependencies'] ) && $items['create_dependencies'] ) {
-            
+
+            error_log( '[BRZ_Offline_Bridge] create_dependencies triggered. Raw items: ' . wp_json_encode( $items ) );
+
             if ( ! empty( $items['brands'] ) && is_array( $items['brands'] ) ) {
                 $dependency_ids['new_brands'] = array();
                 foreach ( $items['brands'] as $brand ) {
@@ -348,10 +350,12 @@ class BRZ_Offline_Bridge {
                     if ( ! $term ) {
                         $inserted = wp_insert_term( $brand['name'], 'product_brand' );
                         if ( ! is_wp_error( $inserted ) ) {
-                            $dependency_ids['new_brands'][] = array( 'name' => $brand['name'], 'id' => $inserted['term_id'] );
+                            $dependency_ids['new_brands'][] = array( 'name' => $brand['name'], 'id' => (int) $inserted['term_id'] );
+                        } else {
+                            error_log( '[BRZ_Offline_Bridge] Brand insert error for "' . $brand['name'] . '": ' . $inserted->get_error_message() );
                         }
                     } else {
-                        $term_id = is_array( $term ) ? $term['term_id'] : $term;
+                        $term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
                         $dependency_ids['new_brands'][] = array( 'name' => $brand['name'], 'id' => $term_id );
                     }
                 }
@@ -373,11 +377,13 @@ class BRZ_Offline_Bridge {
                         );
                         $id = wc_create_attribute( $args );
                         if ( ! is_wp_error( $id ) ) {
-                            $dependency_ids['new_attributes'][] = array( 'name' => $attr['name'], 'id' => $id );
-                            register_taxonomy( 'pa_' . $slug, array( 'product' ), array() ); // Register temporarily for terms
+                            $dependency_ids['new_attributes'][] = array( 'name' => $attr['name'], 'id' => (int) $id );
+                            register_taxonomy( 'pa_' . $slug, array( 'product' ), array() );
+                        } else {
+                            error_log( '[BRZ_Offline_Bridge] Attribute create error for "' . $attr['name'] . '": ' . $id->get_error_message() );
                         }
                     } else {
-                        $dependency_ids['new_attributes'][] = array( 'name' => $attr['name'], 'id' => $id );
+                        $dependency_ids['new_attributes'][] = array( 'name' => $attr['name'], 'id' => (int) $id );
                     }
                 }
             }
@@ -385,26 +391,39 @@ class BRZ_Offline_Bridge {
             if ( ! empty( $items['terms'] ) && is_array( $items['terms'] ) ) {
                 $dependency_ids['new_terms'] = array();
                 foreach ( $items['terms'] as $term_data ) {
-                    if ( empty( $term_data['name'] ) || empty( $term_data['attribute_id'] ) ) continue;
+                    if ( empty( $term_data['name'] ) || empty( $term_data['attribute_id'] ) ) {
+                        error_log( '[BRZ_Offline_Bridge] Term skipped (empty name or attribute_id): ' . wp_json_encode( $term_data ) );
+                        continue;
+                    }
                     $attr_id = $term_data['attribute_id'];
                     if ( ! is_numeric( $attr_id ) ) {
                         $attr_id = wc_attribute_taxonomy_id_by_name( $attr_id );
                     }
+                    $attr_id = (int) $attr_id;
+                    error_log( '[BRZ_Offline_Bridge] Processing term "' . $term_data['name'] . '" for attr_id=' . $attr_id );
                     if ( $attr_id ) {
                         $taxonomy = wc_attribute_taxonomy_name_by_id( $attr_id );
+                        error_log( '[BRZ_Offline_Bridge] Taxonomy for attr_id ' . $attr_id . ': ' . ( $taxonomy ?: '(empty)' ) );
                         if ( $taxonomy ) {
+                            if ( ! taxonomy_exists( $taxonomy ) ) {
+                                error_log( '[BRZ_Offline_Bridge] Taxonomy "' . $taxonomy . '" not registered, registering now.' );
+                                register_taxonomy( $taxonomy, array( 'product' ), array() );
+                            }
                             $term = term_exists( $term_data['name'], $taxonomy );
+                            error_log( '[BRZ_Offline_Bridge] term_exists("' . $term_data['name'] . '", "' . $taxonomy . '"): ' . wp_json_encode( $term ) );
                             if ( ! $term ) {
                                 $inserted = wp_insert_term( $term_data['name'], $taxonomy );
                                 if ( ! is_wp_error( $inserted ) ) {
                                     $dependency_ids['new_terms'][] = array(
                                         'name'         => $term_data['name'],
                                         'attribute_id' => $attr_id,
-                                        'id'           => $inserted['term_id']
+                                        'id'           => (int) $inserted['term_id']
                                     );
+                                } else {
+                                    error_log( '[BRZ_Offline_Bridge] wp_insert_term error: ' . $inserted->get_error_message() );
                                 }
                             } else {
-                                $term_id = is_array( $term ) ? $term['term_id'] : $term;
+                                $term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
                                 $dependency_ids['new_terms'][] = array(
                                     'name'         => $term_data['name'],
                                     'attribute_id' => $attr_id,
@@ -422,6 +441,8 @@ class BRZ_Offline_Bridge {
                     unset( $dependency_ids[$key] );
                 }
             }
+
+            error_log( '[BRZ_Offline_Bridge] Final dependency_ids: ' . wp_json_encode( $dependency_ids ) );
 
             wp_send_json_success( array(
                 'dependency_ids' => $dependency_ids
