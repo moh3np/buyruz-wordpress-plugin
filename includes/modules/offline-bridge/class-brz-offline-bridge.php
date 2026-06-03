@@ -350,6 +350,9 @@ class BRZ_Offline_Bridge {
                         if ( ! is_wp_error( $inserted ) ) {
                             $dependency_ids['new_brands'][] = array( 'name' => $brand['name'], 'id' => $inserted['term_id'] );
                         }
+                    } else {
+                        $term_id = is_array( $term ) ? $term['term_id'] : $term;
+                        $dependency_ids['new_brands'][] = array( 'name' => $brand['name'], 'id' => $term_id );
                     }
                 }
             }
@@ -373,6 +376,8 @@ class BRZ_Offline_Bridge {
                             $dependency_ids['new_attributes'][] = array( 'name' => $attr['name'], 'id' => $id );
                             register_taxonomy( 'pa_' . $slug, array( 'product' ), array() ); // Register temporarily for terms
                         }
+                    } else {
+                        $dependency_ids['new_attributes'][] = array( 'name' => $attr['name'], 'id' => $id );
                     }
                 }
             }
@@ -387,14 +392,23 @@ class BRZ_Offline_Bridge {
                     }
                     if ( $attr_id ) {
                         $taxonomy = wc_attribute_taxonomy_name_by_id( $attr_id );
-                        $term = term_exists( $term_data['name'], $taxonomy );
-                        if ( ! $term ) {
-                            $inserted = wp_insert_term( $term_data['name'], $taxonomy );
-                            if ( ! is_wp_error( $inserted ) ) {
+                        if ( $taxonomy ) {
+                            $term = term_exists( $term_data['name'], $taxonomy );
+                            if ( ! $term ) {
+                                $inserted = wp_insert_term( $term_data['name'], $taxonomy );
+                                if ( ! is_wp_error( $inserted ) ) {
+                                    $dependency_ids['new_terms'][] = array(
+                                        'name'         => $term_data['name'],
+                                        'attribute_id' => $attr_id,
+                                        'id'           => $inserted['term_id']
+                                    );
+                                }
+                            } else {
+                                $term_id = is_array( $term ) ? $term['term_id'] : $term;
                                 $dependency_ids['new_terms'][] = array(
                                     'name'         => $term_data['name'],
                                     'attribute_id' => $attr_id,
-                                    'id'           => $inserted['term_id']
+                                    'id'           => $term_id
                                 );
                             }
                         }
