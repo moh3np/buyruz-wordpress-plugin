@@ -584,6 +584,11 @@ class BRZ_Offline_Bridge {
                 self::$skip_hook_logging = true;
                 $product->save();
                 self::$skip_hook_logging = false;
+                
+                // Refresh product details after save to capture newly applied fields (like SKU)
+                $product_name = $product->get_name() ? $product->get_name() : '-';
+                $product_sku  = $product->get_sku() ? $product->get_sku() : '-';
+                $product_url  = get_permalink( $product_id );
             } catch ( \Exception $e ) {
                 self::$skip_hook_logging = false;
                 return array(
