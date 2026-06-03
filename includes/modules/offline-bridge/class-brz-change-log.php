@@ -96,12 +96,16 @@ class BRZ_Change_Log {
      */
     public static function insert( int $product_id, string $field_name, $new_value, string $source ): void {
         global $wpdb;
+        
+        // Ensure complex types (like arrays for meta_data or attributes) are serialized to JSON
+        $db_value = is_scalar( $new_value ) ? (string) $new_value : wp_json_encode( $new_value, JSON_UNESCAPED_UNICODE );
+
         $wpdb->insert(
             self::table_name(),
             array(
                 'product_id' => $product_id,
                 'field_name' => $field_name,
-                'new_value'  => $new_value,
+                'new_value'  => $db_value,
                 'source'     => $source,
                 'created_at' => current_time( 'mysql', true ),
             ),
