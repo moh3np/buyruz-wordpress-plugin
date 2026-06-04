@@ -564,14 +564,19 @@ class BRZ_Offline_Bridge {
             }
 
             if ( in_array( $field, self::SUPPORTED_FIELDS, true ) ) {
-                $warning = self::apply_field( $product, $field, $value );
+                try {
+                    $warning = self::apply_field( $product, $field, $value );
 
-                if ( null === $warning ) {
-                    $fields_applied[] = BRZ_Change_Log::get_field_label( $field );
-                    // Record to change log
-                    BRZ_Change_Log::insert( $product_id, $field, $value, BRZ_Change_Log::SOURCE_PLUGIN );
-                } else {
-                    $warnings[] = $warning;
+                    if ( null === $warning ) {
+                        $fields_applied[] = BRZ_Change_Log::get_field_label( $field );
+                        // Record to change log
+                        BRZ_Change_Log::insert( $product_id, $field, $value, BRZ_Change_Log::SOURCE_PLUGIN );
+                    } else {
+                        $warnings[] = $warning;
+                    }
+                } catch ( \Throwable $e ) {
+                    // Catch WooCommerce exceptions like WC_Data_Exception (e.g. duplicate SKU)
+                    $warnings[] = "خطا در فیلد '{$field}': " . $e->getMessage();
                 }
             } else {
                 $warnings[] = "فیلد '{$field}' پشتیبانی نمی‌شود و نادیده گرفته شد";
