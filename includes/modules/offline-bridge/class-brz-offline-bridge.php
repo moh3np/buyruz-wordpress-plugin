@@ -524,14 +524,26 @@ class BRZ_Offline_Bridge {
     private static function apply_item( array $item ): array {
         $is_new = false;
         
-        // Handle Product Creation if ID is missing or invalid
+        // Handle Product Update or Creation if ID is missing or invalid
         if ( ! isset( $item['id'] ) || ! is_numeric( $item['id'] ) || (int) $item['id'] <= 0 ) {
-            $is_new = true;
-            $product = new \WC_Product_Simple();
-            $product->set_name( isset( $item['name'] ) ? sanitize_text_field( $item['name'] ) : 'محصول جدید (آفلاین)' );
-            $product->set_status( isset( $item['status'] ) ? sanitize_text_field( $item['status'] ) : 'draft' );
-            $product->save(); // Get an ID immediately
-            $product_id = $product->get_id();
+            $product_id = 0;
+            // Fallback: Check if SKU exists to update existing product instead of creating a duplicate
+            if ( ! empty( $item['sku'] ) ) {
+                $product_id = wc_get_product_id_by_sku( sanitize_text_field( $item['sku'] ) );
+            }
+
+            if ( $product_id ) {
+                $product = wc_get_product( $product_id );
+                // Still set is_new to true so the ID is returned to the spreadsheet in 'new_products'
+                $is_new = true; 
+            } else {
+                $is_new = true;
+                $product = new \WC_Product_Simple();
+                $product->set_name( isset( $item['name'] ) ? sanitize_text_field( $item['name'] ) : 'محصول جدید (آفلاین)' );
+                $product->set_status( isset( $item['status'] ) ? sanitize_text_field( $item['status'] ) : 'draft' );
+                $product->save(); // Get an ID immediately
+                $product_id = $product->get_id();
+            }
         } else {
             $product_id   = (int) $item['id'];
             $product      = wc_get_product( $product_id );
