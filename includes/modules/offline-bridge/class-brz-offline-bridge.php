@@ -480,8 +480,10 @@ class BRZ_Offline_Bridge {
         
         foreach ( $results as $result ) {
             if ( ! empty( $result['success'] ) && ! empty( $result['is_new'] ) ) {
+                // Extract only the numeric part of the SKU (e.g. 'BRP-2406' -> '2406')
+                $numeric_sku = preg_replace( '/[^0-9]/', '', $result['sku'] );
                 $new_products[] = array(
-                    'sku'  => $result['sku'],
+                    'sku'  => $numeric_sku,
                     'name' => $result['product_name'],
                     'id'   => $result['id']
                 );
