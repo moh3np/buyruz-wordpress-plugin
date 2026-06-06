@@ -256,11 +256,30 @@
         });
       });
       
+      function closeModal() {
+        if (document.body.contains(overlay)) {
+          document.body.removeChild(overlay);
+        }
+        document.removeEventListener('keydown', handleEscape);
+      }
+      
+      function handleEscape(e) {
+        if (e.key === 'Escape') closeModal();
+      }
+      
+      // Close on Escape key
+      document.addEventListener('keydown', handleEscape);
+      
+      // Close on click outside (overlay click)
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) closeModal();
+      });
+
       var closeBtn = document.createElement('button');
       closeBtn.type = 'button';
       closeBtn.innerHTML = '✕';
       closeBtn.style.cssText = 'background:transparent;border:none;font-size:18px;cursor:pointer;color:#64748b;';
-      closeBtn.addEventListener('click', function() { document.body.removeChild(overlay); });
+      closeBtn.addEventListener('click', closeModal);
       
       header.appendChild(closeBtn);
       body.appendChild(codeBox);
