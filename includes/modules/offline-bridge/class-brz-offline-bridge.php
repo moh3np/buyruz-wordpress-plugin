@@ -348,7 +348,11 @@ class BRZ_Offline_Bridge {
                     if ( empty( $brand['name'] ) ) continue;
                     $term = term_exists( $brand['name'], 'product_brand' );
                     if ( ! $term ) {
-                        $inserted = wp_insert_term( $brand['name'], 'product_brand' );
+                        $args = array();
+                        if ( ! empty( $brand['slug'] ) ) {
+                            $args['slug'] = sanitize_title( $brand['slug'] );
+                        }
+                        $inserted = wp_insert_term( $brand['name'], 'product_brand', $args );
                         if ( ! is_wp_error( $inserted ) ) {
                             $dependency_ids['new_brands'][] = array( 'name' => $brand['name'], 'id' => (int) $inserted['term_id'] );
                         } else {
