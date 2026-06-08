@@ -354,13 +354,28 @@ class BRZ_Offline_Bridge {
                         }
                         $inserted = wp_insert_term( $brand['name'], 'product_brand', $args );
                         if ( ! is_wp_error( $inserted ) ) {
-                            $dependency_ids['new_brands'][] = array( 'name' => $brand['name'], 'id' => (int) $inserted['term_id'] );
+                            $term_obj = get_term( (int) $inserted['term_id'], 'product_brand' );
+                            $dependency_ids['new_brands'][] = array(
+                                'name' => $brand['name'],
+                                'id'   => (int) $inserted['term_id'],
+                                'slug' => $term_obj && ! is_wp_error( $term_obj ) ? $term_obj->slug : ''
+                            );
                         } else {
                             error_log( '[BRZ_Offline_Bridge] Brand insert error for "' . $brand['name'] . '": ' . $inserted->get_error_message() );
                         }
                     } else {
                         $term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
-                        $dependency_ids['new_brands'][] = array( 'name' => $brand['name'], 'id' => $term_id );
+                        if ( ! empty( $brand['slug'] ) ) {
+                            wp_update_term( $term_id, 'product_brand', array(
+                                'slug' => sanitize_title( $brand['slug'] )
+                            ) );
+                        }
+                        $term_obj = get_term( $term_id, 'product_brand' );
+                        $dependency_ids['new_brands'][] = array(
+                            'name' => $brand['name'],
+                            'id'   => $term_id,
+                            'slug' => $term_obj && ! is_wp_error( $term_obj ) ? $term_obj->slug : ''
+                        );
                     }
                 }
             }
