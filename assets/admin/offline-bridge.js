@@ -223,6 +223,7 @@
 
     function showDependencyModal(dataObj) {
       var overlay = document.createElement('div');
+      overlay.className = 'brz-ob-modal-overlay';
       overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,23,42,0.6);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;transition:opacity 0.3s ease;opacity:0;';
       
       var modal = document.createElement('div');
@@ -242,6 +243,7 @@
       
       var copyBtn = document.createElement('button');
       copyBtn.type = 'button';
+      copyBtn.className = 'brz-ob-copy-btn';
       copyBtn.style.cssText = 'width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:background 0.2s;';
       copyBtn.innerHTML = '<span style="margin-left:8px;">📋</span> کپی کدها';
       
@@ -262,16 +264,26 @@
           if (document.body.contains(overlay)) {
             document.body.removeChild(overlay);
           }
-          document.removeEventListener('keydown', handleEscape);
+          document.removeEventListener('keydown', handleModalKeydown);
         }, 300);
+        
+        if (inputEl) {
+          inputEl.value = '';
+          inputEl.focus();
+        }
       }
       
-      function handleEscape(e) {
-        if (e.key === 'Escape') closeModal();
+      function handleModalKeydown(e) {
+        if (e.key === 'Escape') {
+          closeModal();
+        } else if (e.key === 'Enter' || e.key === 'c' || e.key === 'C' || ((e.ctrlKey || e.metaKey) && e.key === 'c')) {
+          e.preventDefault();
+          copyBtn.click();
+        }
       }
       
-      // Close on Escape key
-      document.addEventListener('keydown', handleEscape);
+      // Close/Copy on keys
+      document.addEventListener('keydown', handleModalKeydown);
       
       // Close on click outside (overlay click)
       overlay.addEventListener('click', function(e) {
@@ -297,6 +309,9 @@
         requestAnimationFrame(function() {
           overlay.style.opacity = '1';
           modal.style.transform = 'scale(1)';
+          setTimeout(function() {
+            copyBtn.focus();
+          }, 100);
         });
       });
     }
@@ -391,5 +406,43 @@
     processBatch(0);
 
   });
+
+  // 1. Submit on Ctrl+Enter / Cmd+Enter inside the main input textarea
+  inputEl.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      applyBtn.click();
+    }
+  });
+
+  // 2. Auto-focus function
+  function autoFocusActiveElement() {
+    if (document.hidden) return;
+    
+    // Check if our modal is open
+    var overlay = document.querySelector('.brz-ob-modal-overlay');
+    if (overlay) {
+      var copyBtn = overlay.querySelector('.brz-ob-copy-btn');
+      if (copyBtn) {
+        copyBtn.focus();
+      }
+    } else {
+      if (inputEl) {
+        inputEl.focus();
+        inputEl.select();
+      }
+    }
+  }
+
+  // 3. Register focus and visibilitychange listeners
+  window.addEventListener('focus', autoFocusActiveElement);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) {
+      autoFocusActiveElement();
+    }
+  });
+
+  // 4. Initial auto-focus on page load
+  setTimeout(autoFocusActiveElement, 100);
 
 })();
