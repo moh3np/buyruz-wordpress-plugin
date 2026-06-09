@@ -972,7 +972,8 @@ class BRZ_Offline_Bridge {
                     </div>
                 </div>
                 <div class="brz-ob-actions">
-                    <button type="button" id="brz-ob-apply" class="brz-button brz-button--primary">🔗 اعمال تغییرات</button>
+                    <button type="button" id="brz-ob-apply" class="brz-button brz-button--primary">اعمال تغییرات</button>
+                    <button type="button" id="brz-ob-paste" class="brz-button brz-button--outlined">📋 پیست از کلیپ‌بورد</button>
                 </div>
             </div>
         </div>

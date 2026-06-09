@@ -22,6 +22,7 @@
 
   var inputEl           = document.getElementById('brz-ob-input');
   var applyBtn          = document.getElementById('brz-ob-apply');
+  var pasteBtn          = document.getElementById('brz-ob-paste');
   var errorEl           = document.getElementById('brz-ob-error');
   var progressContainer = document.getElementById('brz-ob-progress-container');
   var progressText      = document.getElementById('brz-ob-progress-text');
@@ -414,6 +415,23 @@
       applyBtn.click();
     }
   });
+
+  // 1.2 Paste from clipboard button action
+  if (pasteBtn && inputEl) {
+    pasteBtn.addEventListener('click', function () {
+      navigator.clipboard.readText().then(function (text) {
+        if (text) {
+          inputEl.value = text;
+          inputEl.focus();
+          showSnackbar('داده‌ها از کلیپ‌بورد جایگذاری شدند.', 2000);
+        } else {
+          showSnackbar('کلیپ‌بورد خالی است یا دسترسی مجاز نیست.', 3000);
+        }
+      }).catch(function (err) {
+        showSnackbar('خطا در خواندن کلیپ‌بورد: ' + err.message, 4000);
+      });
+    });
+  }
 
   // 2. Auto-focus function
   function autoFocusActiveElement() {
