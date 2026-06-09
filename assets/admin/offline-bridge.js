@@ -223,10 +223,10 @@
 
     function showDependencyModal(dataObj) {
       var overlay = document.createElement('div');
-      overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,23,42,0.6);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;';
+      overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,23,42,0.6);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;transition:opacity 0.3s ease;opacity:0;';
       
       var modal = document.createElement('div');
-      modal.style.cssText = 'background:#fff;border-radius:12px;width:90%;max-width:500px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);overflow:hidden;font-family:Tahoma,sans-serif;direction:rtl;';
+      modal.style.cssText = 'background:#fff;border-radius:12px;width:90%;max-width:500px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);overflow:hidden;font-family:Tahoma,sans-serif;direction:rtl;transition:transform 0.3s ease;transform:scale(0.95);';
       
       var header = document.createElement('div');
       header.style.cssText = 'padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;';
@@ -248,19 +248,22 @@
       copyBtn.addEventListener('click', function() {
         navigator.clipboard.writeText(jsonStr).then(function() {
           copyBtn.style.background = '#10b981';
-          copyBtn.innerHTML = '✔️ کپی شد!';
+          copyBtn.innerHTML = '✔️ کپی شد! در حال بستن...';
           setTimeout(function() {
-            copyBtn.style.background = '#2563eb';
-            copyBtn.innerHTML = '<span style="margin-left:8px;">📋</span> کپی کدها';
-          }, 2000);
+            closeModal();
+          }, 1500);
         });
       });
       
       function closeModal() {
-        if (document.body.contains(overlay)) {
-          document.body.removeChild(overlay);
-        }
-        document.removeEventListener('keydown', handleEscape);
+        overlay.style.opacity = '0';
+        modal.style.transform = 'scale(0.95)';
+        setTimeout(function() {
+          if (document.body.contains(overlay)) {
+            document.body.removeChild(overlay);
+          }
+          document.removeEventListener('keydown', handleEscape);
+        }, 300);
       }
       
       function handleEscape(e) {
@@ -288,6 +291,14 @@
       modal.appendChild(body);
       overlay.appendChild(modal);
       document.body.appendChild(overlay);
+      
+      // Trigger entrance animation
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          overlay.style.opacity = '1';
+          modal.style.transform = 'scale(1)';
+        });
+      });
     }
 
     function processBatch(batchIndex) {
