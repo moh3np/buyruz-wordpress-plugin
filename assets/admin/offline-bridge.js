@@ -191,6 +191,87 @@
       return;
     }
 
+    // Normalize "queue payload" format from Google Sheet (e.g. {price_updates:[...], brand_sync:{create:[...]}})
+    var isQueuePayload = !Array.isArray(items) && (items.price_updates || items.brand_sync);
+    if (isQueuePayload) {
+      var queueSteps = [];
+      // Convert brand_sync.create to create_dependencies payload
+      if (items.brand_sync && items.brand_sync.create && items.brand_sync.create.length) {
+        queueSteps.push({ create_dependencies: true, brands: items.brand_sync.create });
+      }
+      // Convert price_updates to product array payload
+      if (items.price_updates && items.price_updates.length) {
+        queueSteps.push(items.price_updates);
+      }
+      if (!queueSteps.length) {
+        showError(i18n.invalidArray || 'آرایه خالی یا نامعتبر.');
+        return;
+      }
+      // Execute steps sequentially (dependencies first, then products)
+      applyBtn.classList.add('brz-ob-button--loading');
+      var queueIndex = 0;
+      var queueAllResults = [];
+      var queueTotalSuccess = 0;
+      var queueTotalFailed = 0;
+      var queueDependencyIds = null;
+
+      function processQueueStep() {
+        if (queueIndex >= queueSteps.length) {
+          applyBtn.classList.remove('brz-ob-button--loading');
+          if (progressContainer) progressContainer.style.display = 'none';
+          if (queueDependencyIds && Object.keys(queueDependencyIds).length > 0) {
+            showDependencyModal(queueDependencyIds);
+          }
+          if (queueAllResults.length) {
+            renderStats({ total: queueAllResults.length, success_count: queueTotalSuccess, failed_count: queueTotalFailed });
+            renderResults(queueAllResults);
+          }
+          if (queueTotalFailed > 0) {
+            showSnackbar((i18n.partial || '%d موفق، %d ناموفق.').replace('%d', String(queueTotalSuccess)).replace('%d', String(queueTotalFailed)), 8000);
+          } else {
+            var msg = queueTotalSuccess > 0
+              ? (i18n.success || '%d مورد با موفقیت اعمال شد.').replace('%d', String(queueTotalSuccess))
+              : 'وابستگی‌ها پردازش شدند.';
+            showSnackbar(msg, 5000);
+          }
+          return;
+        }
+        var stepData = queueSteps[queueIndex];
+        var formData = new FormData();
+        formData.append('action', 'brz_offline_bridge_apply');
+        formData.append('_nonce', nonce);
+        formData.append('items', JSON.stringify(stepData));
+
+        fetch(ajaxUrl, { method: 'POST', credentials: 'same-origin', body: formData })
+          .then(function (response) { return response.json(); })
+          .then(function (res) {
+            if (res.success === true && res.data) {
+              var data = res.data;
+              if (data.results) queueAllResults = queueAllResults.concat(data.results);
+              queueTotalSuccess += (data.success_count || 0);
+              queueTotalFailed += (data.failed_count || 0);
+              if (data.dependency_ids) {
+                if (!queueDependencyIds) queueDependencyIds = {};
+                var deps = data.dependency_ids;
+                if (deps.new_brands) queueDependencyIds.new_brands = (queueDependencyIds.new_brands || []).concat(deps.new_brands);
+                if (deps.new_attributes) queueDependencyIds.new_attributes = (queueDependencyIds.new_attributes || []).concat(deps.new_attributes);
+                if (deps.new_terms) queueDependencyIds.new_terms = (queueDependencyIds.new_terms || []).concat(deps.new_terms);
+              }
+            } else {
+              showError((res.data && res.data.message) || (i18n.networkError || 'خطای شبکه'));
+            }
+            queueIndex++;
+            processQueueStep();
+          })
+          .catch(function (err) {
+            showError((i18n.networkError || 'خطای شبکه') + ': ' + err.message);
+            applyBtn.classList.remove('brz-ob-button--loading');
+          });
+      }
+      processQueueStep();
+      return;
+    }
+
     // Determine if it's a Dependency Object Payload or a Product Array Payload
     var isDependencyPayload = !Array.isArray(items) && items.create_dependencies === true;
     if (!isDependencyPayload && (!Array.isArray(items) || items.length === 0)) {
