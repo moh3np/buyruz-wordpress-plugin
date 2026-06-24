@@ -229,12 +229,18 @@
           }
           if (queueAllResults.length) {
             var priceResults = [];
-            for (var ri = 0; ri < queueAllResults.length; ri++) {
-              var r = queueAllResults[ri];
-              if (r && r.success && r.id) {
-                priceResults.push({ id: r.id, success: true });
-              }
-            }
+             for (var ri = 0; ri < queueAllResults.length; ri++) {
+               var r = queueAllResults[ri];
+               if (r && r.success && r.id) {
+                 var pUpdate = { id: r.id, success: true };
+                 if (r.regular_price !== undefined) pUpdate.regular_price = r.regular_price;
+                 if (r.sale_price !== undefined) pUpdate.sale_price = r.sale_price;
+                 if (r.date_on_sale_from !== undefined) pUpdate.date_on_sale_from = r.date_on_sale_from;
+                 if (r.date_on_sale_to !== undefined) pUpdate.date_on_sale_to = r.date_on_sale_to;
+                 if (r.stock_quantity !== undefined) pUpdate.stock_quantity = r.stock_quantity;
+                 priceResults.push(pUpdate);
+               }
+             }
             if (priceResults.length) {
               combinedResponse.price_updates = priceResults;
             }
@@ -424,11 +430,40 @@
         applyBtn.classList.remove('brz-ob-button--loading');
         if (progressContainer) progressContainer.style.display = 'none';
 
+        var combinedResponse = {};
         if (allDependencyIds && Object.keys(allDependencyIds).length > 0) {
-            showDependencyModal(allDependencyIds);
+          for (var k in allDependencyIds) {
+            combinedResponse[k] = allDependencyIds[k];
+          }
+        }
+        if (allResults.length) {
+          var priceResults = [];
+          for (var ri = 0; ri < allResults.length; ri++) {
+            var r = allResults[ri];
+            if (r && r.success && r.id) {
+              var pUpdate = { id: r.id, success: true };
+              if (r.regular_price !== undefined) pUpdate.regular_price = r.regular_price;
+              if (r.sale_price !== undefined) pUpdate.sale_price = r.sale_price;
+              if (r.date_on_sale_from !== undefined) pUpdate.date_on_sale_from = r.date_on_sale_from;
+              if (r.date_on_sale_to !== undefined) pUpdate.date_on_sale_to = r.date_on_sale_to;
+              if (r.stock_quantity !== undefined) pUpdate.stock_quantity = r.stock_quantity;
+              priceResults.push(pUpdate);
+            }
+          }
+          if (priceResults.length) {
+            combinedResponse.price_updates = priceResults;
+          }
+        }
+
+        if (Object.keys(combinedResponse).length > 0) {
+          showDependencyModal(combinedResponse);
+          if (allDependencyIds && Object.keys(allDependencyIds).length > 0) {
             var depCount = 0;
             Object.keys(allDependencyIds).forEach(function(k) { depCount += allDependencyIds[k].length; });
             showSnackbar(depCount + ' مورد وابستگی پردازش شد.', 5000);
+          } else {
+            showSnackbar('تغییرات با موفقیت اعمال شد و پاسخ آماده کپی است.', 5000);
+          }
         } else if (isDependencyPayload) {
             showSnackbar('هیچ وابستگی جدید یا موجودی یافت نشد. لطفاً لاگ سرور را بررسی کنید.', 8000);
         } else {

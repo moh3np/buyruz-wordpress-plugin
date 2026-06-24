@@ -623,6 +623,9 @@ class BRZ_Offline_Bridge {
                 $product->save();
                 self::$skip_hook_logging = false;
                 
+                // Re-fetch product from database to get actual values
+                $product = wc_get_product( $product_id );
+                
                 // Refresh product details after save to capture newly applied fields (like SKU)
                 $product_name = $product->get_name() ? $product->get_name() : '-';
                 $product_sku  = $product->get_sku() ? $product->get_sku() : '-';
@@ -653,6 +656,11 @@ class BRZ_Offline_Bridge {
             'warnings'       => $warnings,
             'error'          => '',
             'is_new'         => $is_new,
+            'regular_price'  => $product->get_regular_price(),
+            'sale_price'     => $product->get_sale_price(),
+            'date_on_sale_from' => $product->get_date_on_sale_from() ? $product->get_date_on_sale_from()->date( 'Y-m-d' ) : null,
+            'date_on_sale_to'   => $product->get_date_on_sale_to() ? $product->get_date_on_sale_to()->date( 'Y-m-d' ) : null,
+            'stock_quantity' => $product->get_stock_quantity(),
         );
     }
 
