@@ -219,8 +219,29 @@
         if (queueIndex >= queueSteps.length) {
           applyBtn.classList.remove('brz-ob-button--loading');
           if (progressContainer) progressContainer.style.display = 'none';
+
+          // Build combined response for Sheet to parse (brands + price results)
+          var combinedResponse = {};
           if (queueDependencyIds && Object.keys(queueDependencyIds).length > 0) {
-            showDependencyModal(queueDependencyIds);
+            for (var k in queueDependencyIds) {
+              combinedResponse[k] = queueDependencyIds[k];
+            }
+          }
+          if (queueAllResults.length) {
+            var priceResults = [];
+            for (var ri = 0; ri < queueAllResults.length; ri++) {
+              var r = queueAllResults[ri];
+              if (r && r.success && r.id) {
+                priceResults.push({ id: r.id, success: true });
+              }
+            }
+            if (priceResults.length) {
+              combinedResponse.price_updates = priceResults;
+            }
+          }
+
+          if (Object.keys(combinedResponse).length > 0) {
+            showDependencyModal(combinedResponse);
           }
           if (queueAllResults.length) {
             renderStats({ total: queueAllResults.length, success_count: queueTotalSuccess, failed_count: queueTotalFailed });
