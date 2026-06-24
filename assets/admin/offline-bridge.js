@@ -233,12 +233,15 @@
                var r = queueAllResults[ri];
                if (r && r.success && r.id) {
                  var pUpdate = { id: r.id, success: true };
-                 if (r.regular_price !== undefined) pUpdate.regular_price = r.regular_price;
-                 if (r.sale_price !== undefined) pUpdate.sale_price = r.sale_price;
-                 if (r.date_on_sale_from !== undefined) pUpdate.date_on_sale_from = r.date_on_sale_from;
-                 if (r.date_on_sale_to !== undefined) pUpdate.date_on_sale_to = r.date_on_sale_to;
-                 if (r.stock_quantity !== undefined) pUpdate.stock_quantity = r.stock_quantity;
-                 priceResults.push(pUpdate);
+                 var hasSheetFields = false;
+                 if (r.regular_price !== undefined && r.regular_price !== null) { pUpdate.regular_price = r.regular_price; hasSheetFields = true; }
+                 if (r.sale_price !== undefined && r.sale_price !== null) { pUpdate.sale_price = r.sale_price; hasSheetFields = true; }
+                 if (r.date_on_sale_from !== undefined && r.date_on_sale_from !== null) { pUpdate.date_on_sale_from = r.date_on_sale_from; hasSheetFields = true; }
+                 if (r.date_on_sale_to !== undefined && r.date_on_sale_to !== null) { pUpdate.date_on_sale_to = r.date_on_sale_to; hasSheetFields = true; }
+                 if (r.stock_quantity !== undefined && r.stock_quantity !== null) { pUpdate.stock_quantity = r.stock_quantity; hasSheetFields = true; }
+                 if (hasSheetFields || r.success) {
+                   priceResults.push(pUpdate);
+                 }
                }
              }
             if (priceResults.length) {
@@ -260,6 +263,12 @@
               ? (i18n.success || '%d مورد با موفقیت اعمال شد.').replace('%d', String(queueTotalSuccess))
               : 'وابستگی‌ها پردازش شدند.';
             showSnackbar(msg, 5000);
+            if (Object.keys(combinedResponse).length === 0) {
+              if (inputEl) {
+                inputEl.value = '';
+                inputEl.focus();
+              }
+            }
           }
           return;
         }
@@ -442,12 +451,16 @@
             var r = allResults[ri];
             if (r && r.success && r.id) {
               var pUpdate = { id: r.id, success: true };
-              if (r.regular_price !== undefined) pUpdate.regular_price = r.regular_price;
-              if (r.sale_price !== undefined) pUpdate.sale_price = r.sale_price;
-              if (r.date_on_sale_from !== undefined) pUpdate.date_on_sale_from = r.date_on_sale_from;
-              if (r.date_on_sale_to !== undefined) pUpdate.date_on_sale_to = r.date_on_sale_to;
-              if (r.stock_quantity !== undefined) pUpdate.stock_quantity = r.stock_quantity;
-              priceResults.push(pUpdate);
+              var hasSheetFields = false;
+              if (r.regular_price !== undefined && r.regular_price !== null) { pUpdate.regular_price = r.regular_price; hasSheetFields = true; }
+              if (r.sale_price !== undefined && r.sale_price !== null) { pUpdate.sale_price = r.sale_price; hasSheetFields = true; }
+              if (r.date_on_sale_from !== undefined && r.date_on_sale_from !== null) { pUpdate.date_on_sale_from = r.date_on_sale_from; hasSheetFields = true; }
+              if (r.date_on_sale_to !== undefined && r.date_on_sale_to !== null) { pUpdate.date_on_sale_to = r.date_on_sale_to; hasSheetFields = true; }
+              if (r.stock_quantity !== undefined && r.stock_quantity !== null) { pUpdate.stock_quantity = r.stock_quantity; hasSheetFields = true; }
+              
+              if (hasSheetFields) {
+                priceResults.push(pUpdate);
+              }
             }
           }
           if (priceResults.length) {
@@ -472,6 +485,10 @@
               showSnackbar((i18n.partial || '%d موفق، %d ناموفق.').replace('%d', String(totalSuccessCount)).replace('%d', String(totalFailedCount)), 8000);
             } else {
               showSnackbar((i18n.success || '%d مورد با موفقیت اعمال شد.').replace('%d', String(totalSuccessCount)), 5000);
+              if (inputEl) {
+                inputEl.value = '';
+                inputEl.focus();
+              }
             }
         }
 
