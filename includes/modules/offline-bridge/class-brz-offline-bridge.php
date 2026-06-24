@@ -646,21 +646,34 @@ class BRZ_Offline_Bridge {
             }
         }
 
-        return array(
-            'id'             => $product_id,
-            'sku'            => $product_sku,
-            'url'            => $product_url,
-            'product_name'   => $product_name,
-            'fields_applied' => $fields_applied,
-            'success'        => true,
-            'warnings'       => $warnings,
-            'error'          => '',
-            'is_new'         => $is_new,
-            'regular_price'  => $product->get_regular_price(),
-            'sale_price'     => $product->get_sale_price(),
-            'date_on_sale_from' => $product->get_date_on_sale_from() ? $product->get_date_on_sale_from()->date( 'Y-m-d' ) : null,
-            'date_on_sale_to'   => $product->get_date_on_sale_to() ? $product->get_date_on_sale_to()->date( 'Y-m-d' ) : null,
-            'stock_quantity' => $product->get_stock_quantity(),
+        // Only return price/stock fields that were actually sent in the request
+        $price_stock_fields = array( 'regular_price', 'sale_price', 'stock_quantity', 'date_on_sale_from', 'date_on_sale_to' );
+        $response_extras = array();
+        foreach ( $price_stock_fields as $pf ) {
+            if ( array_key_exists( $pf, $item ) ) {
+                if ( 'date_on_sale_from' === $pf ) {
+                    $response_extras[ $pf ] = $product->get_date_on_sale_from() ? $product->get_date_on_sale_from()->date( 'Y-m-d' ) : null;
+                } elseif ( 'date_on_sale_to' === $pf ) {
+                    $response_extras[ $pf ] = $product->get_date_on_sale_to() ? $product->get_date_on_sale_to()->date( 'Y-m-d' ) : null;
+                } else {
+                    $response_extras[ $pf ] = $product->{'get_' . $pf}();
+                }
+            }
+        }
+
+        return array_merge(
+            array(
+                'id'             => $product_id,
+                'sku'            => $product_sku,
+                'url'            => $product_url,
+                'product_name'   => $product_name,
+                'fields_applied' => $fields_applied,
+                'success'        => true,
+                'warnings'       => $warnings,
+                'error'          => '',
+                'is_new'         => $is_new,
+            ),
+            $response_extras
         );
     }
 
