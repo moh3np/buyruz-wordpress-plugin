@@ -90,6 +90,7 @@ class BRZ_Settings {
         add_action( 'admin_menu', array( __CLASS__, 'page' ) );
         add_action( 'admin_init', array( __CLASS__, 'register' ) );
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
+        add_action( 'admin_bar_menu', array( __CLASS__, 'admin_bar_node' ), 999 );
         add_action( 'admin_post_brz_toggle_module', array( __CLASS__, 'handle_toggle_module' ) );
         add_action( 'wp_ajax_brz_toggle_module', array( __CLASS__, 'handle_toggle_module_ajax' ) );
         add_action( 'wp_ajax_brz_save_settings', array( __CLASS__, 'handle_save_settings_ajax' ) );
@@ -98,6 +99,58 @@ class BRZ_Settings {
 
         if ( class_exists( 'BRZ_Connections' ) ) {
             BRZ_Connections::init();
+        }
+    }
+
+    /**
+     * Add "تنظیمات بایروز" node to the WordPress admin bar.
+     *
+     * @param WP_Admin_Bar $wp_admin_bar Admin bar instance.
+     */
+    public static function admin_bar_node( $wp_admin_bar ) {
+        if ( ! current_user_can( self::CAPABILITY ) ) {
+            return;
+        }
+
+        $wp_admin_bar->add_node( array(
+            'id'    => 'buyruz-settings',
+            'title' => '<span class="ab-icon dashicons-admin-generic"></span>' . 'تنظیمات بایروز',
+            'href'  => admin_url( 'admin.php?page=' . self::PARENT_SLUG ),
+            'meta'  => array(
+                'title' => 'تنظیمات بایروز',
+            ),
+        ) );
+
+        // Sub-items
+        $wp_admin_bar->add_node( array(
+            'id'     => 'buyruz-settings-dashboard',
+            'parent' => 'buyruz-settings',
+            'title'  => 'پیشخوان',
+            'href'   => admin_url( 'admin.php?page=' . self::PARENT_SLUG ),
+        ) );
+
+        $wp_admin_bar->add_node( array(
+            'id'     => 'buyruz-settings-general',
+            'parent' => 'buyruz-settings',
+            'title'  => 'تنظیمات عمومی',
+            'href'   => admin_url( 'admin.php?page=buyruz-general' ),
+        ) );
+
+        $wp_admin_bar->add_node( array(
+            'id'     => 'buyruz-settings-style',
+            'parent' => 'buyruz-settings',
+            'title'  => 'استایل',
+            'href'   => admin_url( 'admin.php?page=buyruz-style' ),
+        ) );
+
+        // Active modules as sub-items
+        foreach ( self::module_nav_items() as $slug => $meta ) {
+            $wp_admin_bar->add_node( array(
+                'id'     => 'buyruz-settings-module-' . $slug,
+                'parent' => 'buyruz-settings',
+                'title'  => isset( $meta['label'] ) ? $meta['label'] : $slug,
+                'href'   => admin_url( 'admin.php?page=buyruz-module-' . $slug ),
+            ) );
         }
     }
 
