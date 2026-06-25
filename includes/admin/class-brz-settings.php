@@ -335,6 +335,10 @@ class BRZ_Settings {
                 'title'       => 'ویرایش برچسب‌ها',
                 'description' => 'جایگزینی متن‌های ترجمه‌شده تم بدون ویرایش فایل‌ها.',
             ),
+            'buyruz-module-ai_schema' => array(
+                'title'       => 'مدیریت اسکیما AI',
+                'description' => 'تزریق PropertyValue و itemCondition به اسکیمای محصول رنک‌مث برای بهبود حضور در نتایج AI.',
+            ),
         );
 
         return isset( $meta[ $active_slug ] ) ? $meta[ $active_slug ] : array(
@@ -558,6 +562,11 @@ class BRZ_Settings {
 
             if ( 'label_overrides' === $module_slug && $active ) {
                 BRZ_Label_Overrides::render_admin_page();
+                return;
+            }
+
+            if ( 'ai_schema' === $module_slug && $active ) {
+                BRZ_AI_Schema::render_admin_page();
                 return;
             }
 

@@ -45,12 +45,17 @@ class BRZ_Modules {
                 'description' => 'جایگزینی متن‌های ترجمه‌شده تم از طریق فیلتر gettext',
                 'class'       => 'BRZ_Label_Overrides',
             ),
+            'ai_schema' => array(
+                'label'       => 'مدیریت اسکیما AI',
+                'description' => 'تزریق PropertyValue و itemCondition به اسکیمای محصول رنک‌مث.',
+                'class'       => 'BRZ_AI_Schema',
+            ),
         );
     }
 
     public static function default_states() {
         $states = array();
-        $disabled_by_default = array( 'outbound_guard', 'order_processor', 'static_controller', 'label_overrides' );
+        $disabled_by_default = array( 'outbound_guard', 'order_processor', 'static_controller', 'label_overrides', 'ai_schema' );
         foreach ( self::registry() as $slug => $meta ) {
             $states[ $slug ] = in_array( $slug, $disabled_by_default, true ) ? 0 : 1;
         }
