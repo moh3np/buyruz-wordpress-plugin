@@ -29,7 +29,6 @@ class BRZ_Plugin {
             BRZ_FAQ_Renderer::init();
             BRZ_Compare_Table::init();
             BRZ_WC_Shortcodes::init();
-            BRZ_Shipping_Html::init();
         }
 
         // Always needed (REST fields for products, used by both admin and REST)

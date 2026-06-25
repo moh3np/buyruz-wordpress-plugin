@@ -49,7 +49,6 @@ spl_autoload_register( function( $class ) {
         'BRZ_Static_Manual_Page_Manager' => 'modules/static-controller/class-brz-static-manual-page-manager.php',
         'BRZ_Label_Overrides'            => 'modules/label-overrides/class-brz-label-overrides.php',
         'BRZ_Shipping_Html'              => 'front/class-brz-shipping-html.php',
-        'BRZ_Shipping_Html'              => 'front/class-brz-shipping-html.php',
     );
 
     $map = apply_filters( 'brz/autoload_map', $map );
