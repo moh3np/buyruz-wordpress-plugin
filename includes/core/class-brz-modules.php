@@ -40,12 +40,17 @@ class BRZ_Modules {
                 'description' => 'اعمال تغییرات محصول از Google Sheet بدون نیاز به اتصال مستقیم',
                 'class'       => 'BRZ_Offline_Bridge',
             ),
+            'label_overrides' => array(
+                'label'       => 'ویرایش برچسب‌ها',
+                'description' => 'جایگزینی متن‌های ترجمه‌شده تم از طریق فیلتر gettext',
+                'class'       => 'BRZ_Label_Overrides',
+            ),
         );
     }
 
     public static function default_states() {
         $states = array();
-        $disabled_by_default = array( 'outbound_guard', 'order_processor', 'static_controller' );
+        $disabled_by_default = array( 'outbound_guard', 'order_processor', 'static_controller', 'label_overrides' );
         foreach ( self::registry() as $slug => $meta ) {
             $states[ $slug ] = in_array( $slug, $disabled_by_default, true ) ? 0 : 1;
         }

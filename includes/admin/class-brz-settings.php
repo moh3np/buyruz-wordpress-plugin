@@ -331,6 +331,10 @@ class BRZ_Settings {
                 'title'       => 'لاگ تغییرات',
                 'description' => 'تاریخچه تغییرات فیلدهای محصولات از تمام منابع.',
             ),
+            'buyruz-module-label_overrides' => array(
+                'title'       => 'ویرایش برچسب‌ها',
+                'description' => 'جایگزینی متن‌های ترجمه‌شده تم بدون ویرایش فایل‌ها.',
+            ),
         );
 
         return isset( $meta[ $active_slug ] ) ? $meta[ $active_slug ] : array(
@@ -552,7 +556,10 @@ class BRZ_Settings {
         self::render_shell( 'buyruz-module-' . $module_slug, function() use ( $modules, $module_slug, $active ) {
             self::render_notices();
 
-
+            if ( 'label_overrides' === $module_slug && $active ) {
+                BRZ_Label_Overrides::render_admin_page();
+                return;
+            }
 
             if ( 'compare_table' === $module_slug ) {
                 $compare_msg = isset( $_GET['brz-compare-msg'] ) ? sanitize_key( wp_unslash( $_GET['brz-compare-msg'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
