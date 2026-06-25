@@ -21,6 +21,7 @@ class BRZ_AI_Schema {
     public static function init(): void {
         if ( is_admin() ) {
             add_action( 'wp_ajax_brz_save_ai_schema', array( __CLASS__, 'ajax_save' ) );
+            add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_assets' ) );
             return;
         }
 
@@ -38,14 +39,25 @@ class BRZ_AI_Schema {
     }
 
     /**
+     * Enqueue admin assets for the AI Schema module page.
+     *
+     * @param string $hook_suffix The current admin page hook suffix.
+     */
+    public static function enqueue_admin_assets( $hook_suffix ): void {
+        // Only load on our module page.
+        if ( ! isset( $_GET['page'] ) || 'buyruz-module-ai_schema' !== $_GET['page'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            return;
+        }
+        wp_enqueue_script( 'jquery-ui-sortable' );
+    }
+
+    /**
      * Render the admin settings page.
      *
      * Outputs HTML + inline JS inside the existing BRZ shell.
      * The page renders inside the Buyruz shell (provided by BRZ_Settings::render_module_settings()).
      */
     public static function render_admin_page(): void {
-        wp_enqueue_script( 'jquery-ui-sortable' );
-
         $properties     = self::get_properties();
         $item_condition = self::get_item_condition();
         ?>
@@ -175,7 +187,7 @@ class BRZ_AI_Schema {
         </div>
 
         <script>
-        (function($){
+        jQuery(document).ready(function($){
             'use strict';
 
             var MAX_ENTRIES = 50;
@@ -306,7 +318,7 @@ class BRZ_AI_Schema {
 
             // Initial state check.
             updateAddButton();
-        })(jQuery);
+        });
         </script>
         <?php
     }
