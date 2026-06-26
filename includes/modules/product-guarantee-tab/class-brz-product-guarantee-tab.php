@@ -27,6 +27,7 @@ class BRZ_Product_Guarantee_Tab {
 
         // Frontend: register tab filter.
         add_filter( 'woocommerce_product_tabs', array( __CLASS__, 'add_tab' ), 25 );
+        add_action( 'wp_head', array( __CLASS__, 'print_tab_icon_css' ) );
     }
 
     /**
@@ -165,7 +166,7 @@ class BRZ_Product_Guarantee_Tab {
                     <div class="brz-card__body">
                         <input type="text" id="brz-gt-title" value="<?php echo esc_attr( $title ); ?>" maxlength="100" style="width:100%;padding:var(--md-space-xs) var(--md-space-sm);border:1px solid var(--md-outline-variant,#ccc);border-radius:6px;font-size:14px;" />
                         <p class="description" style="margin-top:var(--md-space-sm);color:var(--md-on-surface-variant,#666);">
-                            عنوان تبی که در صفحه محصول نمایش داده می‌شود. پیش‌فرض: 🛡️ ضمانت، ارسال و پشتیبانی
+                            عنوان تبی که در صفحه محصول نمایش داده می‌شود. پیش‌فرض: ضمانت و ارسال
                         </p>
                     </div>
                 </div>
@@ -435,7 +436,7 @@ class BRZ_Product_Guarantee_Tab {
         $tab_title = isset( $_POST['tab_title'] ) ? sanitize_text_field( $_POST['tab_title'] ) : '';
         $tab_title = mb_substr( $tab_title, 0, 100 );
         if ( '' === $tab_title ) {
-            $tab_title = '🛡️ ضمانت، ارسال و پشتیبانی';
+            $tab_title = 'ضمانت و ارسال';
         }
 
         // Sanitize accordion settings.
@@ -496,6 +497,30 @@ class BRZ_Product_Guarantee_Tab {
     }
 
     /**
+     * Print inline CSS for the guarantee tab icon.
+     *
+     * Uses the bakala icon font to match the theme's other product tab icons.
+     */
+    public static function print_tab_icon_css(): void {
+        if ( ! is_product() ) {
+            return;
+        }
+        ?>
+        <style id="brz-guarantee-tab-icon">
+        .woocommerce div.product .woocommerce-tabs ul.tabs li.guarantee_tab a::before {
+            height: 18px;
+            content: "\E0EB";
+            font-size: 28px;
+            font-family: bakala;
+            width: 40px;
+            text-align: right;
+            font-weight: normal;
+        }
+        </style>
+        <?php
+    }
+
+    /**
      * Tab content callback. Outputs accordion HTML with rank-math class structure.
      *
      * Renders items server-side using the same markup consumed by faq.css/faq.js.
@@ -550,7 +575,7 @@ class BRZ_Product_Guarantee_Tab {
         $title = BRZ_Settings::get( 'guarantee_tab_title', '' );
 
         if ( ! is_string( $title ) || '' === $title ) {
-            return '🛡️ ضمانت، ارسال و پشتیبانی';
+            return 'ضمانت و ارسال';
         }
 
         return $title;
