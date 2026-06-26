@@ -392,6 +392,10 @@ class BRZ_Settings {
                 'title'       => 'مدیریت اسکیما AI',
                 'description' => 'تزریق PropertyValue و itemCondition به اسکیمای محصول رنک‌مث برای بهبود حضور در نتایج AI.',
             ),
+            'buyruz-module-product_guarantee_tab' => array(
+                'title'       => 'تب ضمانت محصول',
+                'description' => 'تب آکاردئونی ضمانت، ارسال و پشتیبانی در صفحه محصول ووکامرس.',
+            ),
         );
 
         return isset( $meta[ $active_slug ] ) ? $meta[ $active_slug ] : array(
@@ -620,6 +624,11 @@ class BRZ_Settings {
 
             if ( 'ai_schema' === $module_slug && $active ) {
                 BRZ_AI_Schema::render_admin_page();
+                return;
+            }
+
+            if ( 'product_guarantee_tab' === $module_slug && $active ) {
+                BRZ_Product_Guarantee_Tab::render_admin_page();
                 return;
             }
 

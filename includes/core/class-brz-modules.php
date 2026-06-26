@@ -50,12 +50,17 @@ class BRZ_Modules {
                 'description' => 'تزریق PropertyValue و itemCondition به اسکیمای محصول رنک‌مث.',
                 'class'       => 'BRZ_AI_Schema',
             ),
+            'product_guarantee_tab' => array(
+                'label'       => 'تب ضمانت محصول',
+                'description' => 'تب آکاردئونی ضمانت، ارسال و پشتیبانی در صفحه محصول ووکامرس.',
+                'class'       => 'BRZ_Product_Guarantee_Tab',
+            ),
         );
     }
 
     public static function default_states() {
         $states = array();
-        $disabled_by_default = array( 'outbound_guard', 'order_processor', 'static_controller', 'label_overrides', 'ai_schema' );
+        $disabled_by_default = array( 'outbound_guard', 'order_processor', 'static_controller', 'label_overrides', 'ai_schema', 'product_guarantee_tab' );
         foreach ( self::registry() as $slug => $meta ) {
             $states[ $slug ] = in_array( $slug, $disabled_by_default, true ) ? 0 : 1;
         }

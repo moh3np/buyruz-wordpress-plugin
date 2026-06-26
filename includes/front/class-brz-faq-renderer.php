@@ -62,7 +62,43 @@ class BRZ_FAQ_Renderer {
         // CSS
         if ( ! empty( $opts['enable_css'] ) ) {
             $brand    = $opts['brand_color'] ?? '#1a73e8';
-            $css_vars = ':root{--brz-brand: ' . $brand . ';}';
+
+            // Read accordion settings with defaults
+            $accordion_radius  = isset( $opts['accordion_border_radius'] )      ? absint( $opts['accordion_border_radius'] )      : 12;
+            $accordion_fz_q    = isset( $opts['accordion_font_size_question'] ) ? absint( $opts['accordion_font_size_question'] ) : 15;
+            $accordion_fz_a    = isset( $opts['accordion_font_size_answer'] )   ? absint( $opts['accordion_font_size_answer'] )   : 14;
+            $accordion_spacing = isset( $opts['accordion_spacing'] )            ? absint( $opts['accordion_spacing'] )            : 10;
+            $accordion_icon    = isset( $opts['accordion_icon_type'] )          ? sanitize_key( $opts['accordion_icon_type'] )    : 'chevron';
+
+            // Apply defaults when value is 0 (from absint of non-numeric input)
+            if ( $accordion_radius <= 0 )  $accordion_radius = 12;
+            if ( $accordion_fz_q <= 0 )    $accordion_fz_q = 15;
+            if ( $accordion_fz_a <= 0 )    $accordion_fz_a = 14;
+            if ( $accordion_spacing <= 0 ) $accordion_spacing = 10;
+
+            // Validate icon_type against allowlist
+            $allowed_icons = array( 'chevron', 'plus-minus', 'arrow' );
+            if ( ! in_array( $accordion_icon, $allowed_icons, true ) ) {
+                $accordion_icon = 'chevron';
+            }
+
+            // Add body class for icon type (used by CSS selectors in faq.css)
+            if ( 'chevron' !== $accordion_icon ) {
+                add_filter( 'body_class', function( $classes ) use ( $accordion_icon ) {
+                    $classes[] = 'brz-icon-' . $accordion_icon;
+                    return $classes;
+                } );
+            }
+
+            // Build all CSS custom properties inside :root{}
+            $css_vars  = ':root{';
+            $css_vars .= '--brz-brand:' . $brand . ';';
+            $css_vars .= '--brz-radius:' . $accordion_radius . 'px;';
+            $css_vars .= '--brz-fz-question:' . $accordion_fz_q . 'px;';
+            $css_vars .= '--brz-fz-answer:' . $accordion_fz_a . 'px;';
+            $css_vars .= '--brz-spacing:' . $accordion_spacing . 'px;';
+            $css_vars .= '--brz-icon-type:' . esc_attr( $accordion_icon ) . ';';
+            $css_vars .= '}';
 
             if ( ! empty( $opts['inline_css'] ) ) {
                 $css = @file_get_contents( BRZ_PATH . 'assets/css/faq.css' );
