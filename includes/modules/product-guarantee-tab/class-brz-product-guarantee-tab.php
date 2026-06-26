@@ -46,6 +46,7 @@ class BRZ_Product_Guarantee_Tab {
             .brz-gt-row {
                 display: flex;
                 align-items: center;
+                flex-wrap: wrap;
                 gap: var(--md-space-sm);
                 padding: var(--md-space-sm) var(--md-space-md);
                 margin-bottom: var(--md-space-xs);
@@ -153,6 +154,26 @@ class BRZ_Product_Guarantee_Tab {
                 border-color: var(--brz-brand, #1a73e8);
                 box-shadow: 0 0 0 2px rgba(26,115,232,.15);
             }
+            .brz-gt-link-row {
+                display: flex;
+                gap: var(--md-space-xs);
+                width: 100%;
+                min-width: 0;
+            }
+            .brz-gt-link-row input[type="url"],
+            .brz-gt-link-row input[type="text"] {
+                flex: 1;
+                padding: var(--md-space-xs) var(--md-space-sm);
+                border: 1px solid var(--md-outline-variant, #ccc);
+                border-radius: 6px;
+                font-size: 13px;
+                min-width: 0;
+            }
+            .brz-gt-link-row input:focus {
+                outline: none;
+                border-color: var(--brz-brand, #1a73e8);
+                box-shadow: 0 0 0 2px rgba(26,115,232,.15);
+            }
         </style>
 
         <div class="brz-single-column" dir="rtl">
@@ -198,6 +219,10 @@ class BRZ_Product_Guarantee_Tab {
                                         <span class="brz-gt-handle" aria-hidden="true">☰</span>
                                         <input type="text" data-field="title" value="<?php echo esc_attr( $item['title'] ); ?>" placeholder="عنوان آیتم" maxlength="200" />
                                         <textarea data-field="content" placeholder="محتوای آیتم" maxlength="2000"><?php echo esc_textarea( $item['content'] ); ?></textarea>
+                                        <div class="brz-gt-link-row">
+                                            <input type="url" data-field="link_url" value="<?php echo esc_attr( $item['link_url'] ?? '' ); ?>" placeholder="لینک (اختیاری)" />
+                                            <input type="text" data-field="link_text" value="<?php echo esc_attr( $item['link_text'] ?? '' ); ?>" placeholder="متن لینک" maxlength="100" />
+                                        </div>
                                         <button type="button" class="brz-gt-delete" title="حذف">✕</button>
                                     </div>
                                 <?php endforeach; ?>
@@ -283,11 +308,17 @@ class BRZ_Product_Guarantee_Tab {
             }
 
             // Build HTML for a new row.
-            function buildRowHtml(title, content) {
+            function buildRowHtml(title, content, linkUrl, linkText) {
+                linkUrl = linkUrl || '';
+                linkText = linkText || '';
                 return '<div class="brz-gt-row">' +
                     '<span class="brz-gt-handle" aria-hidden="true">☰</span>' +
                     '<input type="text" data-field="title" value="' + escAttr(title) + '" placeholder="عنوان آیتم" maxlength="200" />' +
                     '<textarea data-field="content" placeholder="محتوای آیتم" maxlength="2000">' + escAttr(content) + '</textarea>' +
+                    '<div class="brz-gt-link-row">' +
+                        '<input type="url" data-field="link_url" value="' + escAttr(linkUrl) + '" placeholder="لینک (اختیاری)" />' +
+                        '<input type="text" data-field="link_text" value="' + escAttr(linkText) + '" placeholder="متن لینک" maxlength="100" />' +
+                    '</div>' +
                     '<button type="button" class="brz-gt-delete" title="حذف">✕</button>' +
                 '</div>';
             }
@@ -356,12 +387,14 @@ class BRZ_Product_Guarantee_Tab {
                 // 7. setBusy pattern on save button.
                 $btn.prop('disabled', true).text('در حال ذخیره…');
 
-                // Collect items as array of {title, content} from DOM.
+                // Collect items as array of {title, content, link_url, link_text} from DOM.
                 var items = [];
                 $list.find('.brz-gt-row').each(function() {
                     items.push({
                         title: $(this).find('[data-field="title"]').val(),
-                        content: $(this).find('[data-field="content"]').val()
+                        content: $(this).find('[data-field="content"]').val(),
+                        link_url: $(this).find('[data-field="link_url"]').val(),
+                        link_text: $(this).find('[data-field="link_text"]').val()
                     });
                 });
 
@@ -570,7 +603,17 @@ class BRZ_Product_Guarantee_Tab {
         foreach ( $items as $item ) {
             echo '<li class="rank-math-list-item">';
             echo '<h3 class="rank-math-question">' . esc_html( $item['title'] ) . '</h3>';
-            echo '<div class="rank-math-answer">' . wp_kses_post( $item['content'] ) . '</div>';
+            echo '<div class="rank-math-answer">';
+            echo wp_kses_post( $item['content'] );
+
+            // CTA link at the end of answer content.
+            $link_url  = $item['link_url'] ?? '';
+            $link_text = $item['link_text'] ?? '';
+            if ( '' !== $link_url && '' !== $link_text ) {
+                echo '<p class="brz-accordion-cta" style="margin-top:12px;"><a href="' . esc_url( $link_url ) . '" target="_blank" rel="noopener noreferrer">🔗 ' . esc_html( $link_text ) . '</a></p>';
+            }
+
+            echo '</div>';
             echo '</li>';
         }
 
@@ -666,12 +709,15 @@ class BRZ_Product_Guarantee_Tab {
             if ( ! is_array( $entry ) ) {
                 continue;
             }
-            $title   = isset( $entry['title'] )   ? sanitize_text_field( $entry['title'] )   : '';
-            $content = isset( $entry['content'] ) ? wp_kses_post( $entry['content'] )        : '';
+            $title     = isset( $entry['title'] )     ? sanitize_text_field( $entry['title'] )     : '';
+            $content   = isset( $entry['content'] )   ? wp_kses_post( $entry['content'] )          : '';
+            $link_url  = isset( $entry['link_url'] )  ? esc_url_raw( $entry['link_url'] )          : '';
+            $link_text = isset( $entry['link_text'] ) ? sanitize_text_field( $entry['link_text'] ) : '';
 
             // Enforce max lengths.
-            $title   = mb_substr( $title, 0, 200 );
-            $content = mb_substr( $content, 0, 2000 );
+            $title     = mb_substr( $title, 0, 200 );
+            $content   = mb_substr( $content, 0, 2000 );
+            $link_text = mb_substr( $link_text, 0, 100 );
 
             // Exclude entries with empty title.
             if ( '' === $title ) {
@@ -679,8 +725,10 @@ class BRZ_Product_Guarantee_Tab {
             }
 
             $clean[] = array(
-                'title'   => $title,
-                'content' => $content,
+                'title'     => $title,
+                'content'   => $content,
+                'link_url'  => $link_url,
+                'link_text' => $link_text,
             );
         }
         return array_values( $clean );
