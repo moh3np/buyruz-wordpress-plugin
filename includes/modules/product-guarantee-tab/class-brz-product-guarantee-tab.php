@@ -45,52 +45,57 @@ class BRZ_Product_Guarantee_Tab {
         <style>
             .brz-gt-row {
                 display: flex;
-                align-items: center;
-                flex-wrap: wrap;
-                gap: var(--md-space-sm);
-                padding: var(--md-space-sm) var(--md-space-md);
-                margin-bottom: var(--md-space-xs);
+                flex-direction: column;
+                gap: var(--md-space-sm, 8px);
+                padding: var(--md-space-md, 16px);
+                margin-bottom: var(--md-space-sm, 8px);
                 background: var(--md-surface, #fff);
                 border: 1px solid var(--md-outline-variant, #e0e0e0);
                 border-radius: 8px;
                 transition: box-shadow 0.2s;
+                position: relative;
             }
             .brz-gt-row:hover {
                 box-shadow: var(--md-elevation-1, 0 1px 3px rgba(0,0,0,.12));
+            }
+            .brz-gt-row-header {
+                display: flex;
+                align-items: center;
+                gap: var(--md-space-sm, 8px);
             }
             .brz-gt-handle {
                 cursor: grab;
                 color: var(--md-on-surface-variant, #666);
                 font-size: 18px;
-                padding: var(--md-space-xs);
+                padding: var(--md-space-xs, 4px);
                 user-select: none;
                 flex-shrink: 0;
             }
             .brz-gt-handle:active {
                 cursor: grabbing;
             }
-            .brz-gt-row input[type="text"] {
+            .brz-gt-row input[data-field="title"] {
                 flex: 1;
-                padding: var(--md-space-xs) var(--md-space-sm);
+                padding: var(--md-space-xs, 4px) var(--md-space-sm, 8px);
                 border: 1px solid var(--md-outline-variant, #ccc);
                 border-radius: 6px;
                 font-size: 14px;
+                font-weight: 500;
                 min-width: 0;
             }
-            .brz-gt-row input[type="text"]:focus {
+            .brz-gt-row input[data-field="title"]:focus {
                 outline: none;
                 border-color: var(--brz-brand, #1a73e8);
                 box-shadow: 0 0 0 2px rgba(26,115,232,.15);
             }
             .brz-gt-row textarea {
-                flex: 2;
-                padding: var(--md-space-xs) var(--md-space-sm);
+                width: 100%;
+                padding: var(--md-space-xs, 4px) var(--md-space-sm, 8px);
                 border: 1px solid var(--md-outline-variant, #ccc);
                 border-radius: 6px;
                 font-size: 14px;
-                min-width: 0;
                 resize: vertical;
-                min-height: 36px;
+                min-height: 60px;
             }
             .brz-gt-row textarea:focus {
                 outline: none;
@@ -108,7 +113,7 @@ class BRZ_Product_Guarantee_Tab {
                 color: var(--md-error, #d32f2f);
                 cursor: pointer;
                 font-size: 18px;
-                padding: var(--md-space-xs);
+                padding: var(--md-space-xs, 4px);
                 border-radius: 4px;
                 flex-shrink: 0;
                 transition: background 0.15s;
@@ -120,20 +125,20 @@ class BRZ_Product_Guarantee_Tab {
                 border: 2px dashed var(--brz-brand, #1a73e8);
                 border-radius: 8px;
                 background: rgba(26,115,232,.04);
-                margin-bottom: var(--md-space-xs);
+                margin-bottom: var(--md-space-xs, 4px);
                 height: 48px;
             }
             .brz-gt-empty {
                 text-align: center;
                 color: var(--md-on-surface-variant, #666);
-                padding: var(--md-space-xl) var(--md-space-md);
+                padding: var(--md-space-xl, 32px) var(--md-space-md, 16px);
                 font-size: 14px;
             }
             .brz-gt-settings-row {
                 display: flex;
                 align-items: center;
-                gap: var(--md-space-sm);
-                margin-bottom: var(--md-space-md);
+                gap: var(--md-space-sm, 8px);
+                margin-bottom: var(--md-space-md, 16px);
             }
             .brz-gt-settings-row label {
                 min-width: 160px;
@@ -142,7 +147,7 @@ class BRZ_Product_Guarantee_Tab {
             }
             .brz-gt-settings-row input[type="number"],
             .brz-gt-settings-row select {
-                padding: var(--md-space-xs) var(--md-space-sm);
+                padding: var(--md-space-xs, 4px) var(--md-space-sm, 8px);
                 border: 1px solid var(--md-outline-variant, #ccc);
                 border-radius: 6px;
                 font-size: 14px;
@@ -156,14 +161,19 @@ class BRZ_Product_Guarantee_Tab {
             }
             .brz-gt-link-row {
                 display: flex;
-                gap: var(--md-space-xs);
+                align-items: center;
+                gap: var(--md-space-xs, 4px);
                 width: 100%;
-                min-width: 0;
+            }
+            .brz-gt-link-row::before {
+                content: "🔗";
+                flex-shrink: 0;
+                font-size: 14px;
             }
             .brz-gt-link-row input[type="url"],
             .brz-gt-link-row input[type="text"] {
                 flex: 1;
-                padding: var(--md-space-xs) var(--md-space-sm);
+                padding: var(--md-space-xs, 4px) var(--md-space-sm, 8px);
                 border: 1px solid var(--md-outline-variant, #ccc);
                 border-radius: 6px;
                 font-size: 13px;
@@ -216,14 +226,16 @@ class BRZ_Product_Guarantee_Tab {
                             <?php if ( ! empty( $items ) ) : ?>
                                 <?php foreach ( $items as $item ) : ?>
                                     <div class="brz-gt-row">
-                                        <span class="brz-gt-handle" aria-hidden="true">☰</span>
-                                        <input type="text" data-field="title" value="<?php echo esc_attr( $item['title'] ); ?>" placeholder="عنوان آیتم" maxlength="200" />
-                                        <textarea data-field="content" placeholder="محتوای آیتم" maxlength="2000"><?php echo esc_textarea( $item['content'] ); ?></textarea>
-                                        <div class="brz-gt-link-row">
-                                            <input type="url" data-field="link_url" value="<?php echo esc_attr( $item['link_url'] ?? '' ); ?>" placeholder="لینک (اختیاری)" />
-                                            <input type="text" data-field="link_text" value="<?php echo esc_attr( $item['link_text'] ?? '' ); ?>" placeholder="متن لینک" maxlength="100" />
+                                        <div class="brz-gt-row-header">
+                                            <span class="brz-gt-handle" aria-hidden="true">☰</span>
+                                            <input type="text" data-field="title" value="<?php echo esc_attr( $item['title'] ); ?>" placeholder="عنوان آیتم" maxlength="200" />
+                                            <button type="button" class="brz-gt-delete" title="حذف آیتم">✕</button>
                                         </div>
-                                        <button type="button" class="brz-gt-delete" title="حذف">✕</button>
+                                        <textarea data-field="content" placeholder="محتوای آیتم (هر خط = یک سطر در فرانت‌اند)" maxlength="2000"><?php echo esc_textarea( $item['content'] ); ?></textarea>
+                                        <div class="brz-gt-link-row">
+                                            <input type="url" data-field="link_url" value="<?php echo esc_attr( $item['link_url'] ?? '' ); ?>" placeholder="آدرس لینک (اختیاری)" />
+                                            <input type="text" data-field="link_text" value="<?php echo esc_attr( $item['link_text'] ?? '' ); ?>" placeholder="متن نمایشی (مثال: مطالعه قوانین مرجوعی)" maxlength="100" />
+                                        </div>
                                     </div>
                                 <?php endforeach; ?>
                             <?php else : ?>
@@ -312,14 +324,16 @@ class BRZ_Product_Guarantee_Tab {
                 linkUrl = linkUrl || '';
                 linkText = linkText || '';
                 return '<div class="brz-gt-row">' +
-                    '<span class="brz-gt-handle" aria-hidden="true">☰</span>' +
-                    '<input type="text" data-field="title" value="' + escAttr(title) + '" placeholder="عنوان آیتم" maxlength="200" />' +
-                    '<textarea data-field="content" placeholder="محتوای آیتم" maxlength="2000">' + escAttr(content) + '</textarea>' +
-                    '<div class="brz-gt-link-row">' +
-                        '<input type="url" data-field="link_url" value="' + escAttr(linkUrl) + '" placeholder="لینک (اختیاری)" />' +
-                        '<input type="text" data-field="link_text" value="' + escAttr(linkText) + '" placeholder="متن لینک" maxlength="100" />' +
+                    '<div class="brz-gt-row-header">' +
+                        '<span class="brz-gt-handle" aria-hidden="true">☰</span>' +
+                        '<input type="text" data-field="title" value="' + escAttr(title) + '" placeholder="عنوان آیتم" maxlength="200" />' +
+                        '<button type="button" class="brz-gt-delete" title="حذف آیتم">✕</button>' +
                     '</div>' +
-                    '<button type="button" class="brz-gt-delete" title="حذف">✕</button>' +
+                    '<textarea data-field="content" placeholder="محتوای آیتم (هر خط = یک سطر در فرانت‌اند)" maxlength="2000">' + escAttr(content) + '</textarea>' +
+                    '<div class="brz-gt-link-row">' +
+                        '<input type="url" data-field="link_url" value="' + escAttr(linkUrl) + '" placeholder="آدرس لینک (اختیاری)" />' +
+                        '<input type="text" data-field="link_text" value="' + escAttr(linkText) + '" placeholder="متن نمایشی (مثال: مطالعه قوانین مرجوعی)" maxlength="100" />' +
+                    '</div>' +
                 '</div>';
             }
 
@@ -354,8 +368,11 @@ class BRZ_Product_Guarantee_Tab {
                 updateAddButton();
             });
 
-            // 3. Delete item handler (delegated).
+            // 3. Delete item handler (delegated) with confirmation.
             $list.on('click', '.brz-gt-delete', function() {
+                if (!confirm('آیا از حذف این آیتم اطمینان دارید؟')) {
+                    return;
+                }
                 $(this).closest('.brz-gt-row').remove();
                 updateAddButton();
                 toggleEmptyState();
