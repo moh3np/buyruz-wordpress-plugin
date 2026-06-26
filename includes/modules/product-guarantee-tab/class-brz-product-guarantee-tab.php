@@ -37,9 +37,10 @@ class BRZ_Product_Guarantee_Tab {
      * Three cards: Tab Title, Accordion Items, Accordion Settings.
      */
     public static function render_admin_page(): void {
-        $items    = self::get_items();
-        $title    = self::get_title();
-        $settings = self::get_accordion_settings();
+        $items       = self::get_items();
+        $title       = self::get_title();
+        $description = self::get_description();
+        $settings    = self::get_accordion_settings();
         ?>
         <style>
             .brz-gt-row {
@@ -167,6 +168,19 @@ class BRZ_Product_Guarantee_Tab {
                         <input type="text" id="brz-gt-title" value="<?php echo esc_attr( $title ); ?>" maxlength="100" style="width:100%;padding:var(--md-space-xs) var(--md-space-sm);border:1px solid var(--md-outline-variant,#ccc);border-radius:6px;font-size:14px;" />
                         <p class="description" style="margin-top:var(--md-space-sm);color:var(--md-on-surface-variant,#666);">
                             عنوان تبی که در صفحه محصول نمایش داده می‌شود. پیش‌فرض: ضمانت و ارسال
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Card 1.5: Tab Description -->
+                <div class="brz-card" style="margin-top:var(--md-space-lg);">
+                    <div class="brz-card__header">
+                        <h3>توضیحات تب</h3>
+                    </div>
+                    <div class="brz-card__body">
+                        <input type="text" id="brz-gt-description" value="<?php echo esc_attr( $description ); ?>" maxlength="200" style="width:100%;padding:var(--md-space-xs) var(--md-space-sm);border:1px solid var(--md-outline-variant,#ccc);border-radius:6px;font-size:14px;" />
+                        <p class="description" style="margin-top:var(--md-space-sm);color:var(--md-on-surface-variant,#666);">
+                            توضیحی که زیر عنوان تب در صفحه محصول نمایش داده می‌شود. خالی بگذارید اگر نیازی ندارید.
                         </p>
                     </div>
                 </div>
@@ -354,6 +368,9 @@ class BRZ_Product_Guarantee_Tab {
                 // Collect tab_title.
                 var tab_title = $('#brz-gt-title').val();
 
+                // Collect tab_description.
+                var tab_description = $('#brz-gt-description').val();
+
                 // Collect all accordion_* settings.
                 var accordion_border_radius = $('#brz-gt-border-radius').val();
                 var accordion_font_size_question = $('#brz-gt-fz-question').val();
@@ -369,6 +386,7 @@ class BRZ_Product_Guarantee_Tab {
                         _wpnonce: $('#_wpnonce').val(),
                         items: items,
                         tab_title: tab_title,
+                        tab_description: tab_description,
                         accordion_border_radius: accordion_border_radius,
                         accordion_font_size_question: accordion_font_size_question,
                         accordion_font_size_answer: accordion_font_size_answer,
@@ -439,6 +457,10 @@ class BRZ_Product_Guarantee_Tab {
             $tab_title = 'ضمانت و ارسال';
         }
 
+        // Sanitize tab description: sanitize_text_field, max 200 chars, allow empty.
+        $tab_description = isset( $_POST['tab_description'] ) ? sanitize_text_field( $_POST['tab_description'] ) : '';
+        $tab_description = mb_substr( $tab_description, 0, 200 );
+
         // Sanitize accordion settings.
         $accordion_border_radius      = isset( $_POST['accordion_border_radius'] )      ? absint( $_POST['accordion_border_radius'] )      : 12;
         $accordion_font_size_question = isset( $_POST['accordion_font_size_question'] ) ? absint( $_POST['accordion_font_size_question'] ) : 15;
@@ -460,6 +482,7 @@ class BRZ_Product_Guarantee_Tab {
 
         $opts['guarantee_tab_items']          = $items;
         $opts['guarantee_tab_title']          = $tab_title;
+        $opts['guarantee_tab_description']    = $tab_description;
         $opts['accordion_border_radius']      = $accordion_border_radius;
         $opts['accordion_font_size_question'] = $accordion_font_size_question;
         $opts['accordion_font_size_answer']   = $accordion_font_size_answer;
@@ -526,11 +549,19 @@ class BRZ_Product_Guarantee_Tab {
      * Renders items server-side using the same markup consumed by faq.css/faq.js.
      */
     public static function render_tab_content(): void {
-        $items = self::get_items();
+        $items       = self::get_items();
+        $title       = self::get_title();
+        $description = self::get_description();
 
         // Safety check: if no items, output nothing.
         if ( empty( $items ) ) {
             return;
+        }
+
+        // Tab heading + description (matching bakala theme structure).
+        echo '<h2 class="title">' . esc_html( $title ) . '</h2>';
+        if ( '' !== $description ) {
+            echo '<p class="brz-tab-description" style="margin-bottom:20px;color:#4d4d4d;font-size:14px;">' . esc_html( $description ) . '</p>';
         }
 
         echo '<div class="rank-math-block">';
@@ -579,6 +610,21 @@ class BRZ_Product_Guarantee_Tab {
         }
 
         return $title;
+    }
+
+    /**
+     * Read guarantee_tab_description from brz_options.
+     *
+     * @return string The tab description, or empty string if missing.
+     */
+    private static function get_description(): string {
+        $desc = BRZ_Settings::get( 'guarantee_tab_description', '' );
+
+        if ( ! is_string( $desc ) ) {
+            return '';
+        }
+
+        return $desc;
     }
 
     /**
