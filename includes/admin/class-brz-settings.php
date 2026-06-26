@@ -125,6 +125,7 @@ class BRZ_Settings {
         add_action( 'admin_init', array( __CLASS__, 'register' ) );
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
         add_action( 'admin_bar_menu', array( __CLASS__, 'admin_bar_node' ), 1000 );
+        add_action( 'wp_before_admin_bar_render', array( __CLASS__, 'reposition_admin_bar_node' ) );
         add_action( 'admin_post_brz_toggle_module', array( __CLASS__, 'handle_toggle_module' ) );
         add_action( 'wp_ajax_brz_toggle_module', array( __CLASS__, 'handle_toggle_module_ajax' ) );
         add_action( 'wp_ajax_brz_save_settings', array( __CLASS__, 'handle_save_settings_ajax' ) );
@@ -185,6 +186,85 @@ class BRZ_Settings {
                 'title'  => isset( $meta['label'] ) ? $meta['label'] : $slug,
                 'href'   => admin_url( 'admin.php?page=buyruz-module-' . $slug ),
             ) );
+        }
+    }
+
+    /**
+     * Reposition the Buyruz admin bar node to appear immediately after
+     * "تنظیمات پوسته" (Bakala theme options node = bakala_options).
+     *
+     * wp_before_admin_bar_render fires after all admin_bar_menu callbacks
+     * have run but before the bar is rendered. At this point all nodes are
+     * registered and we can reorder by removing and re-adding them.
+     *
+     * WP_Admin_Bar renders top-level nodes in the order they exist in its
+     * internal array. Removing a node and adding it back places it at the end.
+     * So we: remove every top-level node that was added AFTER bakala_options,
+     * then re-add buyruz-settings first, then re-add the rest in original order.
+     */
+    public static function reposition_admin_bar_node() {
+        global $wp_admin_bar;
+
+        if ( ! is_object( $wp_admin_bar ) ) {
+            return;
+        }
+
+        // Verify both nodes exist.
+        if ( ! $wp_admin_bar->get_node( 'buyruz-settings' ) || ! $wp_admin_bar->get_node( 'bakala_options' ) ) {
+            return;
+        }
+
+        $all_nodes = (array) $wp_admin_bar->get_nodes();
+
+        // Collect top-level node IDs in current order.
+        $top_level_ids = array();
+        foreach ( $all_nodes as $id => $node ) {
+            if ( empty( $node->parent ) ) {
+                $top_level_ids[] = $id;
+            }
+        }
+
+        // Find bakala_options position.
+        $bakala_pos = array_search( 'bakala_options', $top_level_ids, true );
+        $buyruz_pos = array_search( 'buyruz-settings', $top_level_ids, true );
+
+        if ( false === $bakala_pos || false === $buyruz_pos ) {
+            return;
+        }
+
+        // If buyruz is already right after bakala, nothing to do.
+        if ( $buyruz_pos === $bakala_pos + 1 ) {
+            return;
+        }
+
+        // Collect all nodes that need to be re-ordered:
+        // Everything after bakala_options in the top-level list.
+        $nodes_after_bakala = array_slice( $top_level_ids, $bakala_pos + 1 );
+
+        // Remove buyruz-settings from that list (we'll insert it first).
+        $nodes_after_bakala = array_filter( $nodes_after_bakala, function( $id ) {
+            return $id !== 'buyruz-settings';
+        } );
+
+        // Build new order: buyruz-settings first, then the rest.
+        $new_order = array_merge( array( 'buyruz-settings' ), array_values( $nodes_after_bakala ) );
+
+        // Remove all these nodes (and their children) then re-add in new order.
+        foreach ( $new_order as $node_id ) {
+            $wp_admin_bar->remove_node( $node_id );
+        }
+
+        // Re-add in desired order.
+        foreach ( $new_order as $node_id ) {
+            if ( isset( $all_nodes[ $node_id ] ) ) {
+                $wp_admin_bar->add_node( (array) $all_nodes[ $node_id ] );
+                // Re-add children.
+                foreach ( $all_nodes as $cid => $cnode ) {
+                    if ( isset( $cnode->parent ) && $cnode->parent === $node_id ) {
+                        $wp_admin_bar->add_node( (array) $cnode );
+                    }
+                }
+            }
         }
     }
 
