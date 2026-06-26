@@ -595,13 +595,21 @@ class BRZ_Product_Guarantee_Tab {
         ?>
         <style id="brz-guarantee-tab-icon">
         .woocommerce div.product .woocommerce-tabs ul.tabs li.guarantee_tab a::before {
-            height: 18px;
             content: "\E0EB";
-            font-size: 28px;
             font-family: bakala;
-            width: 40px;
+            font-size: 20px;
+            font-weight: 400;
+            color: #fff;
+            background: var(--accent_color2);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 35px !important;
+            width: 35px !important;
+            padding: 4px 0 0;
+            margin-left: 10px;
             text-align: right;
-            font-weight: normal;
         }
         </style>
         <?php
