@@ -604,7 +604,7 @@ class BRZ_Product_Guarantee_Tab {
             echo '<li class="rank-math-list-item">';
             echo '<h3 class="rank-math-question">' . esc_html( $item['title'] ) . '</h3>';
             echo '<div class="rank-math-answer">';
-            echo wp_kses_post( $item['content'] );
+            echo nl2br( esc_html( $item['content'] ) );
 
             // CTA link at the end of answer content.
             $link_url  = $item['link_url'] ?? '';
@@ -697,7 +697,7 @@ class BRZ_Product_Guarantee_Tab {
      * Sanitize and filter an array of Accordion_Item entries.
      *
      * Applies sanitize_text_field() to title (max 200 chars),
-     * wp_kses_post() to content (max 2000 chars),
+     * sanitize_content() to content (converts <br> to newlines, strips HTML, max 2000 chars),
      * and excludes entries where title is empty after sanitization.
      *
      * @param array $raw Raw array of item entries.
@@ -710,7 +710,7 @@ class BRZ_Product_Guarantee_Tab {
                 continue;
             }
             $title     = isset( $entry['title'] )     ? sanitize_text_field( $entry['title'] )     : '';
-            $content   = isset( $entry['content'] )   ? wp_kses_post( $entry['content'] )          : '';
+            $content   = isset( $entry['content'] )   ? self::sanitize_content( $entry['content'] ) : '';
             $link_url  = isset( $entry['link_url'] )  ? esc_url_raw( $entry['link_url'] )          : '';
             $link_text = isset( $entry['link_text'] ) ? sanitize_text_field( $entry['link_text'] ) : '';
 
@@ -732,5 +732,33 @@ class BRZ_Product_Guarantee_Tab {
             );
         }
         return array_values( $clean );
+    }
+
+    /**
+     * Sanitize accordion item content.
+     *
+     * Converts <br> tags to newlines, strips all HTML, and normalizes whitespace.
+     * This allows admin to simply press Enter in textarea — nl2br() is applied at render time.
+     * Backward compatible: existing content with <br> tags is converted to newlines on next save.
+     *
+     * @param string $raw Raw content string.
+     * @return string Sanitized plaintext with preserved newlines.
+     */
+    private static function sanitize_content( string $raw ): string {
+        // Convert <br>, <br/>, <br /> to newline for backward compatibility.
+        $text = preg_replace( '/<br\s*\/?>/i', "\n", $raw );
+
+        // Strip all remaining HTML tags.
+        $text = wp_strip_all_tags( $text );
+
+        // Normalize multiple consecutive newlines to max 2.
+        $text = preg_replace( '/\n{3,}/', "\n\n", $text );
+
+        // Trim leading/trailing whitespace per line, but preserve newlines.
+        $lines = explode( "\n", $text );
+        $lines = array_map( 'trim', $lines );
+        $text  = implode( "\n", $lines );
+
+        return trim( $text );
     }
 }
