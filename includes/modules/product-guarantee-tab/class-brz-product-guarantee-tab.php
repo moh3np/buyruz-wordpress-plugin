@@ -59,8 +59,8 @@ class BRZ_Product_Guarantee_Tab {
                 background: #f8f9fa;
             }
             .brz-gt-row:hover {
-                box-shadow: var(--md-elevation-1, 0 2px 6px rgba(0,0,0,.1));
-                border-color: var(--brz-brand, #1a73e8);
+                box-shadow: 0 2px 8px rgba(0,0,0,.06);
+                border-color: #c0c0c0;
             }
             .brz-gt-row-header {
                 display: flex;
@@ -168,12 +168,12 @@ class BRZ_Product_Guarantee_Tab {
                 align-items: center;
                 gap: var(--md-space-xs, 4px);
                 width: 100%;
-                direction: ltr;
             }
-            .brz-gt-link-row::before {
+            .brz-gt-link-row::after {
                 content: "🔗";
                 flex-shrink: 0;
                 font-size: 14px;
+                order: -1;
             }
             .brz-gt-link-row input[type="url"] {
                 flex: 1;
@@ -183,6 +183,7 @@ class BRZ_Product_Guarantee_Tab {
                 font-size: 13px;
                 min-width: 0;
                 direction: ltr;
+                order: 2;
             }
             .brz-gt-link-row input[type="text"] {
                 flex: 1;
@@ -192,6 +193,7 @@ class BRZ_Product_Guarantee_Tab {
                 font-size: 13px;
                 min-width: 0;
                 direction: rtl;
+                order: 1;
             }
             .brz-gt-link-row input:focus {
                 outline: none;
