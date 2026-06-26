@@ -8,6 +8,40 @@ class BRZ_Settings {
     const MENU_POSITION = 2;
     private static $options_cache = null;
 
+    /**
+     * Resolve the admin menu position dynamically.
+     *
+     * Places the Buyruz menu immediately after the "قالب باکالا" (Redux theme options)
+     * menu. Falls back to MENU_POSITION if the theme menu is not found.
+     *
+     * @return float|int
+     */
+    private static function resolve_menu_position() {
+        global $menu;
+
+        if ( empty( $menu ) || ! is_array( $menu ) ) {
+            return self::MENU_POSITION;
+        }
+
+        // Look for the Bakala theme options menu by its known slug or title.
+        foreach ( $menu as $position => $item ) {
+            // $item[2] = menu slug, $item[0] = menu title (may contain HTML markup).
+            $slug  = isset( $item[2] ) ? $item[2] : '';
+            $title = isset( $item[0] ) ? wp_strip_all_tags( $item[0] ) : '';
+
+            if (
+                $slug === 'bakala_options'
+                || mb_strpos( $title, 'قالب باکالا' ) !== false
+                || mb_strpos( $title, 'تنظیمات پوسته' ) !== false
+            ) {
+                // Return a position just after the Bakala theme menu.
+                return (float) $position + 0.1;
+            }
+        }
+
+        return self::MENU_POSITION;
+    }
+
     private static function sections_meta() {
         $sections = array(
             'brz_main'    => array(
@@ -87,10 +121,10 @@ class BRZ_Settings {
     }
 
     public static function init() {
-        add_action( 'admin_menu', array( __CLASS__, 'page' ) );
+        add_action( 'admin_menu', array( __CLASS__, 'page' ), 11 );
         add_action( 'admin_init', array( __CLASS__, 'register' ) );
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
-        add_action( 'admin_bar_menu', array( __CLASS__, 'admin_bar_node' ), 999 );
+        add_action( 'admin_bar_menu', array( __CLASS__, 'admin_bar_node' ), 1000 );
         add_action( 'admin_post_brz_toggle_module', array( __CLASS__, 'handle_toggle_module' ) );
         add_action( 'wp_ajax_brz_toggle_module', array( __CLASS__, 'handle_toggle_module_ajax' ) );
         add_action( 'wp_ajax_brz_save_settings', array( __CLASS__, 'handle_save_settings_ajax' ) );
@@ -245,7 +279,7 @@ class BRZ_Settings {
             self::PARENT_SLUG,
             array( __CLASS__, 'render_page' ),
             'dashicons-admin-generic',
-            self::MENU_POSITION
+            self::resolve_menu_position()
         );
 
         add_submenu_page(
