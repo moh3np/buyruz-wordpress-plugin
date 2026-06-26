@@ -48,15 +48,19 @@ class BRZ_Product_Guarantee_Tab {
                 flex-direction: column;
                 gap: var(--md-space-sm, 8px);
                 padding: var(--md-space-md, 16px);
-                margin-bottom: var(--md-space-sm, 8px);
+                margin-bottom: var(--md-space-md, 16px);
                 background: var(--md-surface, #fff);
                 border: 1px solid var(--md-outline-variant, #e0e0e0);
                 border-radius: 8px;
                 transition: box-shadow 0.2s;
                 position: relative;
             }
+            .brz-gt-row:nth-child(even) {
+                background: #f8f9fa;
+            }
             .brz-gt-row:hover {
-                box-shadow: var(--md-elevation-1, 0 1px 3px rgba(0,0,0,.12));
+                box-shadow: var(--md-elevation-1, 0 2px 6px rgba(0,0,0,.1));
+                border-color: var(--brz-brand, #1a73e8);
             }
             .brz-gt-row-header {
                 display: flex;
@@ -164,13 +168,22 @@ class BRZ_Product_Guarantee_Tab {
                 align-items: center;
                 gap: var(--md-space-xs, 4px);
                 width: 100%;
+                direction: ltr;
             }
             .brz-gt-link-row::before {
                 content: "🔗";
                 flex-shrink: 0;
                 font-size: 14px;
             }
-            .brz-gt-link-row input[type="url"],
+            .brz-gt-link-row input[type="url"] {
+                flex: 1;
+                padding: var(--md-space-xs, 4px) var(--md-space-sm, 8px);
+                border: 1px solid var(--md-outline-variant, #ccc);
+                border-radius: 6px;
+                font-size: 13px;
+                min-width: 0;
+                direction: ltr;
+            }
             .brz-gt-link-row input[type="text"] {
                 flex: 1;
                 padding: var(--md-space-xs, 4px) var(--md-space-sm, 8px);
@@ -178,6 +191,7 @@ class BRZ_Product_Guarantee_Tab {
                 border-radius: 6px;
                 font-size: 13px;
                 min-width: 0;
+                direction: rtl;
             }
             .brz-gt-link-row input:focus {
                 outline: none;
@@ -233,8 +247,8 @@ class BRZ_Product_Guarantee_Tab {
                                         </div>
                                         <textarea data-field="content" placeholder="محتوای آیتم (هر خط = یک سطر در فرانت‌اند)" maxlength="2000"><?php echo esc_textarea( $item['content'] ); ?></textarea>
                                         <div class="brz-gt-link-row">
-                                            <input type="url" data-field="link_url" value="<?php echo esc_attr( $item['link_url'] ?? '' ); ?>" placeholder="آدرس لینک (اختیاری)" />
                                             <input type="text" data-field="link_text" value="<?php echo esc_attr( $item['link_text'] ?? '' ); ?>" placeholder="متن نمایشی (مثال: مطالعه قوانین مرجوعی)" maxlength="100" />
+                                            <input type="url" data-field="link_url" value="<?php echo esc_attr( $item['link_url'] ?? '' ); ?>" placeholder="آدرس لینک (اختیاری)" />
                                         </div>
                                     </div>
                                 <?php endforeach; ?>
@@ -331,8 +345,8 @@ class BRZ_Product_Guarantee_Tab {
                     '</div>' +
                     '<textarea data-field="content" placeholder="محتوای آیتم (هر خط = یک سطر در فرانت‌اند)" maxlength="2000">' + escAttr(content) + '</textarea>' +
                     '<div class="brz-gt-link-row">' +
-                        '<input type="url" data-field="link_url" value="' + escAttr(linkUrl) + '" placeholder="آدرس لینک (اختیاری)" />' +
                         '<input type="text" data-field="link_text" value="' + escAttr(linkText) + '" placeholder="متن نمایشی (مثال: مطالعه قوانین مرجوعی)" maxlength="100" />' +
+                        '<input type="url" data-field="link_url" value="' + escAttr(linkUrl) + '" placeholder="آدرس لینک (اختیاری)" />' +
                     '</div>' +
                 '</div>';
             }
