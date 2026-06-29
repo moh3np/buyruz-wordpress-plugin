@@ -173,6 +173,43 @@ class BRZ_Static_Controller {
                 <?php
             }
         }
+
+        // 3. Check for acknowledgment rejection — display warning with reason.
+        if ( ! $dismissed ) {
+            $ack = self::read_acknowledgment();
+
+            if ( $ack && $ack['status'] === 'rejected' ) {
+                $rejection_reason = $ack['rejection_reason'] ?? 'دلیل نامشخص';
+                ?>
+                <div class="notice notice-error is-dismissible brz-static-admin-notice" data-notice-type="ack_rejected">
+                    <p>
+                        <strong>کنترلر استاتیک:</strong>
+                        <?php
+                        echo esc_html( sprintf(
+                            'نقشه URL توسط موتور پردازش رد شد. دلیل: %s',
+                            $rejection_reason
+                        ) );
+                        ?>
+                    </p>
+                    <button type="button" class="notice-dismiss brz-static-notice-dismiss" data-notice="ack_rejected">
+                        <span class="screen-reader-text">بستن این اعلان</span>
+                    </button>
+                </div>
+                <script>
+                jQuery(function($) {
+                    $('.brz-static-notice-dismiss[data-notice="ack_rejected"]').on('click', function() {
+                        $.post(ajaxurl, {
+                            action: 'brz_static_dismiss_notice',
+                            notice_type: 'ack_rejected',
+                            _ajax_nonce: '<?php echo esc_js( wp_create_nonce( 'brz_static_dismiss_notice' ) ); ?>'
+                        });
+                        $(this).closest('.notice').fadeOut();
+                    });
+                });
+                </script>
+                <?php
+            }
+        }
     }
 
     /**
@@ -230,6 +267,7 @@ class BRZ_Static_Controller {
         return array(
             'selected_pages'         => array(),
             'output_path'            => '/static-data/urls-map.json',
+            'shared_data_dir'        => '/static-data',
             'modal_global'           => '',
             'modal_per_page'         => array(),
             'last_generated'         => null,
@@ -424,7 +462,7 @@ class BRZ_Static_Controller {
         if ( $page < 1 ) {
             $page = 1;
         }
-        if ( $per_page < 1 || $per_page > 100 ) {
+        if ( $per_page < 1 || $per_page > 200 ) {
             $per_page = 50;
         }
 
@@ -482,6 +520,11 @@ class BRZ_Static_Controller {
                     );
                 }
             }
+        }
+
+        // Cap total results at 200 per Requirement 8.2.
+        if ( count( $items ) > 200 ) {
+            $items = array_slice( $items, 0, 200 );
         }
 
         // Paginate results.
@@ -624,6 +667,25 @@ class BRZ_Static_Controller {
             $settings['notify_on_sync'] = filter_var( wp_unslash( $_POST['notify_on_sync'] ), FILTER_VALIDATE_BOOLEAN );
         }
 
+        // Validate and save shared_data_dir.
+        if ( isset( $_POST['shared_data_dir'] ) ) {
+            $shared_data_dir = sanitize_text_field( wp_unslash( $_POST['shared_data_dir'] ) );
+
+            if ( ! empty( $shared_data_dir ) ) {
+                // Must be an absolute path.
+                if ( $shared_data_dir[0] !== '/' ) {
+                    wp_send_json_error( array( 'message' => 'مسیر دایرکتوری اشتراکی باید مطلق باشد (با / شروع شود).' ) );
+                }
+
+                // Max 512 characters.
+                if ( strlen( $shared_data_dir ) > 512 ) {
+                    wp_send_json_error( array( 'message' => 'مسیر دایرکتوری اشتراکی نمی‌تواند بیشتر از ۵۱۲ کاراکتر باشد.' ) );
+                }
+            }
+
+            $settings['shared_data_dir'] = $shared_data_dir;
+        }
+
         self::save_settings( $settings );
 
         wp_send_json_success( array( 'message' => 'تنظیمات با موفقیت ذخیره شد.' ) );
@@ -666,6 +728,7 @@ class BRZ_Static_Controller {
         
         wp_send_json_success( array(
             'output_path'             => $settings['output_path'],
+            'shared_data_dir'         => $settings['shared_data_dir'] ?? '/static-data',
             'last_generated'          => $settings['last_generated'],
             'generation_status'       => $settings['generation_status'],
             'sitemap_url'             => $settings['sitemap_url'] ?? '',
@@ -863,6 +926,9 @@ class BRZ_Static_Controller {
         $full_history = BRZ_Static_Map_Generator::get_regeneration_history();
         $history      = array_slice( $full_history, 0, 5 );
 
+        // Read acknowledgment file via BRZ_Static_Communication.
+        $acknowledgment = self::read_acknowledgment();
+
         wp_send_json_success( array(
             'total_pages'             => $total_pages,
             'sitemap_count'           => $sitemap_count,
@@ -875,7 +941,50 @@ class BRZ_Static_Controller {
             'auto_sync_enabled'       => ! empty( $settings['auto_sync_enabled'] ),
             'auto_regenerate_enabled' => ! empty( $settings['auto_regenerate_enabled'] ),
             'regeneration_history'    => $history,
+            'acknowledgment'          => $acknowledgment,
         ) );
+    }
+
+    /**
+     * Read and parse the acknowledgment file from the shared data directory.
+     *
+     * Uses BRZ_Static_Communication to read the acknowledgment/ack key.
+     * Returns null if file is missing or unparseable, otherwise returns
+     * the parsed acknowledgment data array.
+     *
+     * @return array|null Parsed acknowledgment data or null if unavailable.
+     */
+    private static function read_acknowledgment(): ?array {
+        $result = BRZ_Static_Communication::read( 'acknowledgment/ack' );
+
+        if ( ! $result['success'] || empty( $result['data'] ) ) {
+            return null;
+        }
+
+        $data = json_decode( $result['data'], true );
+
+        if ( ! is_array( $data ) || empty( $data['status'] ) ) {
+            return null;
+        }
+
+        // Return only the relevant fields.
+        $acknowledgment = array(
+            'status'               => sanitize_text_field( $data['status'] ),
+            'generation_timestamp' => $data['generation_timestamp'] ?? null,
+            'acknowledged_at'      => $data['acknowledged_at'] ?? null,
+        );
+
+        // Include page_count for accepted status.
+        if ( isset( $data['page_count'] ) ) {
+            $acknowledgment['page_count'] = (int) $data['page_count'];
+        }
+
+        // Include rejection_reason for rejected status.
+        if ( isset( $data['rejection_reason'] ) ) {
+            $acknowledgment['rejection_reason'] = sanitize_text_field( $data['rejection_reason'] );
+        }
+
+        return $acknowledgment;
     }
 
     /**
@@ -1036,6 +1145,11 @@ class BRZ_Static_Controller {
             wp_send_json_error( array( 'message' => 'لیست URLها نامعتبر یا خالی است.' ) );
         }
 
+        // Enforce maximum 500 pages per bulk operation (Requirement 8.5).
+        if ( count( $urls ) > 500 ) {
+            wp_send_json_error( array( 'message' => 'حداکثر ۵۰۰ صفحه در هر عملیات گروهی مجاز است.' ) );
+        }
+
         $allowed_actions = array( 'mark_pending', 'remove', 'reset_error' );
         if ( ! in_array( $bulk_action, $allowed_actions, true ) ) {
             wp_send_json_error( array( 'message' => 'عملیات نامعتبر است.' ) );
@@ -1049,15 +1163,22 @@ class BRZ_Static_Controller {
         if ( $bulk_action === 'remove' ) {
             // Remove matching URLs from selected_pages.
             $updated_pages = array();
+            $removed_url_list = array();
             foreach ( $selected_pages as $page ) {
                 $page_url = $page['url'] ?? '';
                 if ( isset( $url_set[ $page_url ] ) ) {
                     $affected++;
+                    $removed_url_list[] = $page_url;
                     continue; // Skip (remove) this entry.
                 }
                 $updated_pages[] = $page;
             }
             $settings['selected_pages'] = $updated_pages;
+
+            // Track removed URLs so auto-sync won't re-import them.
+            if ( ! empty( $removed_url_list ) ) {
+                BRZ_Static_Sitemap_Importer::track_removed_urls_bulk( $removed_url_list );
+            }
         } else {
             // mark_pending or reset_error: modify matching entries in place.
             foreach ( $selected_pages as &$page ) {
@@ -1377,6 +1498,18 @@ class BRZ_Static_Controller {
                     </div>
                 </div>
 
+                <!-- Acknowledgment Status -->
+                <div class="brz-card">
+                    <div class="brz-card__header">
+                        <h3>وضعیت تأیید نقشه URL</h3>
+                    </div>
+                    <div class="brz-card__body">
+                        <div id="brz-static-dash-acknowledgment">
+                            <!-- Populated via JS from acknowledgment data -->
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Quick Actions -->
                 <div class="brz-card">
                     <div class="brz-card__header">
@@ -1576,6 +1709,18 @@ class BRZ_Static_Controller {
                                        dir="ltr"
                                        value=""
                                        placeholder="در حال بارگذاری...">
+                            </div>
+
+                            <!-- Shared Data Directory -->
+                            <div class="brz-static-settings-field">
+                                <label for="brz-static-shared-data-dir">مسیر دایرکتوری اشتراکی:</label>
+                                <input type="text"
+                                       id="brz-static-shared-data-dir"
+                                       class="regular-text"
+                                       dir="ltr"
+                                       value=""
+                                       placeholder="/static-data">
+                                <p class="description">مسیر مطلق دایرکتوری مشترک بین افزونه، موتور پردازش و داشبورد.</p>
                             </div>
 
                             <!-- Sitemap URL -->

@@ -77,6 +77,7 @@ class BRZ_Static_Manual_Page_Manager {
      *
      * Removes the URL from the in-memory selected_pages array and persists
      * the change. Also triggers a regeneration to update the URLs_Map file.
+     * Tracks the URL in removed_urls so auto-sync skips it in future imports.
      *
      * @param string $url The URL to remove.
      * @return true|\WP_Error True on success, WP_Error if URL not found.
@@ -107,6 +108,9 @@ class BRZ_Static_Manual_Page_Manager {
 
         $settings['selected_pages'] = $updated_pages;
         self::save_settings( $settings );
+
+        // Track this URL as removed so auto-sync won't re-import it.
+        BRZ_Static_Sitemap_Importer::track_removed_url( $url );
 
         // Trigger URLs_Map regeneration to reflect the removal.
         if ( class_exists( 'BRZ_Static_Change_Trigger' ) ) {

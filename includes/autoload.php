@@ -47,10 +47,12 @@ spl_autoload_register( function( $class ) {
         'BRZ_Static_Modal_Injector'  => 'modules/static-controller/class-brz-static-modal-injector.php',
         'BRZ_Static_Sitemap_Importer' => 'modules/static-controller/class-brz-static-sitemap-importer.php',
         'BRZ_Static_Manual_Page_Manager' => 'modules/static-controller/class-brz-static-manual-page-manager.php',
+        'BRZ_Static_Communication'       => 'modules/static-controller/class-brz-static-communication.php',
         'BRZ_Label_Overrides'            => 'modules/label-overrides/class-brz-label-overrides.php',
         'BRZ_AI_Schema'                  => 'modules/ai-schema/class-brz-ai-schema.php',
         'BRZ_Product_Guarantee_Tab'      => 'modules/product-guarantee-tab/class-brz-product-guarantee-tab.php',
         'BRZ_Shipping_Html'              => 'front/class-brz-shipping-html.php',
+        'BRZ_A11y_Fixes'                 => 'modules/a11y-fixes/class-brz-a11y-fixes.php',
     );
 
     $map = apply_filters( 'brz/autoload_map', $map );

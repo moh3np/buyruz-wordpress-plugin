@@ -55,6 +55,11 @@ class BRZ_Modules {
                 'description' => 'تب آکاردئونی ضمانت، ارسال و پشتیبانی در صفحه محصول ووکامرس.',
                 'class'       => 'BRZ_Product_Guarantee_Tab',
             ),
+            'a11y_fixes' => array(
+                'label'       => 'رفع دسترسی‌پذیری',
+                'description' => 'اصلاح خودکار مشکلات ARIA و ساختار HTML در صفحه محصول (WCAG 2.1 AA).',
+                'class'       => 'BRZ_A11y_Fixes',
+            ),
         );
     }
 

@@ -262,6 +262,7 @@ jQuery(document).ready(function ($) {
       container: '[data-panel="dashboard"]',
       onSuccess: function (data) {
         renderDashboardCards(data);
+        renderAcknowledgmentStatus(data.acknowledgment || null);
         renderRecentActivity(data.regeneration_history || []);
       }
     });
@@ -312,6 +313,63 @@ jQuery(document).ready(function ($) {
       .text(statusText)
       .removeClass('brz-static-system-status--healthy brz-static-system-status--attention brz-static-system-status--error')
       .addClass('brz-static-system-status--' + (data.system_status || 'healthy'));
+  }
+
+  /**
+   * Render acknowledgment status in the dashboard.
+   * Shows a status badge (accepted/rejected), timestamp, and page count.
+   * @param {object|null} ack - Acknowledgment data from server
+   */
+  function renderAcknowledgmentStatus(ack) {
+    var $container = $('#brz-static-dash-acknowledgment');
+    if (!$container.length) { return; }
+
+    $container.empty();
+
+    if (!ack) {
+      $container.html(
+        '<div class="brz-static-dashboard__ack-status">' +
+          '<span class="brz-static-badge brz-static-badge--neutral">' +
+            escapeHtml(config.strings.ack_unavailable || 'اطلاعات تأیید دریافت نشده') +
+          '</span>' +
+        '</div>'
+      );
+      return;
+    }
+
+    var statusClass = ack.status === 'accepted' ? 'brz-static-badge--success' : 'brz-static-badge--error';
+    var statusLabel = ack.status === 'accepted'
+      ? (config.strings.ack_accepted || 'پذیرفته شده')
+      : (config.strings.ack_rejected || 'رد شده');
+
+    var html =
+      '<div class="brz-static-dashboard__ack-status">' +
+        '<span class="brz-static-badge ' + statusClass + '">' + escapeHtml(statusLabel) + '</span>';
+
+    // Timestamp
+    if (ack.acknowledged_at) {
+      html += '<span class="brz-static-dashboard__ack-time">' +
+        escapeHtml((config.strings.ack_time || 'زمان') + ': ' + ack.acknowledged_at) +
+      '</span>';
+    }
+
+    // Page count (only for accepted)
+    if (ack.status === 'accepted' && ack.page_count !== undefined) {
+      html += '<span class="brz-static-dashboard__ack-pages">' +
+        escapeHtml((config.strings.ack_pages || 'تعداد صفحات') + ': ' + ack.page_count) +
+      '</span>';
+    }
+
+    // Rejection reason
+    if (ack.status === 'rejected' && ack.rejection_reason) {
+      html += '<span class="brz-static-dashboard__ack-reason brz-static-text--error">' +
+        escapeHtml((config.strings.ack_reason || 'دلیل رد') + ': ' + ack.rejection_reason) +
+      '</span>';
+    }
+
+    html += '</div>';
+
+    $container.html(html);
   }
 
   /**
@@ -1027,6 +1085,7 @@ jQuery(document).ready(function ($) {
   function populateSettings(data) {
     // Text fields
     $('#brz-static-output-path').val(data.output_path || '');
+    $('#brz-static-shared-data-dir').val(data.shared_data_dir || '');
     $('#brz-static-sitemap-url').val(data.sitemap_url || '');
 
     // Toggle switches
@@ -1058,6 +1117,7 @@ jQuery(document).ready(function ($) {
     var settingsData = {
       action: 'brz_static_save_settings',
       output_path: $.trim($('#brz-static-output-path').val()),
+      shared_data_dir: $.trim($('#brz-static-shared-data-dir').val()),
       sitemap_url: $.trim($('#brz-static-sitemap-url').val()),
       auto_sync: $('#brz-static-auto-sync').is(':checked') ? '1' : '0',
       auto_regenerate: $('#brz-static-auto-regenerate').is(':checked') ? '1' : '0',

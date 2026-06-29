@@ -554,7 +554,8 @@ class BRZ_Static_Sitemap_Importer {
                 }
             } else {
                 // New URL — detect page_type and add.
-                $page_type = self::detect_page_type_for_url( $url );
+                $page_type    = self::detect_page_type_for_url( $url );
+                $needs_review = self::needs_manual_review( $url );
 
                 $new_entry = array(
                     'id'           => 0,
@@ -566,6 +567,7 @@ class BRZ_Static_Sitemap_Importer {
                     'lastmod'      => $lastmod,
                     'error_count'  => 0,
                     'content_hash' => null,
+                    'needs_review' => $needs_review,
                 );
 
                 // Try to resolve WordPress post ID from URL.
@@ -760,53 +762,141 @@ class BRZ_Static_Sitemap_Importer {
     }
 
     /**
-     * Detect page type for a URL using WordPress post ID resolution and path patterns.
+     * Detect page type for a URL using URL path prefix matching.
      *
-     * First attempts to resolve the URL to a WordPress post ID using url_to_postid().
-     * If successful, uses BRZ_Static_Page_Detector::detect() for accurate detection.
-     * If url_to_postid() returns 0, falls back to URL path pattern matching
-     * (similar to BRZ_Static_Manual_Page_Manager::detect_page_type_remote).
+     * Uses URL path prefix matching to determine page_type:
+     * - /product/          → "product"
+     * - /product-category/ → "category"
+     * - /brand/            → "brand"
+     * - /product-tag/      → "tag"
+     * - /category/         → "category"
+     * - /tag/              → "tag"
+     * - Everything else    → "page" (flagged for manual review)
+     *
+     * Order matters: longer/more-specific prefixes are checked first to avoid
+     * false matches (e.g., /product-category/ before /product/).
      *
      * @param string $url The URL to detect page type for.
-     * @return string One of the BRZ_Static_Page_Detector::PROFILE_* constants.
+     * @return string The detected page_type string.
      */
-    private static function detect_page_type_for_url( string $url ): string {
-        // Try to resolve WordPress post ID from URL.
-        $post_id = url_to_postid( $url );
-
-        if ( $post_id > 0 ) {
-            return BRZ_Static_Page_Detector::detect( $post_id );
-        }
-
-        // Fallback: URL path pattern matching.
+    public static function detect_page_type_for_url( string $url ): string {
         $parsed = wp_parse_url( $url );
         $path   = $parsed['path'] ?? '/';
 
-        // Product URLs typically contain /product/ in the path.
-        if ( str_contains( $path, '/product/' ) ) {
-            return BRZ_Static_Page_Detector::PROFILE_PRODUCT;
+        // Define prefix → page_type mapping.
+        // Order: longer/more-specific prefixes first to prevent false matches.
+        $prefix_map = array(
+            '/product-category/' => 'category',
+            '/product-tag/'      => 'tag',
+            '/product-brand/'    => 'brand',
+            '/brand/'            => 'brand',
+            '/product/'          => 'product',
+            '/category/'         => 'category',
+            '/tag/'              => 'tag',
+        );
+
+        foreach ( $prefix_map as $prefix => $type ) {
+            if ( str_starts_with( $path, $prefix ) ) {
+                return $type;
+            }
         }
 
-        // Archive/category URLs.
-        if ( str_contains( $path, '/product-category/' )
-            || str_contains( $path, '/product-tag/' )
-            || str_contains( $path, '/product-brand/' )
-        ) {
-            return BRZ_Static_Page_Detector::PROFILE_ARCHIVE;
+        // Unknown prefix — default to "page" (flagged for manual review).
+        return 'page';
+    }
+
+    /**
+     * Check if a URL's page_type requires manual review.
+     *
+     * URLs that don't match any known prefix are assigned page_type "page"
+     * and should be flagged for operator manual review.
+     *
+     * @param string $url The URL to check.
+     * @return bool True if the URL's page_type needs manual review.
+     */
+    public static function needs_manual_review( string $url ): bool {
+        return self::detect_page_type_for_url( $url ) === 'page';
+    }
+
+    /**
+     * Get the list of URLs previously removed by the operator.
+     *
+     * These URLs are excluded from auto-sync re-import. Only a manual
+     * "re-add" by the operator can bring them back.
+     *
+     * @return array List of removed URL strings.
+     */
+    public static function get_removed_urls(): array {
+        $settings = BRZ_Static_Controller::get_settings();
+
+        if ( ! empty( $settings['removed_urls'] ) && is_array( $settings['removed_urls'] ) ) {
+            return $settings['removed_urls'];
         }
 
-        // Blog category.
-        if ( str_contains( $path, '/category/' ) ) {
-            return BRZ_Static_Page_Detector::PROFILE_BLOG_CATEGORY;
+        return array();
+    }
+
+    /**
+     * Track a URL as removed by the operator.
+     *
+     * Adds the URL to the removed_urls list so auto-sync skips it in future imports.
+     *
+     * @param string $url The URL to mark as removed.
+     */
+    public static function track_removed_url( string $url ): void {
+        $settings     = BRZ_Static_Controller::get_settings();
+        $removed_urls = $settings['removed_urls'] ?? array();
+
+        if ( ! in_array( $url, $removed_urls, true ) ) {
+            $removed_urls[] = $url;
+            $settings['removed_urls'] = $removed_urls;
+            self::save_settings( $settings );
+        }
+    }
+
+    /**
+     * Track multiple URLs as removed by the operator.
+     *
+     * Adds each URL to the removed_urls list so auto-sync skips them in future imports.
+     *
+     * @param array $urls Array of URL strings to mark as removed.
+     */
+    public static function track_removed_urls_bulk( array $urls ): void {
+        $settings     = BRZ_Static_Controller::get_settings();
+        $removed_urls = $settings['removed_urls'] ?? array();
+
+        $changed = false;
+        foreach ( $urls as $url ) {
+            if ( ! in_array( $url, $removed_urls, true ) ) {
+                $removed_urls[] = $url;
+                $changed = true;
+            }
         }
 
-        // Blog post pattern: /mag/ or /blog/ prefix.
-        if ( str_contains( $path, '/mag/' ) || str_contains( $path, '/blog/' ) ) {
-            return BRZ_Static_Page_Detector::PROFILE_BLOG_POST;
+        if ( $changed ) {
+            $settings['removed_urls'] = $removed_urls;
+            self::save_settings( $settings );
         }
+    }
 
-        // Cannot determine — return unknown.
-        return BRZ_Static_Page_Detector::PROFILE_UNKNOWN;
+    /**
+     * Remove a URL from the removed_urls tracking list.
+     *
+     * Used when an operator explicitly re-adds a previously removed URL,
+     * so it won't be skipped by future auto-sync.
+     *
+     * @param string $url The URL to untrack.
+     */
+    public static function untrack_removed_url( string $url ): void {
+        $settings     = BRZ_Static_Controller::get_settings();
+        $removed_urls = $settings['removed_urls'] ?? array();
+
+        $key = array_search( $url, $removed_urls, true );
+        if ( $key !== false ) {
+            unset( $removed_urls[ $key ] );
+            $settings['removed_urls'] = array_values( $removed_urls );
+            self::save_settings( $settings );
+        }
     }
 
     /**
@@ -894,14 +984,24 @@ class BRZ_Static_Sitemap_Importer {
         }
 
         // Handle additions: add new URLs with page_source="sitemap", page_status="pending".
+        // Skip URLs that were previously manually removed by the operator.
+        $removed_urls = self::get_removed_urls();
+        $removed_set  = array_flip( $removed_urls );
+
         foreach ( $diff['additions'] as $url ) {
             if ( isset( $url_index[ $url ] ) ) {
                 // URL already exists (shouldn't happen in additions, but be safe).
                 continue;
             }
 
-            $page_type = self::detect_page_type_for_url( $url );
-            $lastmod   = $current_urls[ $url ] ?? null;
+            // Skip previously removed URLs — operator must re-add manually.
+            if ( isset( $removed_set[ $url ] ) ) {
+                continue;
+            }
+
+            $page_type    = self::detect_page_type_for_url( $url );
+            $needs_review = self::needs_manual_review( $url );
+            $lastmod      = $current_urls[ $url ] ?? null;
 
             $new_entry = array(
                 'id'           => 0,
@@ -913,6 +1013,7 @@ class BRZ_Static_Sitemap_Importer {
                 'lastmod'      => $lastmod,
                 'error_count'  => 0,
                 'content_hash' => null,
+                'needs_review' => $needs_review,
             );
 
             // Try to resolve WordPress post ID.
@@ -1031,13 +1132,23 @@ class BRZ_Static_Sitemap_Importer {
             }
 
             // Handle additions.
+            // Skip URLs that were previously manually removed by the operator.
+            $removed_urls = self::get_removed_urls();
+            $removed_set  = array_flip( $removed_urls );
+
             foreach ( $diff['additions'] as $url ) {
                 if ( isset( $url_index[ $url ] ) ) {
                     continue;
                 }
 
-                $page_type = self::detect_page_type_for_url( $url );
-                $lastmod   = $current_urls[ $url ] ?? null;
+                // Skip previously removed URLs — operator must re-add manually.
+                if ( isset( $removed_set[ $url ] ) ) {
+                    continue;
+                }
+
+                $page_type    = self::detect_page_type_for_url( $url );
+                $needs_review = self::needs_manual_review( $url );
+                $lastmod      = $current_urls[ $url ] ?? null;
 
                 $new_entry = array(
                     'id'           => 0,
@@ -1049,6 +1160,7 @@ class BRZ_Static_Sitemap_Importer {
                     'lastmod'      => $lastmod,
                     'error_count'  => 0,
                     'content_hash' => null,
+                    'needs_review' => $needs_review,
                 );
 
                 $post_id = url_to_postid( $url );

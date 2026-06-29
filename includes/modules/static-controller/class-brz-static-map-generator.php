@@ -16,6 +16,12 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 class BRZ_Static_Map_Generator {
 
     /**
+     * Contract version for the URLs_Map file format (semver).
+     * Processing_Engine validates major version compatibility.
+     */
+    public const CONTRACT_VERSION = '2.0.0';
+
+    /**
      * Option key used by the Static Controller module within brz_options.
      */
     private const OPTION_KEY = 'static_controller';
@@ -119,9 +125,9 @@ class BRZ_Static_Map_Generator {
     /**
      * Build the map data structure for selected pages.
      *
-     * Constructs metadata (generation_timestamp, total_count, pending_count,
-     * pending_pages, plugin_version) and pages array (url, page_type,
-     * page_source, page_status, lastmod, error_count, modal) for each
+     * Constructs metadata (contract_version, generation_timestamp, total_count,
+     * pending_count, pending_pages, plugin_version) and pages array (url, page_type,
+     * page_source, page_status, lastmod, error_count, content_hash, modal) for each
      * selected page with 'publish' status.
      *
      * @param array $selected_pages Array of selected page entries with 'id', 'type', and optionally 'taxonomy'.
@@ -156,14 +162,21 @@ class BRZ_Static_Map_Generator {
                 $page_type = BRZ_Static_Page_Detector::detect_term( $id, $taxonomy );
                 $modal     = BRZ_Static_Modal_Injector::get_modal_for_page( $id );
 
+                // Compute content_hash (SHA-256) for change detection.
+                $term_description = term_description( $id, $taxonomy );
+                $content_hash     = $term_description
+                    ? hash( 'sha256', $term_description )
+                    : null;
+
                 $entry = [
-                    'url'         => $url,
-                    'page_type'   => $page_type,
-                    'page_source' => $page_source,
-                    'page_status' => $page_status,
-                    'lastmod'     => $lastmod,
-                    'error_count' => $error_count,
-                    'modal'       => $modal,
+                    'url'          => $url,
+                    'page_type'    => $page_type,
+                    'page_source'  => $page_source,
+                    'page_status'  => $page_status,
+                    'lastmod'      => $lastmod,
+                    'error_count'  => $error_count,
+                    'content_hash' => $content_hash,
+                    'modal'        => $modal,
                 ];
 
                 $pages[] = $entry;
@@ -179,14 +192,21 @@ class BRZ_Static_Map_Generator {
                 $page_type = BRZ_Static_Page_Detector::detect( $id );
                 $modal     = BRZ_Static_Modal_Injector::get_modal_for_page( $id );
 
+                // Compute content_hash (SHA-256) for change detection.
+                $post_content = $post->post_content ?? '';
+                $content_hash = ! empty( $post_content )
+                    ? hash( 'sha256', $post_content )
+                    : null;
+
                 $entry = [
-                    'url'         => $url,
-                    'page_type'   => $page_type,
-                    'page_source' => $page_source,
-                    'page_status' => $page_status,
-                    'lastmod'     => $lastmod,
-                    'error_count' => $error_count,
-                    'modal'       => $modal,
+                    'url'          => $url,
+                    'page_type'    => $page_type,
+                    'page_source'  => $page_source,
+                    'page_status'  => $page_status,
+                    'lastmod'      => $lastmod,
+                    'error_count'  => $error_count,
+                    'content_hash' => $content_hash,
+                    'modal'        => $modal,
                 ];
 
                 $pages[] = $entry;
@@ -199,6 +219,7 @@ class BRZ_Static_Map_Generator {
         }
 
         $metadata = [
+            'contract_version'     => self::CONTRACT_VERSION,
             'generation_timestamp' => gmdate( 'c' ),
             'total_count'          => count( $pages ),
             'pending_count'        => count( $pending_pages ),
@@ -334,6 +355,7 @@ class BRZ_Static_Map_Generator {
 
             $final_data = [
                 'metadata' => [
+                    'contract_version'     => self::CONTRACT_VERSION,
                     'generation_timestamp' => gmdate( 'c' ),
                     'total_count'          => count( $all_pages ),
                     'pending_count'        => count( $pending_pages ),
