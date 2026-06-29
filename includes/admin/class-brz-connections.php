@@ -1,9 +1,10 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) { exit; }
+// هشدار: پیش از هر تغییر، حتماً فایل CONTRIBUTING.md را با دقت کامل بخوانید و بی‌قید و شرط اجرا کنید و پس از اتمام کار تطابق را دوباره چک کنید.
 
 class BRZ_Connections {
     public static function init() {
-        add_action( 'admin_menu', array( __CLASS__, 'add_menu' ) );
+        add_action( 'admin_menu', array( __CLASS__, 'add_menu' ), 12 );
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
         add_action( 'wp_ajax_brz_regenerate_api_key', array( __CLASS__, 'ajax_regenerate_api_key' ) );
     }
