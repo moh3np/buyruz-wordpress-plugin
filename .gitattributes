@@ -1,0 +1,10 @@
+# Exclude from plugin distribution (git archive / zip export)
+.git export-ignore
+.github export-ignore
+.gitattributes export-ignore
+.gitignore export-ignore
+tests export-ignore
+phpunit.xml export-ignore
+phpunit.xml.dist export-ignore
+.phpunit.result.cache export-ignore
+CONTRIBUTING.md export-ignore

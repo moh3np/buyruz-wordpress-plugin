@@ -11,9 +11,10 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  */
 class BRZ_Static_Controller {
 
-    const OPTION_KEY  = 'static_controller';
-    const CRON_HOOK   = 'brz_static_regenerate_map';
-    const BATCH_HOOK  = 'brz_static_batch_generate';
+    const OPTION_KEY       = 'static_controller';
+    const CRON_HOOK        = 'brz_static_regenerate_map';
+    const BATCH_HOOK       = 'brz_static_batch_generate';
+    const AUTO_IMPORT_HOOK = 'brz_static_auto_import';
 
     /**
      * Bootstrap hooks.
@@ -71,6 +72,24 @@ class BRZ_Static_Controller {
             // AJAX handler for dismissing admin notices.
             add_action( 'wp_ajax_brz_static_dismiss_notice', array( __CLASS__, 'ajax_dismiss_notice' ) );
 
+            // Auto-import activation check: if sitemap_url configured but no sitemap entries, schedule auto-import.
+            if ( ! get_transient( 'brz_static_init_sync_scheduled' ) ) {
+                $init_settings = self::get_settings();
+                if ( ! empty( $init_settings['sitemap_url'] ) ) {
+                    $has_sitemap_entries = false;
+                    foreach ( ( $init_settings['selected_pages'] ?? array() ) as $page ) {
+                        if ( ( $page['page_source'] ?? '' ) === 'sitemap' ) {
+                            $has_sitemap_entries = true;
+                            break;
+                        }
+                    }
+                    if ( ! $has_sitemap_entries && ! wp_next_scheduled( self::AUTO_IMPORT_HOOK ) ) {
+                        wp_schedule_single_event( time() + 10, self::AUTO_IMPORT_HOOK );
+                        set_transient( 'brz_static_init_sync_scheduled', 1, HOUR_IN_SECONDS );
+                    }
+                }
+            }
+
             // Change trigger hooks (admin context for save_post, etc.).
             BRZ_Static_Change_Trigger::init();
         }
@@ -83,6 +102,7 @@ class BRZ_Static_Controller {
         add_action( 'brz_static_daily_sitemap_sync', array( 'BRZ_Static_Sitemap_Importer', 'auto_sync' ) );
         add_action( 'brz_static_sitemap_retry', array( 'BRZ_Static_Sitemap_Importer', 'handle_retry' ) );
         add_action( 'brz_static_batch_import', array( 'BRZ_Static_Sitemap_Importer', 'execute_batch_import' ), 10, 2 );
+        add_action( self::AUTO_IMPORT_HOOK, array( __CLASS__, 'handle_auto_import' ) );
     }
 
     /**
@@ -688,6 +708,11 @@ class BRZ_Static_Controller {
 
         self::save_settings( $settings );
 
+        // Auto-import: if sitemap_url is non-empty, schedule automatic sitemap sync.
+        if ( ! empty( $settings['sitemap_url'] ) && ! wp_next_scheduled( self::AUTO_IMPORT_HOOK ) ) {
+            wp_schedule_single_event( time() + 5, self::AUTO_IMPORT_HOOK );
+        }
+
         wp_send_json_success( array( 'message' => 'تنظیمات با موفقیت ذخیره شد.' ) );
     }
 
@@ -709,6 +734,62 @@ class BRZ_Static_Controller {
         BRZ_Static_Change_Trigger::schedule_regeneration();
 
         wp_send_json_success( array( 'scheduled' => true ) );
+    }
+
+    /**
+     * WP-Cron callback: Automatic sitemap fetch, import, and regeneration.
+     *
+     * Called when `brz_static_auto_import` cron event fires. Fetches and parses
+     * the configured sitemap URL, imports all URLs into selected_pages, and
+     * triggers urls-map.json regeneration (handled inside execute_import).
+     *
+     * On failure: logs error and sets admin notice transient.
+     * On success: clears the init sync guard transient.
+     */
+    public static function handle_auto_import(): void {
+        try {
+            $urls = BRZ_Static_Sitemap_Importer::fetch_and_parse();
+
+            if ( is_wp_error( $urls ) ) {
+                error_log(
+                    sprintf(
+                        '[BRZ Static Controller] Auto-import failed: %s',
+                        $urls->get_error_message()
+                    )
+                );
+                set_transient( 'brz_static_sync_failed_notice', array(
+                    'message' => sprintf( 'خطا در همگام‌سازی خودکار سایت‌مپ: %s', $urls->get_error_message() ),
+                ), DAY_IN_SECONDS );
+                delete_transient( 'brz_static_init_sync_scheduled' );
+                return;
+            }
+
+            // Execute direct import (skip preview/confirm step).
+            $result = BRZ_Static_Sitemap_Importer::execute_import( $urls );
+
+            if ( is_wp_error( $result ) ) {
+                error_log(
+                    sprintf(
+                        '[BRZ Static Controller] Auto-import execute failed: %s',
+                        $result->get_error_message()
+                    )
+                );
+                set_transient( 'brz_static_sync_failed_notice', array(
+                    'message' => sprintf( 'خطا در ایمپورت خودکار سایت‌مپ: %s', $result->get_error_message() ),
+                ), DAY_IN_SECONDS );
+            }
+
+            // Clear guard transient on completion (success or import failure).
+            delete_transient( 'brz_static_init_sync_scheduled' );
+        } catch ( \Throwable $e ) {
+            error_log(
+                sprintf(
+                    '[BRZ Static Controller] Auto-import exception: %s',
+                    $e->getMessage()
+                )
+            );
+            delete_transient( 'brz_static_init_sync_scheduled' );
+        }
     }
 
     /**
@@ -1429,11 +1510,7 @@ class BRZ_Static_Controller {
                             data-tab="dashboard" id="brz-static-tab-dashboard">
                         داشبورد
                     </button>
-                    <button type="button" class="brz-static-tabs__btn" role="tab"
-                            aria-selected="false" aria-controls="brz-static-panel-sitemap"
-                            data-tab="sitemap" id="brz-static-tab-sitemap">
-                        صفحات سایت‌مپ
-                    </button>
+
                     <button type="button" class="brz-static-tabs__btn" role="tab"
                             aria-selected="false" aria-controls="brz-static-panel-manual"
                             data-tab="manual" id="brz-static-tab-manual">
@@ -1537,71 +1614,6 @@ class BRZ_Static_Controller {
                             <!-- Populated via JS from regeneration_history -->
                         </ul>
                     </div>
-                </div>
-            </div>
-
-            <!-- Panel 2: Sitemap Pages -->
-            <div class="brz-static-tabs__panel" role="tabpanel"
-                 data-panel="sitemap"
-                 id="brz-static-panel-sitemap" aria-labelledby="brz-static-tab-sitemap">
-
-                <!-- Filters Bar -->
-                <div class="brz-static-filters">
-                    <div class="brz-static-filters__group">
-                        <label for="brz-static-filter-type" class="brz-static-filters__label">نوع صفحه:</label>
-                        <select id="brz-static-filter-type" class="brz-static-filters__select">
-                            <option value="">همه</option>
-                            <option value="product">محصول</option>
-                            <option value="archive">آرشیو</option>
-                            <option value="elementor_page">صفحه المنتور</option>
-                            <option value="blog_post">نوشته</option>
-                            <option value="blog_category">دسته‌بندی</option>
-                            <option value="unknown">نامشخص</option>
-                        </select>
-                    </div>
-                    <div class="brz-static-filters__group">
-                        <label for="brz-static-filter-status" class="brz-static-filters__label">وضعیت:</label>
-                        <select id="brz-static-filter-status" class="brz-static-filters__select">
-                            <option value="">همه</option>
-                            <option value="synced">همگام</option>
-                            <option value="pending">در انتظار</option>
-                            <option value="error">خطا</option>
-                        </select>
-                    </div>
-                    <div class="brz-static-filters__group">
-                        <input type="text"
-                               id="brz-static-filter-search"
-                               class="brz-static-filters__search"
-                               placeholder="جستجو در URLها..."
-                               dir="ltr">
-                    </div>
-                </div>
-
-                <!-- Bulk Actions -->
-                <div class="brz-static-bulk">
-                    <label class="brz-static-bulk__checkbox">
-                        <input type="checkbox" id="brz-static-bulk-select-all">
-                        انتخاب همه
-                    </label>
-                    <select id="brz-static-bulk-action" class="brz-static-bulk__select">
-                        <option value="">عملیات دسته‌جمعی...</option>
-                        <option value="mark_pending">علامت‌گذاری به عنوان در انتظار</option>
-                        <option value="remove">حذف</option>
-                        <option value="reset_error">بازنشانی خطا</option>
-                    </select>
-                    <button type="button" class="button" id="brz-static-bulk-execute-btn">
-                        اجرا
-                    </button>
-                </div>
-
-                <!-- Page List Container -->
-                <div class="brz-static-page-list" id="brz-static-sitemap-page-list">
-                    <!-- Populated via JS/AJAX -->
-                </div>
-
-                <!-- Pagination Controls -->
-                <div class="brz-static-pagination" id="brz-static-sitemap-pagination">
-                    <!-- Populated via JS -->
                 </div>
             </div>
 

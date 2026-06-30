@@ -594,6 +594,13 @@ class BRZ_Static_Sitemap_Importer {
         // Persist settings.
         self::save_settings( $settings );
 
+        // Auto-regenerate urls-map.json after successful import.
+        if ( $imported > 0 || $updated > 0 ) {
+            if ( class_exists( 'BRZ_Static_Change_Trigger' ) && method_exists( 'BRZ_Static_Change_Trigger', 'schedule_regeneration' ) ) {
+                BRZ_Static_Change_Trigger::schedule_regeneration();
+            }
+        }
+
         return array(
             'imported' => $imported,
             'updated'  => $updated,

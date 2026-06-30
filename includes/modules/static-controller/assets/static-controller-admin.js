@@ -611,52 +611,39 @@ jQuery(document).ready(function ($) {
         loadSitemapPages(page, {});
       }
     });
-
-    // Sitemap sync button
-    $(document).on('click', '#brz-static-sync-sitemap-btn', function () {
-      triggerSitemapSync();
-    });
   }
 
   /**
-   * Trigger sitemap sync with preview confirmation.
+   * Trigger sitemap sync — direct import without preview (sitemap is fully automatic).
    */
   function triggerSitemapSync() {
+    var $btn = $('#brz-static-sync-sitemap-btn');
+    $btn.prop('disabled', true).text(config.strings.loading || 'در حال بارگذاری...');
+
     ajaxRequest({
       data: { action: 'brz_static_sitemap_sync' },
-      container: '[data-panel="sitemap"]',
+      container: '[data-panel="dashboard"]',
       onSuccess: function (data) {
-        // Show preview confirmation dialog
-        var message = '<div class="brz-static-sync-preview">';
-        message += '<p><strong>' + escapeHtml(config.strings.total_urls || 'تعداد کل URL') + ':</strong> ' + (data.total_urls || 0) + '</p>';
-
-        if (data.groups && data.groups.length > 0) {
-          message += '<ul class="brz-static-sync-preview__groups">';
-          $.each(data.groups, function (i, group) {
-            message += '<li>' + escapeHtml(group.label || group.prefix) + ': ' + group.count + '</li>';
-          });
-          message += '</ul>';
-        }
-
-        if (data.new_urls) {
-          message += '<p class="brz-static-sync-preview__new">' + escapeHtml(config.strings.new_urls || 'URL جدید') + ': ' + data.new_urls + '</p>';
-        }
-        if (data.changed_urls) {
-          message += '<p class="brz-static-sync-preview__changed">' + escapeHtml(config.strings.changed_urls || 'URL تغییریافته') + ': ' + data.changed_urls + '</p>';
-        }
-        if (data.removed_urls) {
-          message += '<p class="brz-static-sync-preview__removed">' + escapeHtml(config.strings.removed_urls || 'URL حذف‌شده') + ': ' + data.removed_urls + '</p>';
-        }
-
-        message += '</div>';
-
-        showConfirmDialog(
-          config.strings.sync_confirm_title || 'تأیید همگام‌سازی سایت‌مپ',
-          message,
-          function () {
-            confirmSitemapImport();
+        // Auto-confirm import immediately (no preview needed for sitemap)
+        ajaxRequest({
+          data: { action: 'brz_static_sitemap_confirm_import' },
+          container: '[data-panel="dashboard"]',
+          onSuccess: function (importData) {
+            var msg = (config.strings.sync_success || 'همگام‌سازی با موفقیت انجام شد');
+            if (importData && importData.imported !== undefined) {
+              msg += ' (' + importData.imported + ' جدید، ' + importData.updated + ' به‌روزرسانی)';
+            }
+            showSnackbar(msg, 'success');
+            $btn.prop('disabled', false).text(config.strings.sync_btn || 'همگام‌سازی سایت‌مپ');
+            loadDashboard();
+          },
+          onError: function () {
+            $btn.prop('disabled', false).text(config.strings.sync_btn || 'همگام‌سازی سایت‌مپ');
           }
-        );
+        });
+      },
+      onError: function () {
+        $btn.prop('disabled', false).text(config.strings.sync_btn || 'همگام‌سازی سایت‌مپ');
       }
     });
   }
@@ -667,15 +654,11 @@ jQuery(document).ready(function ($) {
   function confirmSitemapImport() {
     ajaxRequest({
       data: { action: 'brz_static_sitemap_confirm_import' },
-      container: '[data-panel="sitemap"]',
+      container: '[data-panel="dashboard"]',
       onSuccess: function (data) {
         showSnackbar(config.strings.sync_success || 'همگام‌سازی با موفقیت انجام شد', 'success');
-        // Reload sitemap pages
-        loadSitemapPages(1, {});
-        // Refresh dashboard if loaded
-        if (state.tabsLoaded.dashboard) {
-          loadDashboard();
-        }
+        // Refresh dashboard
+        loadDashboard();
       }
     });
   }
