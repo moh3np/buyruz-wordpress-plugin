@@ -1,58 +1,23 @@
-name: Zero-Downtime Absolute Bulletproof Deploy
+name: Deploy to Production
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Create Zip Archive
-        run: |
-          zip -r plugin.zip . -x "*.git*" "*.github*"
-
-      - name: Upload Zip via SCP
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: '2193182015.cloudylink.com'
-          username: ${{ secrets.SFTP_USERNAME }}
-          password: ${{ secrets.SFTP_PASSWORD }}
-          port: 8888
-          source: "plugin.zip"
-          target: "~/"
-
-      - name: Atomic Extract & Swap via SSH
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: '2193182015.cloudylink.com'
-          username: ${{ secrets.SFTP_USERNAME }}
-          password: ${{ secrets.SFTP_PASSWORD }}
-          port: 8888
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
           script: |
-            rm -rf ~/tmp_main ~/tmp_mag
-
-            mkdir -p ~/tmp_main
-            unzip -q -o ~/plugin.zip -d ~/tmp_main
-            
-            if [ -d "public_html/wp-content/plugins/buyruz-plugin" ]; then
-              mv public_html/wp-content/plugins/buyruz-plugin public_html/wp-content/plugins/buyruz-plugin_old
-            fi
-            mv ~/tmp_main public_html/wp-content/plugins/buyruz-plugin
-            rm -rf public_html/wp-content/plugins/buyruz-plugin_old
-
-            mkdir -p ~/tmp_mag
-            unzip -q -o ~/plugin.zip -d ~/tmp_mag
-            
-            if [ -d "public_html/mag/wp-content/plugins/buyruz-plugin" ]; then
-              mv public_html/mag/wp-content/plugins/buyruz-plugin public_html/mag/wp-content/plugins/buyruz-plugin_old
-            fi
-            mv ~/tmp_mag public_html/mag/wp-content/plugins/buyruz-plugin
-            rm -rf public_html/mag/wp-content/plugins/buyruz-plugin_old
-
-            rm ~/plugin.zip
+            cd /home/buyruz/public_html/wp-content/plugins/buyruz-wordpress-plugin/
+            git fetch origin main
+            git reset --hard origin/main
+            cd /home/buyruz/public_html/wp-content/plugins/buyruz-wordpress-plugin
+            # Skip vendor for WordPress plugins (already committed)
