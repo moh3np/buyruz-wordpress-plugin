@@ -841,9 +841,14 @@ class BRZ_Static_Controller {
             wp_send_json_error( array( 'message' => $urls->get_error_message() ) );
         }
 
-        $preview = BRZ_Static_Sitemap_Importer::preview_import( $urls );
+        // Direct import (no preview/confirm step needed).
+        $result = BRZ_Static_Sitemap_Importer::execute_import( $urls );
 
-        wp_send_json_success( $preview );
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+        }
+
+        wp_send_json_success( $result );
     }
 
     /**

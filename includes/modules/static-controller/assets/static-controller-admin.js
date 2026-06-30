@@ -624,23 +624,13 @@ jQuery(document).ready(function ($) {
       data: { action: 'brz_static_sitemap_sync' },
       container: '[data-panel="dashboard"]',
       onSuccess: function (data) {
-        // Auto-confirm import immediately (no preview needed for sitemap)
-        ajaxRequest({
-          data: { action: 'brz_static_sitemap_confirm_import' },
-          container: '[data-panel="dashboard"]',
-          onSuccess: function (importData) {
-            var msg = (config.strings.sync_success || 'همگام‌سازی با موفقیت انجام شد');
-            if (importData && importData.imported !== undefined) {
-              msg += ' (' + importData.imported + ' جدید، ' + importData.updated + ' به‌روزرسانی)';
-            }
-            showSnackbar(msg, 'success');
-            $btn.prop('disabled', false).text(config.strings.sync_btn || 'همگام‌سازی سایت‌مپ');
-            loadDashboard();
-          },
-          onError: function () {
-            $btn.prop('disabled', false).text(config.strings.sync_btn || 'همگام‌سازی سایت‌مپ');
-          }
-        });
+        var msg = (config.strings.sync_success || 'همگام‌سازی با موفقیت انجام شد');
+        if (data && data.imported !== undefined) {
+          msg += ' (' + data.imported + ' جدید، ' + data.updated + ' به‌روزرسانی)';
+        }
+        showSnackbar(msg, 'success');
+        $btn.prop('disabled', false).text(config.strings.sync_btn || 'همگام‌سازی سایت‌مپ');
+        loadDashboard();
       },
       onError: function () {
         $btn.prop('disabled', false).text(config.strings.sync_btn || 'همگام‌سازی سایت‌مپ');
