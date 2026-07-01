@@ -286,8 +286,8 @@ class BRZ_Static_Controller {
     private static function default_settings(): array {
         return array(
             'selected_pages'         => array(),
-            'output_path'            => '/home/buyruz/static-data/urls-map.json',
-            'shared_data_dir'        => '/home/buyruz/static-data',
+            'output_path'            => '/home/buyruz/static/data/urls-map.json',
+            'shared_data_dir'        => '/home/buyruz/static/data',
             'modal_global'           => '',
             'modal_per_page'         => array(),
             'last_generated'         => null,
@@ -324,13 +324,13 @@ class BRZ_Static_Controller {
         $parsed_settings = wp_parse_args( $settings, self::default_settings() );
 
         // If the bad default was saved in the database, override it.
-        if ( isset( $parsed_settings['output_path'] ) && ( $parsed_settings['output_path'] === '/home/user/static-data/urls-map.json' || $parsed_settings['output_path'] === '/static-data/urls-map.json' ) ) {
-            $parsed_settings['output_path'] = '/home/buyruz/static-data/urls-map.json';
+        if ( isset( $parsed_settings['output_path'] ) && ( $parsed_settings['output_path'] === '/home/user/static-data/urls-map.json' || $parsed_settings['output_path'] === '/static-data/urls-map.json' || $parsed_settings['output_path'] === '/home/buyruz/static-data/urls-map.json' ) ) {
+            $parsed_settings['output_path'] = '/home/buyruz/static/data/urls-map.json';
         }
 
         // Fix shared_data_dir if still using old default.
-        if ( isset( $parsed_settings['shared_data_dir'] ) && $parsed_settings['shared_data_dir'] === '/static-data' ) {
-            $parsed_settings['shared_data_dir'] = '/home/buyruz/static-data';
+        if ( isset( $parsed_settings['shared_data_dir'] ) && ( $parsed_settings['shared_data_dir'] === '/static-data' || $parsed_settings['shared_data_dir'] === '/home/buyruz/static-data' ) ) {
+            $parsed_settings['shared_data_dir'] = '/home/buyruz/static/data';
         }
 
         // Ensure sitemap_stored_state has the correct structure.

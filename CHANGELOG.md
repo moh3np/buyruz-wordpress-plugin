@@ -1,5 +1,10 @@
 # Changelog
 
+## [5.2.4] - 2026-07-01
+### رفع شده
+- مسیر shared_data_dir و urls-map.json به `/home/buyruz/static/data/` تغییر یافت (ادغام با پوشه static)
+- مهاجرت خودکار مسیرهای قدیمی (`/static-data/`, `/home/buyruz/static-data/`)
+
 ## [5.2.3] - 2026-07-01
 ### رفع شده
 - بازسازی دستی urls-map.json حالا مستقیم اجرا میشه (بدون debounce/schedule)

@@ -23,7 +23,7 @@ class BRZ_Static_Communication {
     /**
      * Default shared data directory when no setting is configured.
      */
-    private const DEFAULT_SHARED_DATA_DIR = '/static-data';
+    private const DEFAULT_SHARED_DATA_DIR = '/home/buyruz/static/data';
 
     /**
      * Get the shared data directory path from module settings.
