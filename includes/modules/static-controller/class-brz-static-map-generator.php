@@ -552,35 +552,43 @@ class BRZ_Static_Map_Generator {
      *
      * @return bool|\WP_Error True on success, WP_Error on failure.
      */
-    public static function generate_pending_only(): bool|\WP_Error {
+    public static function generate_pending_only(): bool|int|\WP_Error {
         $settings       = BRZ_Static_Controller::get_settings();
         $selected_pages = $settings['selected_pages'] ?? [];
         $output_path    = $settings['output_path'];
 
-        // Identify pending/error URLs (with error_count < MAX_ERROR_COUNT).
-        $pending_urls = [];
+        // Count pending entries from raw data (for early-exit check only).
+        $has_pending = false;
         foreach ( $selected_pages as $page_entry ) {
             $status      = $page_entry['page_status'] ?? 'pending';
             $error_count = (int) ( $page_entry['error_count'] ?? 0 );
-
             if ( 'pending' === $status || ( 'error' === $status && $error_count < self::MAX_ERROR_COUNT ) ) {
-                $url = $page_entry['url'] ?? '';
-                if ( ! empty( $url ) ) {
-                    $pending_urls[] = $url;
-                }
+                $has_pending = true;
+                break;
             }
         }
 
         // If no pending pages, nothing to do.
-        if ( empty( $pending_urls ) ) {
+        if ( ! $has_pending ) {
             return true;
         }
 
         // Update status to generating.
         self::update_generation_status( 'generating' );
 
-        // Build the full map data for all selected pages.
+        // Build the full map data — this resolves URLs correctly for all entry types.
         $map_data = self::build_map_data( $selected_pages );
+
+        // Derive pending_urls from the BUILT map (URLs are resolved here, not from raw entries).
+        $pending_urls = [];
+        foreach ( $map_data['pages'] ?? [] as $built_page ) {
+            $status      = $built_page['page_status'] ?? 'pending';
+            $error_count = (int) ( $built_page['error_count'] ?? 0 );
+            $url         = $built_page['url'] ?? '';
+            if ( ! empty( $url ) && ( 'pending' === $status || ( 'error' === $status && $error_count < self::MAX_ERROR_COUNT ) ) ) {
+                $pending_urls[] = $url;
+            }
+        }
 
         $json = json_encode(
             $map_data,
@@ -623,7 +631,7 @@ class BRZ_Static_Map_Generator {
         // Update generation status.
         self::update_generation_status( 'success', gmdate( 'c' ) );
 
-        return true;
+        return count( $pending_urls );
     }
 
     /**

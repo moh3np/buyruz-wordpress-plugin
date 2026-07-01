@@ -1,5 +1,11 @@
 # Changelog
 
+## [5.2.5] - 2026-07-01
+### رفع شده
+- باگ اساسی: `generate_pending_only()` آدرس صفحات رو از `raw selected_pages` میخوند که URL نداشت
+- Fix: اول `build_map_data()` اجرا میشه (URL resolve میکنه)، بعد pending_urls از نتیجه ساخته میشه
+- تعداد صفحات پردازش‌شده حالا دقیق ثبت میشه (از count واقعی، نه مقدار قبلی)
+
 ## [5.2.4] - 2026-07-01
 ### رفع شده
 - مسیر shared_data_dir و urls-map.json به `/home/buyruz/static/data/` تغییر یافت (ادغام با پوشه static)

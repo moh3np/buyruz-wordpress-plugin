@@ -1099,20 +1099,20 @@ class BRZ_Static_Controller {
             wp_send_json_error( array( 'message' => 'دسترسی غیرمجاز.' ), 403 );
         }
 
-        // Get pending count before regeneration.
-        $pending_count = BRZ_Static_Change_Trigger::get_pending_count();
-
         $result = BRZ_Static_Map_Generator::generate_pending_only();
 
         if ( is_wp_error( $result ) ) {
             wp_send_json_error( array( 'message' => $result->get_error_message() ) );
         }
 
+        // $result is int (processed count) or true (0 pending pages).
+        $processed = is_int( $result ) ? $result : 0;
+
         // Record the regeneration event.
-        BRZ_Static_Map_Generator::record_regeneration( 'manual', $pending_count );
+        BRZ_Static_Map_Generator::record_regeneration( 'manual', $processed );
 
         wp_send_json_success( array(
-            'processed' => $pending_count,
+            'processed' => $processed,
             'timestamp' => gmdate( 'c' ),
         ) );
     }
