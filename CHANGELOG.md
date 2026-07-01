@@ -1,5 +1,9 @@
 # Changelog
 
+## [5.2.6] - 2026-07-01
+### رفع شده
+- placeholder و fallback مقدار shared_data_dir از `/static-data` به `/home/buyruz/static/data` اصلاح شد
+
 ## [5.2.5] - 2026-07-01
 ### رفع شده
 - باگ اساسی: `generate_pending_only()` آدرس صفحات رو از `raw selected_pages` میخوند که URL نداشت

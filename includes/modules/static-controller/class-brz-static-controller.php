@@ -819,7 +819,7 @@ class BRZ_Static_Controller {
         
         wp_send_json_success( array(
             'output_path'             => $settings['output_path'],
-            'shared_data_dir'         => $settings['shared_data_dir'] ?? '/static-data',
+            'shared_data_dir'         => $settings['shared_data_dir'] ?? '/home/buyruz/static/data',
             'last_generated'          => $settings['last_generated'],
             'generation_status'       => $settings['generation_status'],
             'sitemap_url'             => $settings['sitemap_url'] ?? '',
@@ -1746,7 +1746,7 @@ class BRZ_Static_Controller {
                                        class="regular-text"
                                        dir="ltr"
                                        value=""
-                                       placeholder="/static-data">
+                                       placeholder="/home/buyruz/static/data">
                                 <p class="description">مسیر مطلق دایرکتوری مشترک بین افزونه، موتور پردازش و داشبورد.</p>
                             </div>
 
