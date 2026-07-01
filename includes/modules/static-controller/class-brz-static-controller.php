@@ -736,9 +736,14 @@ class BRZ_Static_Controller {
             wp_send_json_error( array( 'message' => 'دسترسی غیرمجاز.' ), 403 );
         }
 
-        BRZ_Static_Change_Trigger::schedule_regeneration();
+        // اجرای مستقیم بدون debounce/schedule — چون کاربر دستی زده
+        $result = BRZ_Static_Map_Generator::generate();
 
-        wp_send_json_success( array( 'scheduled' => true ) );
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+        }
+
+        wp_send_json_success( array( 'generated' => true ) );
     }
 
     /**

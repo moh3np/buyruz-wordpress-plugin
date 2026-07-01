@@ -29,7 +29,7 @@ class BRZ_Static_Map_Generator {
     /**
      * Maximum pages to process in a single generation run.
      */
-    private const BATCH_LIMIT = 100;
+    private const BATCH_LIMIT = 500;
 
     /**
      * Maximum number of regeneration history entries to keep.
