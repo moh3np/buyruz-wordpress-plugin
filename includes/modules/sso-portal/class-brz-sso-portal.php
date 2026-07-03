@@ -19,6 +19,7 @@ class BRZ_SSO_Portal {
         add_action( 'admin_init', array( __CLASS__, 'maybe_save_permissions' ) );
         add_action( 'admin_init', array( __CLASS__, 'maybe_save_sso_settings' ) );
         add_action( 'admin_init', array( __CLASS__, 'maybe_add_managed_user' ) );
+        add_action( 'init', array( __CLASS__, 'handle_sso_login_bridge' ) );
     }
 
     /**
@@ -483,6 +484,75 @@ class BRZ_SSO_Portal {
         } else {
             add_settings_error( 'brz-sso', 'brz_sso_user_not_found', 'کاربری با این نام کاربری یا ایمیل یافت نشد.', 'error' );
         }
+    }
+
+    /**
+     * Handle the SSO login bridge redirect.
+     */
+    public static function handle_sso_login_bridge(): void {
+        if ( ! isset( $_GET['brz_sso_action'] ) || $_GET['brz_sso_action'] !== 'login' ) {
+            return;
+        }
+
+        $redirect_to_panel = sanitize_url( $_GET['redirect'] ?? '' );
+        if ( empty( $redirect_to_panel ) ) {
+            $redirect_to_panel = 'https://panel.buyruz.com'; 
+        }
+
+        // 1. If user is not logged in to WordPress, redirect them to the WordPress login page
+        if ( ! is_user_logged_in() ) {
+            $current_url = home_url( $_SERVER['REQUEST_URI'] );
+            wp_redirect( wp_login_url( $current_url ) );
+            exit;
+        }
+
+        $user = wp_get_current_user();
+
+        // 2. Check if the user has access to the panel
+        $has_static = self::check_user_access( $user->ID, 'static' );
+        $has_bridge = self::check_user_access( $user->ID, 'bridge' );
+
+        if ( ! $has_static && ! $has_bridge ) {
+            // User does not have permission - redirect to error notice on main site
+            wp_die(
+                '<h3>دسترسی غیرمجاز</h3><p>کاربر گرامی، شما دسترسی لازم جهت ورود به پنل عملیاتی بایروز را ندارید. لطفاً با مدیر سیستم تماس بگیرید.</p><p><a href="' . esc_url( home_url() ) . '">بازگشت به سایت اصلی</a></p>',
+                'دسترسی غیرمجاز',
+                array( 'response' => 403, 'back_link' => false )
+            );
+            exit;
+        }
+
+        // 3. User has access - generate token
+        $token = self::generate_token( $user );
+        if ( ! $token ) {
+            wp_die( 'خطا در تولید توکن احراز هویت.', 'خطای SSO', array( 'response' => 500 ) );
+            exit;
+        }
+
+        // 4. Set cookie on .buyruz.com domain
+        $expiry = time() + self::get_lifetime();
+        $domain = self::get_cookie_domain();
+        $secure = is_ssl();
+
+        setcookie(
+            'buyruz_sso_token',
+            $token,
+            array(
+                'expires'  => $expiry,
+                'path'     => '/',
+                'domain'   => $domain,
+                'secure'   => $secure,
+                'httponly' => true,
+                'samesite' => 'Lax'
+            )
+        );
+
+        // Log the successful SSO login
+        self::log_activity( $user->ID, $user->user_login, 'ورود موفق به سیستم از طریق پل سایت (Silent SSO)' );
+
+        // 5. Redirect back to the panel!
+        wp_redirect( $redirect_to_panel );
+        exit;
     }
 
     /**
