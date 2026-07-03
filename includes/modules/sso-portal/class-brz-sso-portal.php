@@ -18,6 +18,7 @@ class BRZ_SSO_Portal {
         add_action( 'rest_api_init', array( __CLASS__, 'register_rest_routes' ) );
         add_action( 'admin_init', array( __CLASS__, 'maybe_save_permissions' ) );
         add_action( 'admin_init', array( __CLASS__, 'maybe_save_sso_settings' ) );
+        add_action( 'admin_init', array( __CLASS__, 'maybe_add_managed_user' ) );
     }
 
     /**
@@ -170,13 +171,15 @@ class BRZ_SSO_Portal {
      * Check if user has specific access meta.
      */
     public static function check_user_access( int $user_id, string $service ): bool {
-        // Administrators have full access automatically
-        if ( user_can( $user_id, 'manage_options' ) ) {
-            return true;
+        $meta_key = '_brz_sso_' . $service . '_access';
+        $val = get_user_meta( $user_id, $meta_key, true );
+
+        if ( $val === '' ) {
+            // Default to true for administrators (manage_options), false for others
+            return user_can( $user_id, 'manage_options' );
         }
 
-        $meta_key = '_brz_sso_' . $service . '_access';
-        return get_user_meta( $user_id, $meta_key, true ) === '1';
+        return $val === '1';
     }
 
     /**
@@ -233,7 +236,7 @@ class BRZ_SSO_Portal {
         // Extract permissions
         $permissions = array(
             'static' => self::check_user_access( $user->ID, 'static' ),
-            'meta'   => self::check_user_access( $user->ID, 'meta' ),
+            'meta'   => true, // همیشه دسترسی خواندن کاتالوگ برای همه کاربران پنل وجود دارد
             'bridge' => self::check_user_access( $user->ID, 'bridge' ),
         );
 
@@ -291,7 +294,7 @@ class BRZ_SSO_Portal {
 
         $permissions = array(
             'static' => self::check_user_access( $user->ID, 'static' ),
-            'meta'   => self::check_user_access( $user->ID, 'meta' ),
+            'meta'   => true, // همیشه دسترسی خواندن کاتالوگ برای همه کاربران پنل وجود دارد
             'bridge' => self::check_user_access( $user->ID, 'bridge' ),
         );
 
@@ -422,23 +425,64 @@ class BRZ_SSO_Portal {
         $users_data = isset( $_POST['brz_sso_users'] ) && is_array( $_POST['brz_sso_users'] ) ? $_POST['brz_sso_users'] : array();
 
         // Get all candidate users to ensure we clear unchecked boxes
-        $user_query = new WP_User_Query( array(
+        $user_query_roles = new WP_User_Query( array(
             'role__in' => array( 'administrator', 'editor', 'author', 'shop_manager' ),
             'fields'   => 'ID',
         ) );
-        $all_user_ids = $user_query->get_results();
+        $role_user_ids = $user_query_roles->get_results();
+
+        $user_query_meta = new WP_User_Query( array(
+            'meta_key'   => '_brz_sso_access_managed',
+            'meta_value' => '1',
+            'fields'     => 'ID',
+        ) );
+        $meta_user_ids = $user_query_meta->get_results();
+
+        $all_user_ids = array_unique( array_merge( $role_user_ids, $meta_user_ids ) );
 
         foreach ( $all_user_ids as $uid ) {
             $static_val = isset( $users_data[$uid]['static'] ) ? '1' : '0';
-            $meta_val   = isset( $users_data[$uid]['meta'] ) ? '1' : '0';
             $bridge_val = isset( $users_data[$uid]['bridge'] ) ? '1' : '0';
 
             update_user_meta( $uid, '_brz_sso_static_access', $static_val );
-            update_user_meta( $uid, '_brz_sso_meta_access', $meta_val );
             update_user_meta( $uid, '_brz_sso_bridge_access', $bridge_val );
         }
 
         add_settings_error( 'brz-sso', 'brz_sso_saved', 'تنظیمات دسترسی کاربران با موفقیت ذخیره شد.', 'success' );
+    }
+
+    /**
+     * Add a user to the managed SSO access list.
+     */
+    public static function maybe_add_managed_user(): void {
+        if ( ! is_admin() || ! current_user_can( 'manage_options' ) ) {
+            return;
+        }
+
+        if ( ! isset( $_POST['brz_add_user_nonce'] ) || ! wp_verify_nonce( $_POST['brz_add_user_nonce'], 'brz_add_sso_user' ) ) {
+            return;
+        }
+
+        $username_or_email = sanitize_text_field( $_POST['brz_add_sso_username'] ?? '' );
+        if ( empty( $username_or_email ) ) {
+            return;
+        }
+
+        $user = get_user_by( 'login', $username_or_email );
+        if ( ! $user ) {
+            $user = get_user_by( 'email', $username_or_email );
+        }
+
+        if ( $user ) {
+            update_user_meta( $user->ID, '_brz_sso_access_managed', '1' );
+            // Default them to false
+            update_user_meta( $user->ID, '_brz_sso_static_access', '0' );
+            update_user_meta( $user->ID, '_brz_sso_bridge_access', '0' );
+
+            add_settings_error( 'brz-sso', 'brz_sso_user_added', "کاربر «{$user->display_name}» با موفقیت به لیست اضافه شد.", 'success' );
+        } else {
+            add_settings_error( 'brz-sso', 'brz_sso_user_not_found', 'کاربری با این نام کاربری یا ایمیل یافت نشد.', 'error' );
+        }
     }
 
     /**
@@ -473,41 +517,70 @@ class BRZ_SSO_Portal {
         global $wpdb;
         $active_tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'users';
 
-        // Load users
-        $user_query = new WP_User_Query( array(
+        // Load users by role
+        $user_query_roles = new WP_User_Query( array(
             'role__in' => array( 'administrator', 'editor', 'author', 'shop_manager' ),
-            'orderby'  => 'display_name',
-            'order'    => 'ASC',
         ) );
-        $users = $user_query->get_results();
+        $role_users = $user_query_roles->get_results();
+
+        // Load users who are explicitly managed
+        $user_query_meta = new WP_User_Query( array(
+            'meta_key'   => '_brz_sso_access_managed',
+            'meta_value' => '1',
+        ) );
+        $meta_users = $user_query_meta->get_results();
+
+        // Merge and remove duplicates indexed by ID
+        $unique_users = array();
+        foreach ( $role_users as $u ) {
+            $unique_users[ $u->ID ] = $u;
+        }
+        foreach ( $meta_users as $u ) {
+            $unique_users[ $u->ID ] = $u;
+        }
+        $users = array_values( $unique_users );
+
+        // Sort users alphabetically by display name
+        usort( $users, function( $a, $b ) {
+            return strcasecmp( $a->display_name, $b->display_name );
+        } );
 
         // Load logs
         $logs_table = self::table_name();
         $logs = $wpdb->get_results( "SELECT * FROM {$logs_table} ORDER BY created_at DESC LIMIT 60" );
         ?>
 
-        <div class="brz-admin-tabs">
-            <a href="?page=buyruz-module-sso_portal&tab=users" class="brz-admin-tab <?php echo $active_tab === 'users' ? 'brz-admin-tab--active' : ''; ?>">👥 سطوح دسترسی کاربران</a>
-            <a href="?page=buyruz-module-sso_portal&tab=logs" class="brz-admin-tab <?php echo $active_tab === 'logs' ? 'brz-admin-tab--active' : ''; ?>">📋 لاگ فعالیت‌ها</a>
-            <a href="?page=buyruz-module-sso_portal&tab=settings" class="brz-admin-tab <?php echo $active_tab === 'settings' ? 'brz-admin-tab--active' : ''; ?>">⚙️ تنظیمات عمومی</a>
-        </div>
+        <nav class="nav-tab-wrapper wp-clearfix" style="margin-bottom: 20px;">
+            <a href="?page=buyruz-module-sso_portal&tab=users" class="nav-tab <?php echo $active_tab === 'users' ? 'nav-tab-active' : ''; ?>">👥 سطوح دسترسی کاربران</a>
+            <a href="?page=buyruz-module-sso_portal&tab=logs" class="nav-tab <?php echo $active_tab === 'logs' ? 'nav-tab-active' : ''; ?>">📋 لاگ فعالیت‌ها</a>
+            <a href="?page=buyruz-module-sso_portal&tab=settings" class="nav-tab <?php echo $active_tab === 'settings' ? 'nav-tab-active' : ''; ?>">⚙️ تنظیمات عمومی</a>
+        </nav>
 
         <?php if ( $active_tab === 'users' ) : ?>
             <div class="brz-card">
                 <div class="brz-card__header">
                     <h3>مدیریت دسترسی کاربران به پنل عملیاتی</h3>
-                    <p class="description">در این بخش می‌توانید سطوح دسترسی همکاران را به بخش‌های مختلف استاتیک‌ساز، پایش متادیتا (متا) و پل آفلاین کنترل کنید.</p>
+                    <p class="description">در این بخش می‌توانید سطوح دسترسی همکاران را به بخش‌های مختلف استاتیک‌ساز و پل آفلاین کنترل کنید.</p>
                 </div>
                 <div class="brz-card__body">
+                    <!-- فرم جستجو و افزودن کاربر -->
+                    <div style="margin-bottom: 25px; padding: 15px; background: #f6f7f7; border: 1px solid #ccd0d4; border-radius: 4px;">
+                        <form method="post" action="" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <?php wp_nonce_field( 'brz_add_sso_user', 'brz_add_user_nonce' ); ?>
+                            <span style="font-weight: 600;">افزودن کاربر جدید:</span>
+                            <input type="text" name="brz_add_sso_username" placeholder="نام کاربری یا ایمیل..." class="regular-text" style="margin: 0; max-width: 250px;" required>
+                            <button type="submit" class="button button-secondary">➕ افزودن به لیست مدیریت دسترسی</button>
+                        </form>
+                    </div>
+
                     <form method="post" action="">
                         <?php wp_nonce_field( 'brz_save_sso_permissions', 'brz_sso_nonce' ); ?>
                         <table class="wp-list-table widefat fixed striped table-view-list">
                             <thead>
                                 <tr>
-                                    <th>کاربر</th>
+                                    <th>کاربر (نام کاربری)</th>
                                     <th>نقش کاربری</th>
                                     <th>🖥️ دسترسی استاتیک‌ساز</th>
-                                    <th>📊 دسترسی پایش متادیتا (متا)</th>
                                     <th>🔌 دسترسی پل آفلاین (Bridge)</th>
                                 </tr>
                             </thead>
@@ -516,13 +589,12 @@ class BRZ_SSO_Portal {
                                     <?php foreach ( $users as $u ) : 
                                         $is_admin = in_array( 'administrator', $u->roles, true );
                                         $static_access = self::check_user_access( $u->ID, 'static' );
-                                        $meta_access   = self::check_user_access( $u->ID, 'meta' );
                                         $bridge_access = self::check_user_access( $u->ID, 'bridge' );
                                         ?>
                                         <tr>
                                             <td>
                                                 <strong><?php echo esc_html( $u->display_name ); ?></strong>
-                                                <div class="row-actions"><span class="username">@<?php echo esc_html( $u->user_login ); ?></span></div>
+                                                <span class="description" style="display: block; font-size: 0.85em; margin-top: 3px;">@<?php echo esc_html( $u->user_login ); ?></span>
                                             </td>
                                             <td>
                                                 <code>
@@ -535,21 +607,21 @@ class BRZ_SSO_Portal {
                                                 </code>
                                             </td>
                                             <td>
-                                                <input type="checkbox" name="brz_sso_users[<?php echo $u->ID; ?>][static]" value="1" <?php checked( $static_access ); ?> <?php disabled( $is_admin ); ?>>
-                                                <?php if ( $is_admin ) : ?><span class="description">(دسترسی کامل مدیریت)</span><?php endif; ?>
+                                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                                    <input type="checkbox" name="brz_sso_users[<?php echo $u->ID; ?>][static]" value="1" <?php checked( $static_access ); ?>>
+                                                    فعال
+                                                </label>
                                             </td>
                                             <td>
-                                                <input type="checkbox" name="brz_sso_users[<?php echo $u->ID; ?>][meta]" value="1" <?php checked( $meta_access ); ?> <?php disabled( $is_admin ); ?>>
-                                                <?php if ( $is_admin ) : ?><span class="description">(دسترسی کامل مدیریت)</span><?php endif; ?>
-                                            </td>
-                                            <td>
-                                                <input type="checkbox" name="brz_sso_users[<?php echo $u->ID; ?>][bridge]" value="1" <?php checked( $bridge_access ); ?> <?php disabled( $is_admin ); ?>>
-                                                <?php if ( $is_admin ) : ?><span class="description">(دسترسی کامل مدیریت)</span><?php endif; ?>
+                                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                                    <input type="checkbox" name="brz_sso_users[<?php echo $u->ID; ?>][bridge]" value="1" <?php checked( $bridge_access ); ?>>
+                                                    فعال
+                                                </label>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else : ?>
-                                    <tr><td colspan="5">هیچ کاربری با نقش مجاز یافت نشد.</td></tr>
+                                    <tr><td colspan="4">هیچ کاربری یافت نشد.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
