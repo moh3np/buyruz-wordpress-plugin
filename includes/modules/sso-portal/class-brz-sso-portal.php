@@ -80,16 +80,18 @@ class BRZ_SSO_Portal {
      */
     public static function get_cookie_domain(): string {
         $domain = get_option( self::OPTION_DOMAIN, '' );
-        if ( empty( $domain ) ) {
-            // Safe fallback to current host or parent domain
-            $host = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( $_SERVER['HTTP_HOST'] ) : '';
-            if ( preg_match( '/(?:[a-z0-9\-]+\.)?([a-z0-9\-]+\.[a-z]+)$/i', $host, $m ) ) {
-                $domain = '.' . $m[1];
-            } else {
-                $domain = $host;
-            }
+        $domain = trim( $domain );
+        $domain = trim( $domain, '.' );
+        if ( ! empty( $domain ) ) {
+            return '.' . $domain;
         }
-        return $domain;
+
+        // Safe fallback to current host or parent domain
+        $host = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( $_SERVER['HTTP_HOST'] ) : '';
+        if ( preg_match( '/(?:[a-z0-9\-]+\.)?([a-z0-9\-]+\.[a-z]+)$/i', $host, $m ) ) {
+            return '.' . $m[1];
+        }
+        return $host;
     }
 
     /**
@@ -570,6 +572,11 @@ class BRZ_SSO_Portal {
         $secret   = sanitize_text_field( $_POST['brz_sso_secret'] ?? '' );
         $lifetime = max( 1, (int) ($_POST['brz_sso_lifetime'] ?? 180) );
         $domain   = sanitize_text_field( $_POST['brz_sso_domain'] ?? '' );
+        $domain   = trim( $domain );
+        $domain   = trim( $domain, '.' );
+        if ( ! empty( $domain ) ) {
+            $domain = '.' . $domain;
+        }
 
         if ( ! empty( $secret ) ) {
             update_option( self::OPTION_SECRET, $secret );
