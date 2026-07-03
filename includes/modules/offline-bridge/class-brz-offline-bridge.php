@@ -542,7 +542,7 @@ class BRZ_Offline_Bridge {
      * @param array $item The queue item with id and field values.
      * @return array Result array with id, product_name, fields_applied, success, warnings, error.
      */
-    private static function apply_item( array $item ): array {
+    public static function apply_item( array $item ): array {
         $is_new = false;
         
         // Handle Product Update or Creation if ID is missing or invalid

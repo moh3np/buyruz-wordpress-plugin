@@ -89,6 +89,11 @@ class BRZ_Plugin {
             BRZ_Change_Log::ensure_table();
         }
 
+        // Ensure SSO Portal Log table exists
+        if ( class_exists( 'BRZ_SSO_Portal' ) ) {
+            BRZ_SSO_Portal::ensure_table();
+        }
+
         update_option( 'brz_db_version', BRZ_VERSION, false );
     }
 }

@@ -731,6 +731,11 @@ class BRZ_Settings {
         self::render_shell( 'buyruz-module-' . $module_slug, function() use ( $modules, $module_slug, $active ) {
             self::render_notices();
 
+            if ( 'sso_portal' === $module_slug && $active ) {
+                BRZ_SSO_Portal::render_admin_page();
+                return;
+            }
+
             if ( 'label_overrides' === $module_slug && $active ) {
                 BRZ_Label_Overrides::render_admin_page();
                 return;

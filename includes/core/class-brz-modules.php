@@ -60,12 +60,17 @@ class BRZ_Modules {
                 'description' => 'اصلاح خودکار مشکلات ARIA و ساختار HTML در صفحه محصول (WCAG 2.1 AA).',
                 'class'       => 'BRZ_A11y_Fixes',
             ),
+            'sso_portal' => array(
+                'label'       => 'پورتال احراز هویت (SSO)',
+                'description' => 'مدیریت متمرکز کاربران، دسترسی‌ها و لاگ‌ها برای پنل عملیات.',
+                'class'       => 'BRZ_SSO_Portal',
+            ),
         );
     }
 
     public static function default_states() {
         $states = array();
-        $disabled_by_default = array( 'outbound_guard', 'order_processor', 'static_controller', 'label_overrides', 'ai_schema', 'product_guarantee_tab' );
+        $disabled_by_default = array( 'outbound_guard', 'order_processor', 'static_controller', 'label_overrides', 'ai_schema', 'product_guarantee_tab', 'sso_portal' );
         foreach ( self::registry() as $slug => $meta ) {
             $states[ $slug ] = in_array( $slug, $disabled_by_default, true ) ? 0 : 1;
         }
