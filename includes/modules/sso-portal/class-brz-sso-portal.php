@@ -254,12 +254,12 @@ class BRZ_SSO_Portal {
             ),
         ), 200 );
 
-        // Set shared cookie
+        // Set shared cookie - Always Secure since both buyruz.com and panel.buyruz.com use HTTPS.
+        // This prevents Cloudflare/reverse proxy SSL detection issues from setting non-secure cookies.
         $expiry = time() + self::get_lifetime();
         $domain = self::get_cookie_domain();
-        $secure = is_ssl();
         
-        $response->header( 'Set-Cookie', "buyruz_sso_token=" . urlencode( $token ) . "; Expires=" . gmdate( 'D, d-M-Y H:i:s T', $expiry ) . "; Path=/; Domain={$domain}; SameSite=Lax" . ( $secure ? "; Secure" : "" ) . "; HttpOnly" );
+        $response->header( 'Set-Cookie', "buyruz_sso_token=" . urlencode( $token ) . "; Expires=" . gmdate( 'D, d-M-Y H:i:s T', $expiry ) . "; Path=/; Domain={$domain}; SameSite=Lax; Secure; HttpOnly" );
 
         return $response;
     }
@@ -531,23 +531,13 @@ class BRZ_SSO_Portal {
             exit;
         }
 
-        // 4. Set cookie on .buyruz.com domain
+        // 4. Set cookie on .buyruz.com domain manually via header to bypass any setcookie limitations
+        // Always Secure since both buyruz.com and panel.buyruz.com use HTTPS.
         $expiry = time() + self::get_lifetime();
         $domain = self::get_cookie_domain();
-        $secure = is_ssl();
 
-        setcookie(
-            'buyruz_sso_token',
-            $token,
-            array(
-                'expires'  => $expiry,
-                'path'     => '/',
-                'domain'   => $domain,
-                'secure'   => $secure,
-                'httponly' => true,
-                'samesite' => 'Lax'
-            )
-        );
+        $cookie_header = "buyruz_sso_token=" . urlencode( $token ) . "; Expires=" . gmdate( 'D, d-M-Y H:i:s T', $expiry ) . "; Path=/; Domain={$domain}; SameSite=Lax; Secure; HttpOnly";
+        header( 'Set-Cookie: ' . $cookie_header, false );
 
         // Log the successful SSO login
         self::log_activity( $user->ID, $user->user_login, 'ورود موفق به سیستم از طریق پل سایت (Silent SSO)' );
