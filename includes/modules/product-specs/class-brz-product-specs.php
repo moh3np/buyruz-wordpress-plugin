@@ -415,42 +415,97 @@ class BRZ_Product_Specs {
                 gap: 15px;
                 padding: 10px 0;
             }
+            
+            /* Modern Top Toolbar */
+            .brz-spec-toolbar {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 12px 16px;
+                margin-bottom: 10px;
+            }
+            .brz-toolbar-title {
+                font-size: 13px;
+                font-weight: bold;
+                color: #1e293b;
+            }
+            .brz-toolbar-action {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .brz-toolbar-action label {
+                font-size: 13px;
+                font-weight: 600;
+                color: #475569;
+            }
+            .brz-spec-select-add {
+                padding: 6px 12px !important;
+                border-radius: 6px !important;
+                border: 1px solid #cbd5e1 !important;
+                font-size: 13px !important;
+                background-color: #fff !important;
+                color: #1e293b !important;
+                cursor: pointer;
+                width: 240px !important;
+                height: auto !important;
+                box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            }
+            .brz-spec-select-add:focus {
+                border-color: var(--brz-brand, #1a73e8) !important;
+                outline: none;
+                box-shadow: 0 0 0 2px rgba(26,115,232,.15);
+            }
+            
+            /* Spec Rows Layout */
             .brz-spec-field-row {
                 display: flex;
                 align-items: center;
-                border-bottom: 1px solid #f0f0f0;
-                padding-bottom: 12px;
-            }
-            .brz-spec-field-row:last-child {
-                border-bottom: none;
-                padding-bottom: 0;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 15px;
+                background: #fff;
+                margin-bottom: 5px;
             }
             .brz-spec-label {
-                width: 200px;
+                width: 180px;
                 font-weight: 600;
-                color: #333;
+                color: #334155;
                 font-size: 14px;
             }
             .brz-spec-input-wrap {
                 flex: 1;
                 display: flex;
                 align-items: center;
-                gap: 15px;
+                justify-content: space-between;
+                gap: 20px;
             }
             .brz-spec-inputs-inner {
                 flex: 1;
             }
+            
+            /* Circular Remove Button */
             .brz-spec-remove-btn {
-                background: none;
-                border: none;
-                color: #b0b0b0;
+                background: #f1f5f9;
+                border: 1px solid #e2e8f0;
+                color: #64748b;
                 cursor: pointer;
-                font-size: 16px;
-                padding: 4px;
-                transition: color 0.15s;
+                font-size: 12px;
+                padding: 5px 12px;
+                border-radius: 6px;
+                transition: all 0.15s ease-in-out;
+                font-weight: 500;
+                display: flex;
+                align-items: center;
+                gap: 4px;
             }
             .brz-spec-remove-btn:hover {
-                color: var(--md-error, #d32f2f);
+                background: #fee2e2;
+                border-color: #fecaca;
+                color: #ef4444;
             }
             
             /* Toggle Switch */
@@ -472,7 +527,7 @@ class BRZ_Product_Specs {
                 left: 0;
                 right: 0;
                 bottom: 0;
-                background-color: #ccc;
+                background-color: #cbd5e1;
                 -webkit-transition: .2s;
                 transition: .2s;
                 border-radius: 24px;
@@ -506,13 +561,16 @@ class BRZ_Product_Specs {
                 display: flex;
                 align-items: center;
                 gap: 10px;
+                color: #475569;
+                font-size: 13px;
             }
             .brz-range-input {
                 width: 90px !important;
                 padding: 6px 8px !important;
                 border-radius: 6px !important;
-                border: 1px solid #ccc !important;
+                border: 1px solid #cbd5e1 !important;
                 text-align: center;
+                color: #1e293b;
             }
             .brz-range-input:focus {
                 border-color: var(--brz-brand, #1a73e8) !important;
@@ -525,19 +583,20 @@ class BRZ_Product_Specs {
                 display: flex;
                 flex-wrap: wrap;
                 gap: 12px;
-                background: #fdfdfd;
-                border: 1px solid #e0e0e0;
-                padding: 10px 15px;
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
+                padding: 12px 15px;
                 border-radius: 6px;
                 max-width: 600px;
             }
             .brz-checkbox-item {
                 display: flex;
                 align-items: center;
-                gap: 5px;
+                gap: 6px;
                 cursor: pointer;
                 font-size: 13px;
                 user-select: none;
+                color: #334155;
             }
             .brz-checkbox-item input {
                 margin: 0;
@@ -548,7 +607,8 @@ class BRZ_Product_Specs {
                 width: 120px !important;
                 padding: 6px 8px !important;
                 border-radius: 6px !important;
-                border: 1px solid #ccc !important;
+                border: 1px solid #cbd5e1 !important;
+                color: #1e293b;
             }
             .brz-number-input:focus {
                 border-color: var(--brz-brand, #1a73e8) !important;
@@ -556,24 +616,75 @@ class BRZ_Product_Specs {
                 outline: none;
             }
 
-            /* Add Field Row at the bottom */
-            .brz-spec-add-row {
-                margin-top: 15px;
-                padding-top: 15px;
-                border-top: 1px dashed #e0e0e0;
+            /* Add Option Section */
+            .brz-spec-add-option-wrap {
+                margin-top: 10px;
                 display: flex;
                 align-items: center;
-                gap: 10px;
+                gap: 8px;
             }
-            .brz-spec-select-add {
-                padding: 6px 12px;
-                border-radius: 6px;
-                border: 1px solid #ccc;
+            .brz-new-option-input {
+                width: 150px !important;
+                height: 28px !important;
+                padding: 4px 10px !important;
+                font-size: 12px !important;
+                border: 1px solid #cbd5e1 !important;
+                border-radius: 6px !important;
+            }
+            .brz-new-option-input:focus {
+                border-color: var(--brz-brand, #1a73e8) !important;
+                box-shadow: 0 0 0 2px rgba(26,115,232,.15) !important;
+                outline: none;
+            }
+            .brz-add-option-btn {
+                height: 28px !important;
+                line-height: 26px !important;
+                padding: 0 12px !important;
+                font-size: 12px !important;
+                border-radius: 6px !important;
+                background: #f1f5f9 !important;
+                border: 1px solid #cbd5e1 !important;
+                color: #334155 !important;
+                cursor: pointer;
+                transition: all 0.15s;
+            }
+            .brz-add-option-btn:hover {
+                background: #e2e8f0 !important;
+                color: #0f172a !important;
+            }
+
+            /* Empty state */
+            .brz-empty-specs-msg {
+                padding: 40px 20px;
+                text-align: center;
+                color: #64748b;
+                border: 2px dashed #cbd5e1;
+                border-radius: 8px;
                 font-size: 13px;
-                width: 250px;
+                background: #f8fafc;
             }
         </style>
+
         <div class="brz-specs-container">
+            <!-- Selector to add new specifications to this product (AT THE TOP) -->
+            <div class="brz-spec-toolbar">
+                <span class="brz-toolbar-title">مشخصات فنی فعال این محصول</span>
+                <div class="brz-toolbar-action">
+                    <label for="brz-spec-add-selector">افزودن مشخصه جدید:</label>
+                    <select id="brz-spec-add-selector" class="brz-spec-select-add">
+                        <option value="">-- انتخاب مشخصه برای افزودن --</option>
+                        <?php foreach ( $inactive_fields as $field ) : ?>
+                            <option value="<?php echo esc_attr( $field['key'] ); ?>" id="brz-opt-<?php echo esc_attr( $field['key'] ); ?>"><?php echo esc_html( $field['label'] ); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Empty state when no specs are active -->
+            <div id="brz-empty-specs-msg" class="brz-empty-specs-msg" style="display: <?php echo empty( $active_fields ) ? 'block' : 'none'; ?>;">
+                هیچ مشخصه فنی برای این محصول انتخاب نشده است. از منوی بالای این کادر، مشخصه مورد نظر خود را اضافه کنید.
+            </div>
+
             <div id="brz-active-specs-list">
                 <?php
                 foreach ( $fields as $field ) {
@@ -645,28 +756,29 @@ class BRZ_Product_Specs {
                                 <?php endif; ?>
                             </div>
                             
-                            <button type="button" class="brz-spec-remove-btn" title="حذف مشخصه از این محصول" data-key="<?php echo esc_attr( $key ); ?>">✕</button>
+                            <button type="button" class="brz-spec-remove-btn" title="حذف مشخصه از این محصول" data-key="<?php echo esc_attr( $key ); ?>">
+                                <span>✕</span> حذف مشخصه
+                            </button>
                         </div>
                     </div>
                     <?php
                 }
                 ?>
             </div>
-
-            <!-- Selector to add new specifications to this product -->
-            <div class="brz-spec-add-row">
-                <span style="font-size: 13px; font-weight: 600; color: #555;">افزودن مشخصه جدید به این محصول:</span>
-                <select id="brz-spec-add-selector" class="brz-spec-select-add">
-                    <option value="">-- انتخاب مشخصه --</option>
-                    <?php foreach ( $inactive_fields as $field ) : ?>
-                        <option value="<?php echo esc_attr( $field['key'] ); ?>" id="brz-opt-<?php echo esc_attr( $field['key'] ); ?>"><?php echo esc_html( $field['label'] ); ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
         </div>
         
         <script>
             jQuery(document).ready(function($) {
+                // Function to toggle empty state message
+                function toggleEmptyState() {
+                    var activeCount = $('.brz-spec-field-row:visible').length;
+                    if (activeCount === 0) {
+                        $('#brz-empty-specs-msg').fadeIn(200);
+                    } else {
+                        $('#brz-empty-specs-msg').hide();
+                    }
+                }
+
                 // Add option within Array field list
                 $('.brz-add-option-btn').on('click', function(e) {
                     e.preventDefault();
@@ -711,7 +823,9 @@ class BRZ_Product_Specs {
                     if (key === '') return;
 
                     var $row = $('#brz-spec-row-' + key);
-                    $row.fadeIn(250);
+                    $row.fadeIn(250, function() {
+                        toggleEmptyState();
+                    });
                     $row.find('.brz-spec-is-active-input').val('1');
 
                     $(this).find('option[value="' + key + '"]').remove();
@@ -723,7 +837,7 @@ class BRZ_Product_Specs {
                     e.preventDefault();
                     var key = $(this).data('key');
                     var $row = $('#brz-spec-row-' + key);
-                    var label = $row.find('.brz-spec-label').text();
+                    var label = $row.find('.brz-spec-label').text().replace('✕ حذف مشخصه', '').trim();
 
                     $row.fadeOut(200, function() {
                         $row.find('.brz-spec-is-active-input').val('0');
@@ -735,6 +849,7 @@ class BRZ_Product_Specs {
                         if ($selector.find('option[value="' + key + '"]').length === 0) {
                             $selector.append('<option value="' + key + '">' + label + '</option>');
                         }
+                        toggleEmptyState();
                     });
                 });
             });
