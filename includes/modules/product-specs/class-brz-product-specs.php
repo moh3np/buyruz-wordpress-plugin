@@ -35,10 +35,33 @@ class BRZ_Product_Specs {
     }
 
     /**
-     * Sanitize integer fields safely for PHP 8+ where passing extra arguments to built-in functions causes TypeError.
+     * Sanitize integer fields safely.
      */
     public static function sanitize_integer( $value ): int {
         return intval( $value );
+    }
+
+    /**
+     * Sanitize decimal fields safely.
+     */
+    public static function sanitize_decimal( $value ): float {
+        return floatval( $value );
+    }
+
+    /**
+     * Get specific meta keys for range fields to map to correct DB fields.
+     */
+    public static function get_range_meta_keys( string $key ): array {
+        if ( 'players' === $key ) {
+            return array( '_brz_spec_min_players', '_brz_spec_max_players' );
+        }
+        if ( 'time' === $key ) {
+            return array( '_brz_spec_min_time', '_brz_spec_max_time' );
+        }
+        if ( 'manual_age' === $key ) {
+            return array( '_brz_spec_manual_min_age', '_brz_spec_manual_max_age' );
+        }
+        return array( '_brz_spec_' . $key . '_min', '_brz_spec_' . $key . '_max' );
     }
 
     /**
@@ -55,7 +78,16 @@ class BRZ_Product_Specs {
 
         $key = str_replace( '_brz_spec_', '', $meta_key );
         // Skip range fields sub-metas.
-        if ( strpos( $key, '_min' ) !== false || strpos( $key, '_max' ) !== false ) {
+        if ( 
+            strpos( $key, '_min' ) !== false || 
+            strpos( $key, '_max' ) !== false || 
+            strpos( $key, 'min_' ) === 0 || 
+            strpos( $key, 'max_' ) === 0 || 
+            strpos( $key, 'manual_min_' ) === 0 || 
+            strpos( $key, 'manual_max_' ) === 0 ||
+            strpos( $key, 'filter_min_' ) === 0 || 
+            strpos( $key, 'filter_max_' ) === 0
+        ) {
             add_action( 'added_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
             add_action( 'updated_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
             return;
@@ -135,23 +167,23 @@ class BRZ_Product_Specs {
     public static function get_seed_fields(): array {
         return array(
             array(
-                'key'     => 'is_travel',
-                'label'   => 'سفری بودن',
-                'type'    => 'boolean',
-                'prefix'  => '',
-                'suffix'  => '',
-                'options' => '',
-            ),
-            array(
-                'key'     => 'age_range',
-                'label'   => 'رده سنی',
+                'key'     => 'manual_age',
+                'label'   => 'رده سنی دستی',
                 'type'    => 'range',
                 'prefix'  => 'مناسب برای سن ',
                 'suffix'  => ' سال',
                 'options' => '',
             ),
             array(
-                'key'     => 'play_time',
+                'key'     => 'players',
+                'label'   => 'تعداد بازیکنان',
+                'type'    => 'range',
+                'prefix'  => '',
+                'suffix'  => ' بازیکن',
+                'options' => '',
+            ),
+            array(
+                'key'     => 'time',
                 'label'   => 'زمان بازی',
                 'type'    => 'range',
                 'prefix'  => '',
@@ -160,11 +192,19 @@ class BRZ_Product_Specs {
             ),
             array(
                 'key'     => 'best_players',
-                'label'   => 'تعداد بازیکنان مناسب',
+                'label'   => 'بهترین تعداد بازیکن',
                 'type'    => 'array',
                 'prefix'  => '',
                 'suffix'  => ' بازیکن',
                 'options' => '1, 2, 3, 4, 5, 6, 7, 8, 9, 10, +10',
+            ),
+            array(
+                'key'     => 'difficulty',
+                'label'   => 'سختی بازی',
+                'type'    => 'number',
+                'prefix'  => '',
+                'suffix'  => ' از ۵',
+                'options' => '',
             ),
             array(
                 'key'     => 'card_count',
@@ -172,6 +212,102 @@ class BRZ_Product_Specs {
                 'type'    => 'number',
                 'prefix'  => '',
                 'suffix'  => ' عدد کارت',
+                'options' => '',
+            ),
+            array(
+                'key'     => 'meeple_count',
+                'label'   => 'تعداد میپل‌ها',
+                'type'    => 'number',
+                'prefix'  => '',
+                'suffix'  => ' عدد میپل',
+                'options' => '',
+            ),
+            array(
+                'key'     => 'pieces_count',
+                'label'   => 'تعداد قطعات',
+                'type'    => 'number',
+                'prefix'  => '',
+                'suffix'  => ' قطعه',
+                'options' => '',
+            ),
+            array(
+                'key'     => 'is_expandable',
+                'label'   => 'قابلیت افزونه‌پذیری',
+                'type'    => 'boolean',
+                'prefix'  => '',
+                'suffix'  => '',
+                'options' => '',
+            ),
+            array(
+                'key'     => 'is_campaign',
+                'label'   => 'دارای بخش داستانی/مرحله‌ای',
+                'type'    => 'boolean',
+                'prefix'  => '',
+                'suffix'  => '',
+                'options' => '',
+            ),
+            array(
+                'key'     => 'needs_adult',
+                'label'   => 'نیاز به حضور بزرگسال',
+                'type'    => 'boolean',
+                'prefix'  => '',
+                'suffix'  => '',
+                'options' => '',
+            ),
+            array(
+                'key'     => 'needs_tools',
+                'label'   => 'نیاز به ابزار سرهم‌کردن',
+                'type'    => 'boolean',
+                'prefix'  => '',
+                'suffix'  => '',
+                'options' => '',
+            ),
+            array(
+                'key'     => 'is_travel',
+                'label'   => 'نسخه مسافرتی',
+                'type'    => 'boolean',
+                'prefix'  => '',
+                'suffix'  => '',
+                'options' => '',
+            ),
+            array(
+                'key'     => 'is_adult',
+                'label'   => 'مخصوص بزرگسالان',
+                'type'    => 'boolean',
+                'prefix'  => '',
+                'suffix'  => '',
+                'options' => '',
+            ),
+            array(
+                'key'     => 'is_compatible',
+                'label'   => 'سازگاری با نسخه‌های دیگر',
+                'type'    => 'boolean',
+                'prefix'  => '',
+                'suffix'  => '',
+                'options' => '',
+            ),
+            array(
+                'key'     => 'has_motor',
+                'label'   => 'دارای موتور/باتری',
+                'type'    => 'boolean',
+                'prefix'  => '',
+                'suffix'  => '',
+                'options' => '',
+            ),
+            array(
+                'key'     => 'is_3d',
+                'label'   => 'نسخه سه‌بعدی',
+                'type'    => 'boolean',
+                'prefix'  => '',
+                'suffix'  => '',
+                'options' => '',
+            ),
+            array(
+                'key'     => 'is_washable',
+                'label'   => 'قابلیت شستشو',
+                'type'    => 'boolean',
+                'prefix'  => '',
+                'suffix'  => '',
                 'options' => '',
             ),
         );
@@ -187,9 +323,10 @@ class BRZ_Product_Specs {
             $type = $field['type'];
 
             if ( 'range' === $type ) {
+                $keys = self::get_range_meta_keys( $key );
                 register_post_meta(
                     'product',
-                    '_brz_spec_' . $key . '_min',
+                    $keys[0],
                     array(
                         'type'              => 'integer',
                         'single'            => true,
@@ -199,7 +336,7 @@ class BRZ_Product_Specs {
                 );
                 register_post_meta(
                     'product',
-                    '_brz_spec_' . $key . '_max',
+                    $keys[1],
                     array(
                         'type'              => 'integer',
                         'single'            => true,
@@ -207,6 +344,30 @@ class BRZ_Product_Specs {
                         'sanitize_callback' => array( __CLASS__, 'sanitize_integer' ),
                     )
                 );
+
+                // Auto-generated backend filter keys for age
+                if ( 'manual_age' === $key ) {
+                    register_post_meta(
+                        'product',
+                        '_brz_spec_filter_min_age',
+                        array(
+                            'type'              => 'integer',
+                            'single'            => true,
+                            'show_in_rest'      => true,
+                            'sanitize_callback' => array( __CLASS__, 'sanitize_integer' ),
+                        )
+                    );
+                    register_post_meta(
+                        'product',
+                        '_brz_spec_filter_max_age',
+                        array(
+                            'type'              => 'integer',
+                            'single'            => true,
+                            'show_in_rest'      => true,
+                            'sanitize_callback' => array( __CLASS__, 'sanitize_integer' ),
+                        )
+                    );
+                }
             } else {
                 $meta_type   = 'string';
                 $sanitize_cb = 'sanitize_text_field';
@@ -215,8 +376,13 @@ class BRZ_Product_Specs {
                     $meta_type   = 'boolean';
                     $sanitize_cb = 'rest_sanitize_boolean';
                 } elseif ( 'number' === $type ) {
-                    $meta_type   = 'integer';
-                    $sanitize_cb = array( __CLASS__, 'sanitize_integer' );
+                    if ( 'difficulty' === $key ) {
+                        $meta_type   = 'number';
+                        $sanitize_cb = array( __CLASS__, 'sanitize_decimal' );
+                    } else {
+                        $meta_type   = 'integer';
+                        $sanitize_cb = array( __CLASS__, 'sanitize_integer' );
+                    }
                 }
 
                 register_post_meta(
@@ -265,8 +431,9 @@ class BRZ_Product_Specs {
             $type = $field['type'];
 
             if ( 'range' === $type ) {
-                $min = get_post_meta( $post_id, '_brz_spec_' . $key . '_min', true );
-                $max = get_post_meta( $post_id, '_brz_spec_' . $key . '_max', true );
+                $keys = self::get_range_meta_keys( $key );
+                $min  = get_post_meta( $post_id, $keys[0], true );
+                $max  = get_post_meta( $post_id, $keys[1], true );
                 $data[ $key ] = array(
                     'min' => ( $min !== '' ) ? intval( $min ) : null,
                     'max' => ( $max !== '' ) ? intval( $max ) : null,
@@ -277,6 +444,9 @@ class BRZ_Product_Specs {
                     $data[ $key ] = array();
                 } else {
                     $decoded = json_decode( $val, true );
+                    if ( ! is_array( $decoded ) ) {
+                        $decoded = maybe_unserialize( $val );
+                    }
                     $data[ $key ] = is_array( $decoded ) ? $decoded : array();
                 }
             } elseif ( 'boolean' === $type ) {
@@ -284,7 +454,11 @@ class BRZ_Product_Specs {
                 $data[ $key ] = ( $val !== '' ) ? (bool) intval( $val ) : null;
             } else {
                 $val = get_post_meta( $post_id, '_brz_spec_' . $key, true );
-                $data[ $key ] = ( $val !== '' ) ? intval( $val ) : null;
+                if ( $val !== '' ) {
+                    $data[ $key ] = ( 'difficulty' === $key ) ? floatval( $val ) : intval( $val );
+                } else {
+                    $data[ $key ] = null;
+                }
             }
         }
         return $data;
@@ -311,19 +485,34 @@ class BRZ_Product_Specs {
             $val = $value[ $key ];
 
             if ( 'range' === $type ) {
+                $keys = self::get_range_meta_keys( $key );
                 if ( is_array( $val ) ) {
                     if ( isset( $val['min'] ) ) {
                         if ( $val['min'] === null || $val['min'] === '' ) {
-                            delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
+                            delete_post_meta( $post_id, $keys[0] );
+                            if ( 'manual_age' === $key ) {
+                                delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+                            }
                         } else {
-                            update_post_meta( $post_id, '_brz_spec_' . $key . '_min', intval( $val['min'] ) );
+                            $int_min = intval( $val['min'] );
+                            update_post_meta( $post_id, $keys[0], $int_min );
+                            if ( 'manual_age' === $key ) {
+                                update_post_meta( $post_id, '_brz_spec_filter_min_age', $int_min );
+                            }
                         }
                     }
                     if ( isset( $val['max'] ) ) {
                         if ( $val['max'] === null || $val['max'] === '' ) {
-                            delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
+                            delete_post_meta( $post_id, $keys[1] );
+                            if ( 'manual_age' === $key ) {
+                                delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                            }
                         } else {
-                            update_post_meta( $post_id, '_brz_spec_' . $key . '_max', intval( $val['max'] ) );
+                            $int_max = intval( $val['max'] );
+                            update_post_meta( $post_id, $keys[1], $int_max );
+                            if ( 'manual_age' === $key ) {
+                                update_post_meta( $post_id, '_brz_spec_filter_max_age', $int_max );
+                            }
                         }
                     }
                 }
@@ -343,7 +532,11 @@ class BRZ_Product_Specs {
                 if ( $val === null || $val === '' ) {
                     delete_post_meta( $post_id, '_brz_spec_' . $key );
                 } else {
-                    update_post_meta( $post_id, '_brz_spec_' . $key, intval( $val ) );
+                    if ( 'difficulty' === $key ) {
+                        update_post_meta( $post_id, '_brz_spec_' . $key, floatval( $val ) );
+                    } else {
+                        update_post_meta( $post_id, '_brz_spec_' . $key, intval( $val ) );
+                    }
                 }
             }
         }
@@ -388,8 +581,9 @@ class BRZ_Product_Specs {
             $has_value = false;
 
             if ( 'range' === $type ) {
-                $min_val = get_post_meta( $post->ID, '_brz_spec_' . $key . '_min', true );
-                $max_val = get_post_meta( $post->ID, '_brz_spec_' . $key . '_max', true );
+                $keys    = self::get_range_meta_keys( $key );
+                $min_val = get_post_meta( $post->ID, $keys[0], true );
+                $max_val = get_post_meta( $post->ID, $keys[1], true );
                 if ( $min_val !== '' || $max_val !== '' ) {
                     $has_value = true;
                 }
@@ -397,6 +591,9 @@ class BRZ_Product_Specs {
                 $saved_val = get_post_meta( $post->ID, '_brz_spec_' . $key, true );
                 if ( ! empty( $saved_val ) ) {
                     $decoded = json_decode( $saved_val, true );
+                    if ( ! is_array( $decoded ) ) {
+                        $decoded = maybe_unserialize( $saved_val );
+                    }
                     if ( ! empty( $decoded ) && is_array( $decoded ) ) {
                         $has_value = true;
                     }
@@ -706,12 +903,16 @@ class BRZ_Product_Specs {
                     $saved_val      = '';
 
                     if ( 'range' === $type ) {
-                        $min_val = get_post_meta( $post->ID, '_brz_spec_' . $key . '_min', true );
-                        $max_val = get_post_meta( $post->ID, '_brz_spec_' . $key . '_max', true );
+                        $keys    = self::get_range_meta_keys( $key );
+                        $min_val = get_post_meta( $post->ID, $keys[0], true );
+                        $max_val = get_post_meta( $post->ID, $keys[1], true );
                     } elseif ( 'array' === $type ) {
                         $saved_val = get_post_meta( $post->ID, '_brz_spec_' . $key, true );
                         if ( ! empty( $saved_val ) ) {
                             $decoded = json_decode( $saved_val, true );
+                            if ( ! is_array( $decoded ) ) {
+                                $decoded = maybe_unserialize( $saved_val );
+                            }
                             if ( is_array( $decoded ) ) {
                                 $checked_values = $decoded;
                             }
@@ -759,7 +960,7 @@ class BRZ_Product_Specs {
                                         <button type="button" class="button brz-add-option-btn" style="padding: 2px 10px; font-size: 11px; height: 26px; line-height: 24px;">+ افزودن به لیست</button>
                                     </div>
                                 <?php elseif ( 'number' === $type ) : ?>
-                                    <input type="number" class="brz-number-input" name="brz_spec[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $saved_val ); ?>" />
+                                    <input type="number" step="<?php echo ( 'difficulty' === $key ) ? '0.1' : '1'; ?>" class="brz-number-input" name="brz_spec[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $saved_val ); ?>" />
                                 <?php endif; ?>
                             </div>
                             
@@ -891,8 +1092,13 @@ class BRZ_Product_Specs {
             if ( ! $is_active ) {
                 // Delete all meta associated with this field to keep database clean.
                 if ( 'range' === $type ) {
-                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
-                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
+                    $keys = self::get_range_meta_keys( $key );
+                    delete_post_meta( $post_id, $keys[0] );
+                    delete_post_meta( $post_id, $keys[1] );
+                    if ( 'manual_age' === $key ) {
+                        delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+                        delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                    }
                 } else {
                     delete_post_meta( $post_id, '_brz_spec_' . $key );
                 }
@@ -907,30 +1113,53 @@ class BRZ_Product_Specs {
             } elseif ( 'number' === $type ) {
                 $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
                 if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
-                    update_post_meta( $post_id, '_brz_spec_' . $key, intval( $raw_specs[ $key ] ) );
+                    if ( 'difficulty' === $key ) {
+                        update_post_meta( $post_id, '_brz_spec_' . $key, floatval( $raw_specs[ $key ] ) );
+                    } else {
+                        update_post_meta( $post_id, '_brz_spec_' . $key, intval( $raw_specs[ $key ] ) );
+                    }
                 } else {
                     delete_post_meta( $post_id, '_brz_spec_' . $key );
                 }
             } elseif ( 'range' === $type ) {
+                $keys = self::get_range_meta_keys( $key );
                 $raw_ranges = isset( $_POST['brz_spec_range'] ) && is_array( $_POST['brz_spec_range'] ) ? $_POST['brz_spec_range'] : array();
                 if ( isset( $raw_ranges[ $key ] ) ) {
                     $min = $raw_ranges[ $key ]['min'];
                     $max = $raw_ranges[ $key ]['max'];
 
                     if ( '' !== $min ) {
-                        update_post_meta( $post_id, '_brz_spec_' . $key . '_min', intval( $min ) );
+                        $int_min = intval( $min );
+                        update_post_meta( $post_id, $keys[0], $int_min );
+                        if ( 'manual_age' === $key ) {
+                            update_post_meta( $post_id, '_brz_spec_filter_min_age', $int_min );
+                        }
                     } else {
-                        delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
+                        delete_post_meta( $post_id, $keys[0] );
+                        if ( 'manual_age' === $key ) {
+                            delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+                        }
                     }
 
                     if ( '' !== $max ) {
-                        update_post_meta( $post_id, '_brz_spec_' . $key . '_max', intval( $max ) );
+                        $int_max = intval( $max );
+                        update_post_meta( $post_id, $keys[1], $int_max );
+                        if ( 'manual_age' === $key ) {
+                            update_post_meta( $post_id, '_brz_spec_filter_max_age', $int_max );
+                        }
                     } else {
-                        delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
+                        delete_post_meta( $post_id, $keys[1] );
+                        if ( 'manual_age' === $key ) {
+                            delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                        }
                     }
                 } else {
-                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
-                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
+                    delete_post_meta( $post_id, $keys[0] );
+                    delete_post_meta( $post_id, $keys[1] );
+                    if ( 'manual_age' === $key ) {
+                        delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+                        delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                    }
                 }
             } elseif ( 'array' === $type ) {
                 $raw_arrays = isset( $_POST['brz_spec_array'] ) && is_array( $_POST['brz_spec_array'] ) ? $_POST['brz_spec_array'] : array();
@@ -1291,8 +1520,9 @@ class BRZ_Product_Specs {
                     $value_html = $is_bakala ? '<i class="icon icon-red-close"></i>' : 'خیر';
                 }
             } elseif ( 'range' === $type ) {
-                $min = get_post_meta( $product->get_id(), '_brz_spec_' . $key . '_min', true );
-                $max = get_post_meta( $product->get_id(), '_brz_spec_' . $key . '_max', true );
+                $keys = self::get_range_meta_keys( $key );
+                $min  = get_post_meta( $product->get_id(), $keys[0], true );
+                $max  = get_post_meta( $product->get_id(), $keys[1], true );
 
                 if ( $min === '' && $max === '' ) {
                     continue;
@@ -1315,6 +1545,9 @@ class BRZ_Product_Specs {
                     continue;
                 }
                 $decoded = json_decode( $val, true );
+                if ( ! is_array( $decoded ) ) {
+                    $decoded = maybe_unserialize( $val );
+                }
                 if ( empty( $decoded ) || ! is_array( $decoded ) ) {
                     continue;
                 }
