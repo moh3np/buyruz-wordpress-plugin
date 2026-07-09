@@ -510,6 +510,10 @@ class BRZ_Settings {
                 'title'       => 'تب ضمانت محصول',
                 'description' => 'تب آکاردئونی ضمانت، ارسال و پشتیبانی در صفحه محصول ووکامرس.',
             ),
+            'buyruz-module-product_specs' => array(
+                'title'       => 'مشخصات فنی محصول',
+                'description' => 'سازنده فیلدهای داینامیک مشخصات محصول با قابلیت تنظیم نوع فیلد و پیشوند/پسوند.',
+            ),
         );
 
         return isset( $meta[ $active_slug ] ) ? $meta[ $active_slug ] : array(
@@ -748,6 +752,11 @@ class BRZ_Settings {
 
             if ( 'product_guarantee_tab' === $module_slug && $active ) {
                 BRZ_Product_Guarantee_Tab::render_admin_page();
+                return;
+            }
+
+            if ( 'product_specs' === $module_slug && $active ) {
+                BRZ_Product_Specs::render_admin_page();
                 return;
             }
 

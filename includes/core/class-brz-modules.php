@@ -65,6 +65,11 @@ class BRZ_Modules {
                 'description' => 'مدیریت متمرکز کاربران، دسترسی‌ها و لاگ‌ها برای پنل عملیات.',
                 'class'       => 'BRZ_SSO_Portal',
             ),
+            'product_specs' => array(
+                'label'       => 'مشخصات فنی محصول',
+                'description' => 'مدیریت و نمایش مشخصات فنی داینامیک و فیلدهای عددی سفارشی محصولات.',
+                'class'       => 'BRZ_Product_Specs',
+            ),
         );
     }
 

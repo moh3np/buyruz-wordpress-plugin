@@ -54,6 +54,7 @@ spl_autoload_register( function( $class ) {
         'BRZ_Shipping_Html'              => 'front/class-brz-shipping-html.php',
         'BRZ_A11y_Fixes'                 => 'modules/a11y-fixes/class-brz-a11y-fixes.php',
         'BRZ_SSO_Portal'                 => 'modules/sso-portal/class-brz-sso-portal.php',
+        'BRZ_Product_Specs'              => 'modules/product-specs/class-brz-product-specs.php',
     );
 
     $map = apply_filters( 'brz/autoload_map', $map );
