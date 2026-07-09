@@ -28,6 +28,86 @@ class BRZ_Product_Specs {
 
         // Expose specs field in REST API.
         add_action( 'rest_api_init', array( __CLASS__, 'register_rest_fields' ) );
+
+        // Monitor meta updates from any source (Bridge, REST API, WP Admin) to auto-register new options.
+        add_action( 'added_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
+        add_action( 'updated_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
+    }
+
+    /**
+     * Intercept postmeta additions and updates to automatically register new options for array type fields.
+     */
+    public static function monitor_meta_changes( $meta_id, $object_id, $meta_key, $meta_value ): void {
+        if ( strpos( $meta_key, '_brz_spec_' ) !== 0 ) {
+            return;
+        }
+
+        // Avoid infinite loops if we are updating options.
+        remove_action( 'added_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10 );
+        remove_action( 'updated_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10 );
+
+        $key = str_replace( '_brz_spec_', '', $meta_key );
+        // Skip range fields sub-metas.
+        if ( strpos( $key, '_min' ) !== false || strpos( $key, '_max' ) !== false ) {
+            add_action( 'added_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
+            add_action( 'updated_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
+            return;
+        }
+
+        $fields  = self::get_fields();
+        $updated = false;
+
+        foreach ( $fields as &$field ) {
+            if ( $field['key'] === $key && 'array' === $field['type'] ) {
+                $values = array();
+
+                // Decode the meta value which could be an array, JSON, serialized, or comma-separated string.
+                if ( is_array( $meta_value ) ) {
+                    $values = $meta_value;
+                } elseif ( is_string( $meta_value ) && ! empty( $meta_value ) ) {
+                    $decoded = json_decode( $meta_value, true );
+                    if ( is_array( $decoded ) ) {
+                        $values = $decoded;
+                    } else {
+                        $unserialized = maybe_unserialize( $meta_value );
+                        if ( is_array( $unserialized ) ) {
+                            $values = $unserialized;
+                        } else {
+                            $values = array_map( 'trim', explode( ',', $meta_value ) );
+                        }
+                    }
+                }
+
+                if ( empty( $values ) ) {
+                    break;
+                }
+
+                // Get current options and append new ones.
+                $current_options = array_map( 'trim', explode( ',', $field['options'] ) );
+                $current_options = array_filter( $current_options );
+
+                foreach ( $values as $val ) {
+                    $val = trim( $val );
+                    if ( '' !== $val && ! in_array( $val, $current_options, true ) ) {
+                        $current_options[] = $val;
+                        $updated           = true;
+                    }
+                }
+
+                if ( $updated ) {
+                    $field['options'] = implode( ', ', $current_options );
+                }
+                break;
+            }
+        }
+
+        if ( $updated ) {
+            update_option( 'brz_product_specs_fields', $fields );
+        }
+
+        // Re-add actions.
+        add_action( 'added_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
+        add_action( 'updated_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
     }
 
     /**
@@ -436,7 +516,7 @@ class BRZ_Product_Specs {
                 }
                 ?>
                 <div class="brz-spec-field-row">
-                    <div class="brz-spec-label"><?php echo esc_html( $label ); ?></div>
+                    <div class="brz-spec-label" data-key="<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $label ); ?></div>
                     <div class="brz-spec-input-wrap">
                         <?php if ( 'boolean' === $type ) : ?>
                             <label class="brz-switch">
@@ -465,6 +545,10 @@ class BRZ_Product_Specs {
                                     </label>
                                 <?php endforeach; ?>
                             </div>
+                            <div class="brz-spec-add-option-wrap" style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+                                <input type="text" class="brz-new-option-input" placeholder="افزودن گزینه جدید..." style="width: 140px !important; padding: 4px 8px !important; font-size: 12px; border: 1px solid #ccc; border-radius: 4px;" />
+                                <button type="button" class="button brz-add-option-btn" style="padding: 2px 10px; font-size: 11px; height: 26px; line-height: 24px;">+ افزودن به لیست</button>
+                            </div>
                         <?php elseif ( 'number' === $type ) : ?>
                             <input type="number" class="brz-number-input" name="brz_spec[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $saved_val ); ?>" />
                         <?php endif; ?>
@@ -474,6 +558,46 @@ class BRZ_Product_Specs {
             }
             ?>
         </div>
+        <script>
+            jQuery(document).ready(function($) {
+                $('.brz-add-option-btn').on('click', function(e) {
+                    e.preventDefault();
+                    var $wrap = $(this).closest('.brz-spec-input-wrap');
+                    var $input = $wrap.find('.brz-new-option-input');
+                    var val = $.trim($input.val());
+                    if (val === '') {
+                        return;
+                    }
+
+                    var key = $wrap.closest('.brz-spec-field-row').find('.brz-spec-label').data('key');
+
+                    var exists = false;
+                    $wrap.find('input[type="checkbox"]').each(function() {
+                        if ($(this).val() === val) {
+                            $(this).prop('checked', true);
+                            exists = true;
+                        }
+                    });
+
+                    if (!exists) {
+                        var checkboxHtml = '<label class="brz-checkbox-item">' +
+                            '<input type="checkbox" name="brz_spec_array[' + key + '][]" value="' + val + '" checked />' +
+                            '<span>' + val + '</span>' +
+                            '</label>';
+                        $wrap.find('.brz-checkbox-list').append(checkboxHtml);
+                    }
+
+                    $input.val('').focus();
+                });
+
+                $('.brz-new-option-input').on('keydown', function(e) {
+                    if (e.keyCode === 13) {
+                        e.preventDefault();
+                        $(this).siblings('.brz-add-option-btn').click();
+                    }
+                });
+            });
+        </script>
         <?php
     }
 
