@@ -878,13 +878,15 @@ class BRZ_Offline_Bridge {
 
                             // Map custom product specs keys automatically by prepending prefix if omitted.
                             if ( class_exists( 'BRZ_Product_Specs' ) ) {
-                                $specs_keys = array(
-                                    'manual_min_age', 'manual_max_age', 'filter_min_age', 'filter_max_age',
-                                    'min_players', 'max_players', 'best_players', 'min_time', 'max_time',
-                                    'difficulty', 'card_count', 'meeple_count', 'pieces_count',
-                                    'is_expandable', 'is_campaign', 'needs_adult', 'needs_tools',
-                                    'is_travel', 'is_adult', 'is_compatible', 'has_motor', 'is_3d', 'is_washable'
-                                );
+                                $fields = BRZ_Product_Specs::get_fields();
+                                $specs_keys = array();
+                                foreach ( $fields as $field ) {
+                                    $specs_keys[] = $field['key'];
+                                    if ( 'range' === $field['type'] ) {
+                                        $specs_keys[] = $field['key'] . '_min';
+                                        $specs_keys[] = $field['key'] . '_max';
+                                    }
+                                }
                                 if ( in_array( $meta_key, $specs_keys, true ) ) {
                                     $meta_key = '_brz_spec_' . $meta_key;
                                 }
