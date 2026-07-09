@@ -233,6 +233,49 @@ class BRZ_Sidebar_Filters {
     }
 
     /**
+     * Check if there are any products in the current category query that have the specified spec key.
+     * Prevents displaying irrelevant filters in specific categories (like displaying board game players count in book categories).
+     */
+    public static function has_products_with_spec_in_query( string $field_key ): bool {
+        global $wpdb;
+
+        if ( ! is_product_category() ) {
+            return true; // Only filter on category pages
+        }
+
+        $term_id = get_queried_object_id();
+        if ( $term_id <= 0 ) {
+            return true;
+        }
+
+        // Get subcategories recursively
+        $term_ids = get_term_children( $term_id, 'product_cat' );
+        $term_ids[] = $term_id;
+        $term_ids = array_filter( array_map( 'intval', $term_ids ) );
+
+        if ( empty( $term_ids ) ) {
+            return true;
+        }
+
+        $table_lookup = self::table_name();
+        $placeholders = implode( ',', array_fill( 0, count( $term_ids ), '%d' ) );
+
+        $sql = $wpdb->prepare(
+            "SELECT COUNT(DISTINCT l.product_id) 
+             FROM {$table_lookup} l
+             INNER JOIN {$wpdb->term_relationships} r ON l.product_id = r.object_id
+             INNER JOIN {$wpdb->term_taxonomy} tt ON r.term_taxonomy_id = tt.term_taxonomy_id
+             WHERE tt.taxonomy = 'product_cat' 
+               AND tt.term_id IN ($placeholders)
+               AND (l.meta_key = %s OR l.meta_key = %s OR l.meta_key = %s)",
+            array_merge( $term_ids, array( $field_key, $field_key . '_min', $field_key . '_max' ) )
+        );
+
+        $count = intval( $wpdb->get_var( $sql ) );
+        return $count > 0;
+    }
+
+    /**
      * Filter SQL clauses to inject search logic.
      */
     public static function filter_product_query_clauses( array $clauses, WP_Query $query ): array {
@@ -659,6 +702,11 @@ class BRZ_Widget_Advanced_Filters extends WP_Widget {
         }
 
         if ( ! $field ) {
+            return;
+        }
+
+        // Hide filter widget if there are no products in the current category matching this spec
+        if ( is_product_category() && ! BRZ_Sidebar_Filters::has_products_with_spec_in_query( $field_key ) ) {
             return;
         }
 
