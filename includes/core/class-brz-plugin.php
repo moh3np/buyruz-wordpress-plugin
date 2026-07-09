@@ -94,6 +94,11 @@ class BRZ_Plugin {
             BRZ_SSO_Portal::ensure_table();
         }
 
+        // Ensure Sidebar Filters Lookup table exists
+        if ( class_exists( 'BRZ_Sidebar_Filters' ) ) {
+            BRZ_Sidebar_Filters::ensure_table();
+        }
+
         update_option( 'brz_db_version', BRZ_VERSION, false );
     }
 }

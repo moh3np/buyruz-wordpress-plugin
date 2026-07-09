@@ -44,5 +44,9 @@ if ( is_array( $brz_options ) && isset( $brz_options['firewall'] ) ) {
     update_option( 'brz_options', $brz_options );
 }
 
+// Drop Sidebar Filters lookup table
+global $wpdb;
+$wpdb->query( "DROP TABLE IF EXISTS " . $wpdb->prefix . "buyruz_filters_lookup" );
+
 // Note: Links that have been applied to post content are NOT removed
 // because they are part of the post_content itself and do not depend on the plugin.

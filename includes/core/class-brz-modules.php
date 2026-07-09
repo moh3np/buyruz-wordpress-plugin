@@ -70,6 +70,11 @@ class BRZ_Modules {
                 'description' => 'مدیریت و نمایش مشخصات فنی داینامیک و فیلدهای عددی سفارشی محصولات.',
                 'class'       => 'BRZ_Product_Specs',
             ),
+            'sidebar_filters' => array(
+                'label'       => 'فیلتر سایدبار آرشیو',
+                'description' => 'سیستم فیلتر محصولات پیشرفته سایدبار با استفاده از جدول جستجوی سفارشی و آژاکس.',
+                'class'       => 'BRZ_Sidebar_Filters',
+            ),
         );
     }
 

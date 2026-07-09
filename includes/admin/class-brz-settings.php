@@ -760,6 +760,11 @@ class BRZ_Settings {
                 return;
             }
 
+            if ( 'sidebar_filters' === $module_slug && $active ) {
+                BRZ_Sidebar_Filters::render_admin_page();
+                return;
+            }
+
             if ( 'compare_table' === $module_slug ) {
                 $compare_msg = isset( $_GET['brz-compare-msg'] ) ? sanitize_key( wp_unslash( $_GET['brz-compare-msg'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
                 $compare_product = isset( $_GET['product'] ) ? absint( $_GET['product'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
