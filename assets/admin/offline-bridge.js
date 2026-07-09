@@ -310,7 +310,8 @@
 
     // Determine if it's a Dependency Object Payload or a Product Array Payload
     var isDependencyPayload = !Array.isArray(items) && items.create_dependencies === true;
-    if (!isDependencyPayload && (!Array.isArray(items) || items.length === 0)) {
+    var isSpecsPayload = !Array.isArray(items) && items.create_specs === true;
+    if (!isDependencyPayload && !isSpecsPayload && (!Array.isArray(items) || items.length === 0)) {
       showError(i18n.invalidArray || 'آرایه خالی یا نامعتبر.');
       return;
     }
@@ -325,7 +326,7 @@
 
     var BATCH_SIZE = 50;
     var chunks = [];
-    if (isDependencyPayload) {
+    if (isDependencyPayload || isSpecsPayload) {
       chunks.push(items);
     } else {
       for (var i = 0; i < items.length; i += BATCH_SIZE) {
@@ -479,6 +480,12 @@
           }
         } else if (isDependencyPayload) {
             showSnackbar('هیچ وابستگی جدید یا موجودی یافت نشد. لطفاً لاگ سرور را بررسی کنید.', 8000);
+        } else if (isSpecsPayload) {
+            showSnackbar('مشخصات فنی با موفقیت تعریف و ذخیره شدند.', 5000);
+            if (inputEl) {
+              inputEl.value = '';
+              inputEl.focus();
+            }
         } else {
             // Show snackbar
             if (totalFailedCount > 0) {
@@ -492,7 +499,7 @@
             }
         }
 
-        if (!isDependencyPayload) {
+        if (!isDependencyPayload && !isSpecsPayload) {
             renderStats({ total: items.length, success_count: totalSuccessCount, failed_count: totalFailedCount });
             if (allResults.length) renderResults(allResults);
         }
@@ -501,7 +508,7 @@
 
       var currentChunk = chunks[batchIndex];
 
-      if (progressContainer && !isDependencyPayload) {
+      if (progressContainer && !isDependencyPayload && !isSpecsPayload) {
         progressContainer.style.display = 'block';
         var pct = Math.round((processedCount / items.length) * 100);
         if (progressBar) progressBar.style.width = pct + '%';
@@ -526,7 +533,7 @@
             if (data.results) allResults = allResults.concat(data.results);
             totalSuccessCount += (data.success_count || 0);
             totalFailedCount += (data.failed_count || 0);
-            processedCount += isDependencyPayload ? 1 : currentChunk.length;
+            processedCount += (isDependencyPayload || isSpecsPayload) ? 1 : currentChunk.length;
 
             if (data.dependency_ids) {
                 if (!allDependencyIds) allDependencyIds = {};
