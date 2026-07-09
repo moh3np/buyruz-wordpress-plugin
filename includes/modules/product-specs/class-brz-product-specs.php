@@ -1268,6 +1268,34 @@ class BRZ_Product_Specs {
     /**
      * Frontend injection: Displays specifications inside WooCommerce's additional information tab.
      */
+    /**
+     * Find matching max key for a min key.
+     */
+    private static function get_matching_max_key( string $min_key, array $all_keys ): ?string {
+        if ( strpos( $min_key, 'min_' ) === 0 ) {
+            $max_key = 'max_' . substr( $min_key, 4 );
+            if ( in_array( $max_key, $all_keys, true ) ) {
+                return $max_key;
+            }
+        }
+        if ( strpos( $min_key, 'manual_min_' ) === 0 ) {
+            $max_key = 'manual_max_' . substr( $min_key, 11 );
+            if ( in_array( $max_key, $all_keys, true ) ) {
+                return $max_key;
+            }
+        }
+        if ( substr( $min_key, -4 ) === '_min' ) {
+            $max_key = substr( $min_key, 0, -4 ) . '_max';
+            if ( in_array( $max_key, $all_keys, true ) ) {
+                return $max_key;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Frontend injection: Displays specifications inside WooCommerce's additional information tab.
+     */
     public static function render_custom_specs( $product ): void {
         if ( ! is_object( $product ) ) {
             global $product;
@@ -1279,8 +1307,65 @@ class BRZ_Product_Specs {
         $fields          = self::get_fields();
         $specs_to_render = array();
 
+        $fields_by_key = array();
         foreach ( $fields as $field ) {
-            $key        = $field['key'];
+            $fields_by_key[ $field['key'] ] = $field;
+        }
+        $all_keys = array_keys( $fields_by_key );
+        $processed_keys = array();
+
+        foreach ( $fields as $field ) {
+            $key = $field['key'];
+            if ( in_array( $key, $processed_keys, true ) ) {
+                continue;
+            }
+
+            // Check if this is a min field and has a matching max field in the definitions
+            $max_key = self::get_matching_max_key( $key, $all_keys );
+
+            if ( $max_key ) {
+                $max_field = $fields_by_key[ $max_key ];
+                $processed_keys[] = $key;
+                $processed_keys[] = $max_key;
+
+                $min_val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
+                $max_val = get_post_meta( $product->get_id(), '_brz_spec_' . $max_key, true );
+
+                if ( $min_val === '' && $max_val === '' ) {
+                    continue;
+                }
+
+                // Determine combined label by stripping out "حداقل" and "حداکثر"
+                $combined_label = trim( str_replace( array( 'حداقل', 'حداکثر' ), '', $field['label'] ) );
+                if ( empty( $combined_label ) ) {
+                    $combined_label = $field['label'];
+                }
+
+                if ( $min_val !== '' && $max_val !== '' ) {
+                    if ( $min_val === $max_val ) {
+                        $value_html = $field['prefix'] . self::to_persian_digits( $min_val ) . $field['suffix'];
+                    } else {
+                        // Strip out "بالای", "بیشتر از" to build a clean range prefix
+                        $clean_prefix = trim( str_replace( array( 'بالای', 'بیشتر از', 'کمتر از', 'زیر' ), '', $field['prefix'] ) );
+                        if ( ! empty( $clean_prefix ) && substr( $clean_prefix, -1 ) !== ' ' ) {
+                            $clean_prefix .= ' ';
+                        }
+                        $value_html = $clean_prefix . self::to_persian_digits( $min_val ) . ' تا ' . self::to_persian_digits( $max_val ) . $max_field['suffix'];
+                    }
+                } elseif ( $min_val !== '' ) {
+                    $value_html = $field['prefix'] . self::to_persian_digits( $min_val ) . $field['suffix'];
+                } else {
+                    $value_html = $max_field['prefix'] . self::to_persian_digits( $max_val ) . $max_field['suffix'];
+                }
+
+                if ( ! empty( $value_html ) ) {
+                    $specs_to_render[ $combined_label ] = $value_html;
+                }
+                continue;
+            }
+
+            // Normal rendering (non-paired field)
+            $processed_keys[] = $key;
             $type       = $field['type'];
             $label      = $field['label'];
             $prefix     = $field['prefix'];
