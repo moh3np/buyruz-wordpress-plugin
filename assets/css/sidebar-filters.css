@@ -1,66 +1,27 @@
-/* CSS for Advanced Sidebar Filters Module */
+/* CSS for Advanced Sidebar Filters (Single-Spec Widget) */
 /* هشدار: پیش از هر تغییر، حتماً فایل CONTRIBUTING.md را با دقت کامل بخوانید و بی‌قید و شرط اجرا کنید و پس از اتمام کار تطابق را دوباره چک کنید. */
 
 :root {
     --brz-filters-primary: #1a73e8;
-    --brz-filters-bg: rgba(255, 255, 255, 0.7);
     --brz-filters-border: rgba(0, 0, 0, 0.08);
-    --brz-filters-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
     --brz-filters-text: #2c3e50;
     --brz-filters-accent: #ff4757;
 }
 
-/* Dark mode compatibility */
 @media (prefers-color-scheme: dark) {
     :root {
-        --brz-filters-bg: rgba(30, 30, 40, 0.75);
         --brz-filters-border: rgba(255, 255, 255, 0.08);
         --brz-filters-text: #f5f6fa;
     }
 }
 
-.brz-sidebar-filters-form {
-    background: var(--brz-filters-bg);
-    border: 1px solid var(--brz-filters-border);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: var(--brz-filters-shadow);
-    margin-bottom: 25px;
+/* Base control wrapper (inherits widget style from theme) */
+.brz-filter-widget-control {
     direction: rtl;
     text-align: right;
     font-family: inherit;
-    transition: box-shadow 0.3s ease;
-}
-
-.brz-sidebar-filters-form:hover {
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
-}
-
-.brz-filters-container {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    margin-bottom: 20px;
-}
-
-.brz-filter-group {
-    border-bottom: 1px solid var(--brz-filters-border);
-    padding-bottom: 15px;
-}
-
-.brz-filter-group:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-}
-
-.brz-filter-group-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--brz-filters-text);
-    margin: 0 0 12px 0;
-    padding: 0;
+    padding: 5px 0;
+    margin-bottom: 10px;
 }
 
 /* Range dual slider styling */
@@ -75,11 +36,11 @@
     align-items: center;
     font-size: 13px;
     color: var(--brz-filters-text);
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     font-weight: bold;
     background: rgba(26, 115, 232, 0.05);
-    padding: 4px 10px;
-    border-radius: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
     border: 1px dashed rgba(26, 115, 232, 0.2);
 }
 
@@ -321,56 +282,6 @@
     margin-right: 5px;
 }
 
-/* Filter Actions buttons */
-.brz-filter-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-top: 20px;
-}
-
-.brz-filter-submit-btn {
-    width: 100%;
-    background: var(--brz-filters-primary);
-    color: #fff !important;
-    border: none;
-    border-radius: 8px;
-    padding: 10px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-align: center;
-    box-shadow: 0 4px 12px rgba(26, 115, 232, 0.2);
-}
-
-.brz-filter-submit-btn:hover {
-    background: #155cb8;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(26, 115, 232, 0.3);
-}
-
-.brz-filter-reset-btn {
-    width: 100%;
-    background: rgba(0, 0, 0, 0.03);
-    color: var(--brz-filters-text) !important;
-    border: 1px solid var(--brz-filters-border);
-    border-radius: 8px;
-    padding: 9px;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-align: center;
-    text-decoration: none !important;
-}
-
-.brz-filter-reset-btn:hover {
-    background: rgba(0, 0, 0, 0.07);
-    color: var(--brz-filters-accent) !important;
-    border-color: rgba(255, 71, 87, 0.2);
-}
-
 /* AJAX loading overlay on products container */
 .brz-ajax-loading-container {
     position: relative;
@@ -382,14 +293,14 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.55);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
     z-index: 999;
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    padding-top: 100px;
+    padding-top: 150px;
     border-radius: 8px;
     opacity: 0;
     pointer-events: none;
@@ -414,9 +325,4 @@
 
 @keyframes brz_spin {
     to { transform: rotate(360deg); }
-}
-
-/* Hide fallback submit buttons when AJAX is active and running live */
-.brz-sidebar-filters-form.ajax-live-active .brz-filter-submit-btn {
-    display: none;
 }

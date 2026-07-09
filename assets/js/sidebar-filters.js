@@ -1,14 +1,12 @@
 /**
  * Front-end JS for Advanced Sidebar Filters.
  * Handles dual-range sliders, AJAX loading, History API and Debouncing.
+ * Supports multiple independent widget instances.
  * 
  * هشدار: پیش از هر تغییر، حتماً فایل CONTRIBUTING.md را با دقت کامل بخوانید و بی‌قید و شرط اجرا کنید و پس از اتمام کار تطابق را دوباره چک کنید.
  */
 
 document.addEventListener('DOMContentLoaded', function() {
-    const filterForm = document.querySelector('.brz-sidebar-filters-form');
-    if (!filterForm) return;
-
     // Config options passed from WordPress localize script
     const config = window.brzFiltersConfig || {
         container_selector: '.products-box',
@@ -18,16 +16,14 @@ document.addEventListener('DOMContentLoaded', function() {
         push_state: true
     };
 
-    // Initialize range sliders
-    const rangeWrappers = filterForm.querySelectorAll('.brz-range-slider-wrapper');
-    rangeWrappers.forEach(function(wrapper) {
+    // Initialize all range sliders
+    const rangeSliders = document.querySelectorAll('.brz-range-slider-wrapper');
+    rangeSliders.forEach(function(wrapper) {
         initDualRangeSlider(wrapper);
     });
 
-    if (config.ajax_enabled) {
-        filterForm.classList.add('ajax-live-active');
-        initAjaxFiltering(filterForm, config);
-    }
+    // Setup events
+    setupFilterEvents(config);
 });
 
 /**
@@ -39,7 +35,6 @@ function initDualRangeSlider(wrapper) {
     const minValText = wrapper.querySelector('.brz-range-value-min');
     const maxValText = wrapper.querySelector('.brz-range-value-max');
     
-    // Create active track element dynamically if not exists
     let activeTrack = wrapper.querySelector('.brz-range-slider-track-active');
     if (!activeTrack) {
         activeTrack = document.createElement('div');
@@ -67,7 +62,6 @@ function initDualRangeSlider(wrapper) {
         const maxPercent = range > 0 ? ((maxVal - minLimit) / range) * 100 : 100;
 
         // In RTL, the track active portion starts from right (minPercent) to left (maxPercent)
-        // So right distance is minPercent, left distance is 100 - maxPercent
         activeTrack.style.right = minPercent + '%';
         activeTrack.style.left = (100 - maxPercent) + '%';
 
@@ -78,17 +72,15 @@ function initDualRangeSlider(wrapper) {
     minInput.addEventListener('input', updateTrack);
     maxInput.addEventListener('input', updateTrack);
 
-    // Initial update
     updateTrack();
 }
 
 /**
- * Initialize AJAX and History logic.
+ * Capture filter control events and handle page updates.
  */
-function initAjaxFiltering(form, config) {
+function setupFilterEvents(config) {
     let debounceTimer = null;
 
-    // Helper for debouncing AJAX calls
     function debounce(func, delay) {
         return function(...args) {
             clearTimeout(debounceTimer);
@@ -96,60 +88,61 @@ function initAjaxFiltering(form, config) {
         };
     }
 
-    // Capture changes on any input
-    form.addEventListener('change', function(e) {
-        // For range/number inputs, use debounce to prevent spamming queries
-        if (e.target.type === 'range' || e.target.type === 'number') {
+    const debouncedFetch = debounce(fetchFilteredProducts, 300);
+
+    // 1. Capture changes in our custom widgets
+    document.body.addEventListener('change', function(e) {
+        const control = e.target.closest('.brz-filter-widget-control');
+        if (!control) return;
+
+        if (e.target.type === 'checkbox' && !control.classList.contains('brz-filter-type-boolean')) {
+            fetchFilteredProducts();
+        } else if (e.target.type === 'number') {
             debouncedFetch();
         } else {
             fetchFilteredProducts();
         }
     });
 
-    // Also listen to direct input events for sliders (with longer debounce)
-    form.addEventListener('input', function(e) {
-        if (e.target.type === 'range') {
+    document.body.addEventListener('input', function(e) {
+        const control = e.target.closest('.brz-filter-widget-control');
+        if (control && e.target.type === 'range') {
             debouncedFetch();
         }
     });
 
-    const debouncedFetch = debounce(fetchFilteredProducts, 300);
+    // 2. Intercept standard WooCommerce attribute widgets and categories clicks to unify AJAX filtering
+    document.body.addEventListener('click', function(e) {
+        if (!config.ajax_enabled) return;
 
-    // Intercept submit event (e.g. if form submitted via enter or fallback button)
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        fetchFilteredProducts();
+        // Intercept standard woocommerce attribute links, category links, or reset links in sidebar
+        const sidebarLink = e.target.closest('.filters-panel a, .widget-area a, .widget_layered_nav a, .widget_product_categories a');
+        if (sidebarLink) {
+            const url = sidebarLink.getAttribute('href');
+            // Check if it's a valid link and relates to query string
+            if (url && (url.includes('?') || url.includes('product-category') || sidebarLink.classList.contains('action-reset') || sidebarLink.id === 'reset-filtering')) {
+                e.preventDefault();
+                fetchFilteredProducts(url);
+                
+                // If it's a mobile filter panel close or reset link, trigger theme closing
+                if (sidebarLink.id === 'reset-filtering' || sidebarLink.classList.contains('action-reset')) {
+                    const closeBtn = document.querySelector('.close_filter_panels');
+                    if (closeBtn) closeBtn.click();
+                }
+            }
+        }
     });
 
-    // Intercept reset button click
-    const resetBtn = form.querySelector('.brz-filter-reset-btn');
-    if (resetBtn) {
-        resetBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            form.reset();
-            // Clear slider displays
-            const rangeWrappers = form.querySelectorAll('.brz-range-slider-wrapper');
-            rangeWrappers.forEach(function(wrapper) {
-                const minInput = wrapper.querySelector('.brz-range-input-min');
-                const maxInput = wrapper.querySelector('.brz-range-input-max');
-                minInput.value = minInput.min;
-                maxInput.value = maxInput.max;
-                initDualRangeSlider(wrapper);
-            });
-            fetchFilteredProducts(resetBtn.getAttribute('href'));
-        });
-    }
-
-    // Intercept pagination clicks to load next pages via AJAX
+    // 3. Intercept pagination click events
     bindPaginationLinks(config);
 
-    // Support browser back/forward buttons
+    // 4. Support browser back/forward buttons
     window.addEventListener('popstate', function(e) {
         fetchFilteredProducts(window.location.href, false);
     });
 
     /**
-     * Bind click handler to pagination links.
+     * Intercept clicks on pagination.
      */
     function bindPaginationLinks(cfg) {
         const productsContainer = document.querySelector(cfg.container_selector);
@@ -160,20 +153,146 @@ function initAjaxFiltering(form, config) {
             if (link) {
                 e.preventDefault();
                 fetchFilteredProducts(link.getAttribute('href'));
-                // Scroll to top of products list smoothly
                 productsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         });
     }
 
     /**
-     * AJAX Fetcher.
+     * Read filter parameters from our widgets.
+     */
+    function getFilterQueryParameters() {
+        const params = new URLSearchParams();
+        const activeControls = document.querySelectorAll('.brz-filter-widget-control');
+
+        activeControls.forEach(function(control) {
+            const key = control.getAttribute('data-key');
+            const type = control.className.split(' ').find(c => c.startsWith('brz-filter-type-')).replace('brz-filter-type-', '');
+
+            if ('range' === type) {
+                const minInput = control.querySelector('.brz-range-input-min');
+                const maxInput = control.querySelector('.brz-range-input-max');
+                if (minInput && maxInput) {
+                    const minLimit = minInput.getAttribute('min');
+                    const maxLimit = maxInput.getAttribute('max');
+                    // Only send parameters if they differ from boundaries to keep URL clean
+                    if (minInput.value !== minLimit) {
+                        params.set(key + '_min', minInput.value);
+                    }
+                    if (maxInput.value !== maxLimit) {
+                        params.set(key + '_max', maxInput.value);
+                    }
+                }
+            } else if ('array' === type) {
+                const checked = Array.from(control.querySelectorAll('input[type="checkbox"]:checked')).map(el => el.value);
+                if (checked.length > 0) {
+                    params.set(key, checked.join(','));
+                }
+            } else if ('boolean' === type) {
+                const checkbox = control.querySelector('input[type="checkbox"]');
+                if (checkbox && checkbox.checked) {
+                    params.set(key, '1');
+                }
+            } else if ('integer' === type || 'decimal' === type) {
+                const minInput = control.querySelector('[data-suffix="_min"]');
+                const maxInput = control.querySelector('[data-suffix="_max"]');
+                if (minInput && minInput.value !== '') {
+                    params.set(key + '_min', minInput.value);
+                }
+                if (maxInput && maxInput.value !== '') {
+                    params.set(key + '_max', maxInput.value);
+                }
+            }
+        });
+
+        return params;
+    }
+
+    /**
+     * Synchronize widget states with active URL.
+     */
+    function syncWidgetStatesFromUrl(urlStr) {
+        const url = new URL(urlStr, window.location.origin);
+        const params = new URLSearchParams(url.search);
+        const activeControls = document.querySelectorAll('.brz-filter-widget-control');
+
+        activeControls.forEach(function(control) {
+            const key = control.getAttribute('data-key');
+            const type = control.className.split(' ').find(c => c.startsWith('brz-filter-type-')).replace('brz-filter-type-', '');
+
+            if ('range' === type) {
+                const minInput = control.querySelector('.brz-range-input-min');
+                const maxInput = control.querySelector('.brz-range-input-max');
+                if (minInput && maxInput) {
+                    const urlMin = params.get(key + '_min');
+                    const urlMax = params.get(key + '_max');
+                    minInput.value = urlMin !== null ? urlMin : minInput.getAttribute('min');
+                    maxInput.value = urlMax !== null ? urlMax : maxInput.getAttribute('max');
+                    initDualRangeSlider(control);
+                }
+            } else if ('array' === type) {
+                const checkboxes = control.querySelectorAll('input[type="checkbox"]');
+                const urlVal = params.get(key);
+                const vals = urlVal ? urlVal.split(',') : [];
+                checkboxes.forEach(function(checkbox) {
+                    checkbox.checked = vals.includes(checkbox.value);
+                });
+            } else if ('boolean' === type) {
+                const checkbox = control.querySelector('input[type="checkbox"]');
+                if (checkbox) {
+                    const urlVal = params.get(key);
+                    checkbox.checked = (urlVal === '1' || urlVal === 'true');
+                }
+            } else if ('integer' === type || 'decimal' === type) {
+                const minInput = control.querySelector('[data-suffix="_min"]');
+                const maxInput = control.querySelector('[data-suffix="_max"]');
+                if (minInput) minInput.value = params.get(key + '_min') || '';
+                if (maxInput) maxInput.value = params.get(key + '_max') || '';
+            }
+        });
+    }
+
+    /**
+     * Main AJAX AJAX loader.
      */
     function fetchFilteredProducts(targetUrl = null, updateHistory = true) {
         const productsContainer = document.querySelector(config.container_selector);
         if (!productsContainer) return;
 
-        // 1. Create or show loading overlay
+        // 1. Check if AJAX is enabled
+        let fetchUrl = targetUrl;
+        if (!fetchUrl) {
+            const widgetParams = getFilterQueryParameters();
+            
+            // Build current url merging our parameters
+            const url = new URL(window.location.href);
+            const params = url.searchParams;
+
+            // Clear our existing spec filter variables from URL
+            const activeControls = document.querySelectorAll('.brz-filter-widget-control');
+            activeControls.forEach(control => {
+                const key = control.getAttribute('data-key');
+                params.delete(key);
+                params.delete(key + '_min');
+                params.delete(key + '_max');
+            });
+            params.delete('paged'); // reset page to 1 on filter change
+
+            // Add our active widget parameters
+            widgetParams.forEach((value, name) => {
+                params.set(name, value);
+            });
+
+            fetchUrl = url.pathname + (params.toString() ? '?' + params.toString() : '');
+        }
+
+        // If AJAX is disabled, reload page with the new URL parameters
+        if (!config.ajax_enabled) {
+            window.location.href = fetchUrl;
+            return;
+        }
+
+        // 2. Display loader overlay
         let overlay = productsContainer.querySelector('.brz-ajax-loading-overlay');
         if (!overlay) {
             overlay = document.createElement('div');
@@ -182,58 +301,15 @@ function initAjaxFiltering(form, config) {
             spinner.className = 'brz-filters-spinner';
             overlay.appendChild(spinner);
             
-            // Ensure products container is relative
             if (window.getComputedStyle(productsContainer).position === 'static') {
                 productsContainer.classList.add('brz-ajax-loading-container');
             }
             productsContainer.appendChild(overlay);
         }
 
-        // Show spinner
         overlay.classList.add('active');
 
-        // 2. Build URL
-        let fetchUrl = targetUrl;
-        if (!fetchUrl) {
-            const formData = new FormData(form);
-            const params = new URLSearchParams();
-
-            // Populate query params from form
-            for (const [key, value] of formData.entries()) {
-                if (value !== '') {
-                    // Collect checkbox values as comma-separated or array
-                    if (key.endsWith('[]')) {
-                        const baseKey = key.slice(0, -2);
-                        const current = params.get(baseKey);
-                        if (current) {
-                            params.set(baseKey, current + ',' + value);
-                        } else {
-                            params.set(baseKey, value);
-                        }
-                    } else {
-                        params.set(key, value);
-                    }
-                }
-            }
-
-            // Exclude helper/submit keys
-            params.delete('brz_filter_submit');
-
-            // Merge with static params (like category ID, orderby) if they exist
-            const currentParams = new URLSearchParams(window.location.search);
-            currentParams.forEach((val, name) => {
-                // If it's not a spec parameter, preserve it
-                const isSpec = Array.from(form.elements).some(el => el.name === name || el.name === name + '[]' || name.startsWith(el.name.replace('[]','')));
-                if (!isSpec && name !== 'paged') {
-                    params.set(name, val);
-                }
-            });
-
-            const queryStr = params.toString();
-            fetchUrl = window.location.pathname + (queryStr ? '?' + queryStr : '');
-        }
-
-        // 3. Perform Fetch
+        // 3. Request URL content
         fetch(fetchUrl)
             .then(response => {
                 if (!response.ok) throw new Error('HTTP error ' + response.status);
@@ -243,41 +319,40 @@ function initAjaxFiltering(form, config) {
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
 
-                // Extract and replace products loop
+                // Swap products container HTML
                 const newProducts = doc.querySelector(config.container_selector);
                 const currentProducts = document.querySelector(config.container_selector);
                 if (newProducts && currentProducts) {
                     currentProducts.innerHTML = newProducts.innerHTML;
                 }
 
-                // Extract and replace product count text
+                // Swap result count HTML
                 const newCount = doc.querySelector(config.count_selector);
                 const currentCount = document.querySelector(config.count_selector);
                 if (newCount && currentCount) {
                     currentCount.innerHTML = newCount.innerHTML;
                 }
 
-                // Sync sidebar form fields from URL (essential for popstate or manual navigation)
-                syncFormFieldsFromUrl(fetchUrl, form);
+                // Sync widget UI controls to reflect the URL changes
+                syncWidgetStatesFromUrl(fetchUrl);
 
-                // Update Browser URL & State
+                // Update navigation history
                 if (config.push_state && updateHistory) {
                     window.history.pushState({ path: fetchUrl }, '', fetchUrl);
                 }
 
-                // Re-bind pagination click events (since the container HTML changed)
+                // Re-bind pagination clicks
                 bindPaginationLinks(config);
 
-                // Hide spinner
+                // Hide loader
                 overlay.classList.remove('active');
 
-                // Dispatch Custom Event for theme scripts to bind layout quickviews/etc.
+                // Fire custom event
                 document.body.dispatchEvent(new CustomEvent('brz_filters_updated', { detail: { url: fetchUrl } }));
 
-                // Compatibility: If theme has mobile filter close trigger, trigger it
+                // Mobile panel auto-close if triggered via apply button
                 const closeBtn = document.querySelector('.close_filter_panels');
                 if (closeBtn && window.getComputedStyle(closeBtn).display !== 'none') {
-                    // If mobile sidebar open button exists, close it
                     closeBtn.click();
                 }
             })
@@ -286,50 +361,4 @@ function initAjaxFiltering(form, config) {
                 overlay.classList.remove('active');
             });
     }
-}
-
-/**
- * Synchronize sidebar form values with a given URL (e.g. on popstate).
- */
-function syncFormFieldsFromUrl(urlStr, form) {
-    const url = new URL(urlStr, window.location.origin);
-    const params = new URLSearchParams(url.search);
-
-    // Reset checkboxes and text inputs
-    Array.from(form.elements).forEach(function(el) {
-        if (!el.name) return;
-        const name = el.name.replace('[]', '');
-
-        if (el.type === 'checkbox') {
-            const urlVal = params.get(name);
-            if (urlVal) {
-                const vals = urlVal.split(',');
-                el.checked = vals.includes(el.value);
-            } else {
-                el.checked = false;
-            }
-        } else if (el.type === 'range' || el.type === 'number') {
-            const urlVal = params.get(el.name);
-            if (urlVal !== null) {
-                el.value = urlVal;
-            } else {
-                // reset to default bounds
-                if (el.classList.contains('brz-range-input-min') || el.name.endsWith('_min')) {
-                    el.value = el.min || 0;
-                } else if (el.classList.contains('brz-range-input-max') || el.name.endsWith('_max')) {
-                    el.value = el.max || 100;
-                } else {
-                    el.value = '';
-                }
-            }
-        } else if (el.type !== 'hidden') {
-            el.value = params.get(name) || '';
-        }
-    });
-
-    // Re-initialize slider tracks display
-    const rangeWrappers = form.querySelectorAll('.brz-range-slider-wrapper');
-    rangeWrappers.forEach(function(wrapper) {
-        initDualRangeSlider(wrapper);
-    });
 }
