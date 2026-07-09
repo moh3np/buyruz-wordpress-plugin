@@ -977,6 +977,24 @@ class BRZ_Product_Specs {
         
         <script>
             jQuery(document).ready(function($) {
+                // Convert Persian/Arabic digits to English digits for number inputs
+                function convertPersianToEnglish(str) {
+                    var persianNumbers = [/۰/g, /۱/g, /۲/g, /۳/g, /۴/g, /۵/g, /۶/g, /۷/g, /۸/g, /۹/g];
+                    var arabicNumbers  = [/٠/g, /١/g, /٢/g, /٣/g, /٤/g, /٥/g, /٦/g, /٧/g, /٨/g, /٩/g];
+                    for(var i=0; i<10; i++) {
+                        str = str.replace(persianNumbers[i], i).replace(arabicNumbers[i], i);
+                    }
+                    return str;
+                }
+
+                $(document).on('input paste keyup', '.brz-number-input, .brz-range-input', function() {
+                    var val = $(this).val();
+                    var converted = convertPersianToEnglish(val);
+                    if (val !== converted) {
+                        $(this).val(converted);
+                    }
+                });
+
                 // Function to toggle empty state message
                 function toggleEmptyState() {
                     var activeCount = $('.brz-spec-field-row:visible').length;
