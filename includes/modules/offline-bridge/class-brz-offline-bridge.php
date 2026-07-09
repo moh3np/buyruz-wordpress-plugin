@@ -484,7 +484,7 @@ class BRZ_Offline_Bridge {
                     }
                     $existing_keys[] = $key;
                     
-                    $allowed_types = array( 'boolean', 'number', 'range', 'array' );
+                    $allowed_types = array( 'boolean', 'integer', 'decimal', 'range', 'array' );
                     $type          = isset( $raw['type'] ) ? sanitize_key( $raw['type'] ) : 'boolean';
                     if ( ! in_array( $type, $allowed_types, true ) ) {
                         $type = 'boolean';

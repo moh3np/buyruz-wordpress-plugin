@@ -45,15 +45,28 @@ class BRZ_Product_Specs {
     /**
      * Sanitize decimal/numeric fields safely.
      */
-    public static function sanitize_decimal( $value ) {
-        // Return float if it has decimal, integer otherwise.
-        $float_val = floatval( $value );
-        $int_val   = intval( $value );
-        return ( $float_val == $int_val ) ? $int_val : $float_val;
+    public static function sanitize_decimal( $value ): float {
+        return floatval( $value );
     }
 
     /**
-     * Intercept postmeta additions and updates to automatically register new options for array type fields.
+     * Get specific meta keys for range fields to map to correct DB fields.
+     */
+    public static function get_range_meta_keys( string $key ): array {
+        if ( 'manual_age' === $key ) {
+            return array( '_brz_spec_manual_min_age', '_brz_spec_manual_max_age' );
+        }
+        if ( 'players' === $key ) {
+            return array( '_brz_spec_min_players', '_brz_spec_max_players' );
+        }
+        if ( 'time' === $key ) {
+            return array( '_brz_spec_min_time', '_brz_spec_max_time' );
+        }
+        return array( '_brz_spec_' . $key . '_min', '_brz_spec_' . $key . '_max' );
+    }
+
+    /**
+     * Intercept postmeta deletions to auto-clean background filter age keys.
      */
     public static function monitor_meta_deletions( $meta_ids, $object_id, $meta_key, $meta_values ): void {
         if ( '_brz_spec_manual_min_age' === $meta_key ) {
@@ -63,12 +76,15 @@ class BRZ_Product_Specs {
         }
     }
 
+    /**
+     * Intercept postmeta additions and updates to automatically register new options for array type fields.
+     */
     public static function monitor_meta_changes( $meta_id, $object_id, $meta_key, $meta_value ): void {
         if ( strpos( $meta_key, '_brz_spec_' ) !== 0 ) {
             return;
         }
 
-        // Avoid infinite loops if we are updating options.
+        // Avoid infinite loops if we are updating options or post meta.
         remove_action( 'added_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10 );
         remove_action( 'updated_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10 );
 
@@ -172,9 +188,10 @@ class BRZ_Product_Specs {
             $type = $field['type'];
 
             if ( 'range' === $type ) {
+                $keys = self::get_range_meta_keys( $key );
                 register_post_meta(
                     'product',
-                    '_brz_spec_' . $key . '_min',
+                    $keys[0],
                     array(
                         'type'              => 'integer',
                         'single'            => true,
@@ -184,7 +201,7 @@ class BRZ_Product_Specs {
                 );
                 register_post_meta(
                     'product',
-                    '_brz_spec_' . $key . '_max',
+                    $keys[1],
                     array(
                         'type'              => 'integer',
                         'single'            => true,
@@ -192,6 +209,30 @@ class BRZ_Product_Specs {
                         'sanitize_callback' => array( __CLASS__, 'sanitize_integer' ),
                     )
                 );
+
+                // Auto-generated backend filter keys for age
+                if ( 'manual_age' === $key ) {
+                    register_post_meta(
+                        'product',
+                        '_brz_spec_filter_min_age',
+                        array(
+                            'type'              => 'integer',
+                            'single'            => true,
+                            'show_in_rest'      => true,
+                            'sanitize_callback' => array( __CLASS__, 'sanitize_integer' ),
+                        )
+                    );
+                    register_post_meta(
+                        'product',
+                        '_brz_spec_filter_max_age',
+                        array(
+                            'type'              => 'integer',
+                            'single'            => true,
+                            'show_in_rest'      => true,
+                            'sanitize_callback' => array( __CLASS__, 'sanitize_integer' ),
+                        )
+                    );
+                }
             } else {
                 $meta_type   = 'string';
                 $sanitize_cb = 'sanitize_text_field';
@@ -199,7 +240,10 @@ class BRZ_Product_Specs {
                 if ( 'boolean' === $type ) {
                     $meta_type   = 'boolean';
                     $sanitize_cb = 'rest_sanitize_boolean';
-                } elseif ( 'number' === $type ) {
+                } elseif ( 'integer' === $type ) {
+                    $meta_type   = 'integer';
+                    $sanitize_cb = array( __CLASS__, 'sanitize_integer' );
+                } elseif ( 'decimal' === $type ) {
                     $meta_type   = 'number';
                     $sanitize_cb = array( __CLASS__, 'sanitize_decimal' );
                 }
@@ -250,8 +294,9 @@ class BRZ_Product_Specs {
             $type = $field['type'];
 
             if ( 'range' === $type ) {
-                $min  = get_post_meta( $post_id, '_brz_spec_' . $key . '_min', true );
-                $max  = get_post_meta( $post_id, '_brz_spec_' . $key . '_max', true );
+                $keys = self::get_range_meta_keys( $key );
+                $min  = get_post_meta( $post_id, $keys[0], true );
+                $max  = get_post_meta( $post_id, $keys[1], true );
                 $data[ $key ] = array(
                     'min' => ( $min !== '' ) ? intval( $min ) : null,
                     'max' => ( $max !== '' ) ? intval( $max ) : null,
@@ -270,13 +315,12 @@ class BRZ_Product_Specs {
             } elseif ( 'boolean' === $type ) {
                 $val = get_post_meta( $post_id, '_brz_spec_' . $key, true );
                 $data[ $key ] = ( $val !== '' ) ? (bool) intval( $val ) : null;
-            } else {
+            } elseif ( 'integer' === $type ) {
                 $val = get_post_meta( $post_id, '_brz_spec_' . $key, true );
-                if ( $val !== '' ) {
-                    $data[ $key ] = self::sanitize_decimal( $val );
-                } else {
-                    $data[ $key ] = null;
-                }
+                $data[ $key ] = ( $val !== '' ) ? intval( $val ) : null;
+            } elseif ( 'decimal' === $type ) {
+                $val = get_post_meta( $post_id, '_brz_spec_' . $key, true );
+                $data[ $key ] = ( $val !== '' ) ? floatval( $val ) : null;
             }
         }
         return $data;
@@ -303,19 +347,34 @@ class BRZ_Product_Specs {
             $val = $value[ $key ];
 
             if ( 'range' === $type ) {
+                $keys = self::get_range_meta_keys( $key );
                 if ( is_array( $val ) ) {
                     if ( isset( $val['min'] ) ) {
                         if ( $val['min'] === null || $val['min'] === '' ) {
-                            delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
+                            delete_post_meta( $post_id, $keys[0] );
+                            if ( 'manual_age' === $key ) {
+                                delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+                            }
                         } else {
-                            update_post_meta( $post_id, '_brz_spec_' . $key . '_min', intval( $val['min'] ) );
+                            $int_min = intval( $val['min'] );
+                            update_post_meta( $post_id, $keys[0], $int_min );
+                            if ( 'manual_age' === $key ) {
+                                update_post_meta( $post_id, '_brz_spec_filter_min_age', $int_min );
+                            }
                         }
                     }
                     if ( isset( $val['max'] ) ) {
                         if ( $val['max'] === null || $val['max'] === '' ) {
-                            delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
+                            delete_post_meta( $post_id, $keys[1] );
+                            if ( 'manual_age' === $key ) {
+                                delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                            }
                         } else {
-                            update_post_meta( $post_id, '_brz_spec_' . $key . '_max', intval( $val['max'] ) );
+                            $int_max = intval( $val['max'] );
+                            update_post_meta( $post_id, $keys[1], $int_max );
+                            if ( 'manual_age' === $key ) {
+                                update_post_meta( $post_id, '_brz_spec_filter_max_age', $int_max );
+                            }
                         }
                     }
                 }
@@ -331,11 +390,17 @@ class BRZ_Product_Specs {
                 } else {
                     update_post_meta( $post_id, '_brz_spec_' . $key, $val ? '1' : '0' );
                 }
-            } else {
+            } elseif ( 'integer' === $type ) {
                 if ( $val === null || $val === '' ) {
                     delete_post_meta( $post_id, '_brz_spec_' . $key );
                 } else {
-                    update_post_meta( $post_id, '_brz_spec_' . $key, self::sanitize_decimal( $val ) );
+                    update_post_meta( $post_id, '_brz_spec_' . $key, intval( $val ) );
+                }
+            } elseif ( 'decimal' === $type ) {
+                if ( $val === null || $val === '' ) {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key );
+                } else {
+                    update_post_meta( $post_id, '_brz_spec_' . $key, floatval( $val ) );
                 }
             }
         }
@@ -380,8 +445,9 @@ class BRZ_Product_Specs {
             $has_value = false;
 
             if ( 'range' === $type ) {
-                $min_val = get_post_meta( $post->ID, '_brz_spec_' . $key . '_min', true );
-                $max_val = get_post_meta( $post->ID, '_brz_spec_' . $key . '_max', true );
+                $keys    = self::get_range_meta_keys( $key );
+                $min_val = get_post_meta( $post->ID, $keys[0], true );
+                $max_val = get_post_meta( $post->ID, $keys[1], true );
                 if ( $min_val !== '' || $max_val !== '' ) {
                     $has_value = true;
                 }
@@ -701,8 +767,9 @@ class BRZ_Product_Specs {
                     $saved_val      = '';
 
                     if ( 'range' === $type ) {
-                        $min_val = get_post_meta( $post->ID, '_brz_spec_' . $key . '_min', true );
-                        $max_val = get_post_meta( $post->ID, '_brz_spec_' . $key . '_max', true );
+                        $keys    = self::get_range_meta_keys( $key );
+                        $min_val = get_post_meta( $post->ID, $keys[0], true );
+                        $max_val = get_post_meta( $post->ID, $keys[1], true );
                     } elseif ( 'array' === $type ) {
                         $saved_val = get_post_meta( $post->ID, '_brz_spec_' . $key, true );
                         if ( ! empty( $saved_val ) ) {
@@ -756,7 +823,9 @@ class BRZ_Product_Specs {
                                         <input type="text" class="brz-new-option-input" placeholder="افزودن گزینه جدید..." style="width: 140px !important; padding: 4px 8px !important; font-size: 12px; border: 1px solid #ccc; border-radius: 4px;" />
                                         <button type="button" class="button brz-add-option-btn" style="padding: 2px 10px; font-size: 11px; height: 26px; line-height: 24px;">+ افزودن به لیست</button>
                                     </div>
-                                <?php elseif ( 'number' === $type ) : ?>
+                                <?php elseif ( 'integer' === $type ) : ?>
+                                    <input type="number" step="1" class="brz-number-input" name="brz_spec[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $saved_val ); ?>" />
+                                <?php elseif ( 'decimal' === $type ) : ?>
                                     <input type="number" step="any" class="brz-number-input" name="brz_spec[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $saved_val ); ?>" />
                                 <?php endif; ?>
                             </div>
@@ -907,8 +976,13 @@ class BRZ_Product_Specs {
             if ( ! $is_active ) {
                 // Delete all meta associated with this field to keep database clean.
                 if ( 'range' === $type ) {
-                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
-                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
+                    $keys = self::get_range_meta_keys( $key );
+                    delete_post_meta( $post_id, $keys[0] );
+                    delete_post_meta( $post_id, $keys[1] );
+                    if ( 'manual_age' === $key ) {
+                        delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+                        delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                    }
                 } else {
                     delete_post_meta( $post_id, '_brz_spec_' . $key );
                 }
@@ -920,33 +994,59 @@ class BRZ_Product_Specs {
                 $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
                 $val       = isset( $raw_specs[ $key ] ) && $raw_specs[ $key ] === '1' ? '1' : '0';
                 update_post_meta( $post_id, '_brz_spec_' . $key, $val );
-            } elseif ( 'number' === $type ) {
+            } elseif ( 'integer' === $type ) {
                 $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
                 if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
-                    update_post_meta( $post_id, '_brz_spec_' . $key, self::sanitize_decimal( $raw_specs[ $key ] ) );
+                    update_post_meta( $post_id, '_brz_spec_' . $key, intval( $raw_specs[ $key ] ) );
+                } else {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key );
+                }
+            } elseif ( 'decimal' === $type ) {
+                $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
+                if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
+                    update_post_meta( $post_id, '_brz_spec_' . $key, floatval( $raw_specs[ $key ] ) );
                 } else {
                     delete_post_meta( $post_id, '_brz_spec_' . $key );
                 }
             } elseif ( 'range' === $type ) {
+                $keys = self::get_range_meta_keys( $key );
                 $raw_ranges = isset( $_POST['brz_spec_range'] ) && is_array( $_POST['brz_spec_range'] ) ? $_POST['brz_spec_range'] : array();
                 if ( isset( $raw_ranges[ $key ] ) ) {
                     $min = $raw_ranges[ $key ]['min'];
                     $max = $raw_ranges[ $key ]['max'];
 
                     if ( '' !== $min ) {
-                        update_post_meta( $post_id, '_brz_spec_' . $key . '_min', intval( $min ) );
+                        $int_min = intval( $min );
+                        update_post_meta( $post_id, $keys[0], $int_min );
+                        if ( 'manual_age' === $key ) {
+                            update_post_meta( $post_id, '_brz_spec_filter_min_age', $int_min );
+                        }
                     } else {
-                        delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
+                        delete_post_meta( $post_id, $keys[0] );
+                        if ( 'manual_age' === $key ) {
+                            delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+                        }
                     }
 
                     if ( '' !== $max ) {
-                        update_post_meta( $post_id, '_brz_spec_' . $key . '_max', intval( $max ) );
+                        $int_max = intval( $max );
+                        update_post_meta( $post_id, $keys[1], $int_max );
+                        if ( 'manual_age' === $key ) {
+                            update_post_meta( $post_id, '_brz_spec_filter_max_age', $int_max );
+                        }
                     } else {
-                        delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
+                        delete_post_meta( $post_id, $keys[1] );
+                        if ( 'manual_age' === $key ) {
+                            delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                        }
                     }
                 } else {
-                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
-                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
+                    delete_post_meta( $post_id, $keys[0] );
+                    delete_post_meta( $post_id, $keys[1] );
+                    if ( 'manual_age' === $key ) {
+                        delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+                        delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                    }
                 }
             } elseif ( 'array' === $type ) {
                 $raw_arrays = isset( $_POST['brz_spec_array'] ) && is_array( $_POST['brz_spec_array'] ) ? $_POST['brz_spec_array'] : array();
@@ -1036,7 +1136,7 @@ class BRZ_Product_Specs {
                                     <th style="width: 15%;">نوع فیلد</th>
                                     <th style="width: 15%;">پیشوند نمایشی</th>
                                     <th style="width: 15%;">پسوند نمایشی</th>
-                                    <th style="width: 15%;">گزینه‌ها (برای نوع آرایه‌ای)</th>
+                                    <th style="width: 15%;">گزینه‌ها / فرمت بازه</th>
                                     <th style="width: 5%;">عملیات</th>
                                 </tr>
                             </thead>
@@ -1053,7 +1153,8 @@ class BRZ_Product_Specs {
                                             <td>
                                                 <select class="brz-spec-type" disabled>
                                                     <option value="boolean" <?php selected( $f['type'], 'boolean' ); ?>>ساده (بله/خیر)</option>
-                                                    <option value="number" <?php selected( $f['type'], 'number' ); ?>>عدد تکی</option>
+                                                    <option value="integer" <?php selected( $f['type'], 'integer' ); ?>>عدد صحیح (Integer)</option>
+                                                    <option value="decimal" <?php selected( $f['type'], 'decimal' ); ?>>عدد اعشاری (Decimal)</option>
                                                     <option value="range" <?php selected( $f['type'], 'range' ); ?>>بازه عددی (کمینه/بیشینه)</option>
                                                     <option value="array" <?php selected( $f['type'], 'array' ); ?>>آرایه انتخابی (چند گزینه‌ای)</option>
                                                 </select>
@@ -1065,7 +1166,7 @@ class BRZ_Product_Specs {
                                                 <input type="text" class="brz-spec-suffix" value="<?php echo esc_attr( $f['suffix'] ); ?>" placeholder="پسوند" maxlength="100" />
                                             </td>
                                             <td>
-                                                <input type="text" class="brz-spec-options" value="<?php echo esc_attr( $f['options'] ); ?>" <?php echo ( $f['type'] === 'array' ) ? '' : 'disabled style="background:#f2f2f2;"'; ?> placeholder="گزینه‌ها با کاما جدا شوند" />
+                                                <input type="text" class="brz-spec-options" value="<?php echo esc_attr( $f['options'] ); ?>" placeholder="فرمت بازه یا گزینه‌ها" />
                                             </td>
                                             <td style="text-align: center;">
                                                 <button type="button" class="brz-spec-delete-btn" title="حذف فیلد">✕</button>
@@ -1102,9 +1203,11 @@ class BRZ_Product_Specs {
                     var val  = $(this).val();
                     var $opt = $row.find('.brz-spec-options');
                     if (val === 'array') {
-                        $opt.prop('disabled', false).css('background', '').focus();
+                        $opt.prop('disabled', false).css('background', '').attr('placeholder', 'گزینه‌ها با کاما جدا شوند').val('');
+                    } else if (val === 'range') {
+                        $opt.prop('disabled', false).css('background', '').attr('placeholder', '{min} تا {max}; بالای {min}; زیر {max}').val('');
                     } else {
-                        $opt.prop('disabled', true).css('background', '#f2f2f2').val('');
+                        $opt.prop('disabled', true).css('background', '#f2f2f2').attr('placeholder', '').val('');
                     }
                 });
 
@@ -1114,13 +1217,14 @@ class BRZ_Product_Specs {
                         '<td><input type="text" class="brz-spec-label" placeholder="عنوان فارسی" /></td>' +
                         '<td><select class="brz-spec-type">' +
                             '<option value="boolean">ساده (بله/خیر)</option>' +
-                            '<option value="number">عدد تکی</option>' +
+                            '<option value="integer">عدد صحیح (Integer)</option>' +
+                            '<option value="decimal">عدد اعشاری (Decimal)</option>' +
                             '<option value="range">بازه عددی (کمینه/بیشینه)</option>' +
                             '<option value="array">آرایه انتخابی (چند گزینه‌ای)</option>' +
                         '</select></td>' +
                         '<td><input type="text" class="brz-spec-prefix" placeholder="پیشوند" /></td>' +
                         '<td><input type="text" class="brz-spec-suffix" placeholder="پسوند" /></td>' +
-                        '<td><input type="text" class="brz-spec-options brz-spec-options-input" placeholder="مثلاً: 1, 2, 3" disabled style="background:#f2f2f2;" /></td>' +
+                        '<td><input type="text" class="brz-spec-options brz-spec-options-input" placeholder="" disabled style="background:#f2f2f2;" /></td>' +
                         '<td style="text-align: center;"><button type="button" class="brz-spec-delete-btn" title="حذف فیلد">✕</button></td>' +
                         '</tr>';
                     $tbody.append(rowHtml);
@@ -1244,7 +1348,7 @@ class BRZ_Product_Specs {
             }
             $existing_keys[] = $key;
 
-            $allowed_types = array( 'boolean', 'number', 'range', 'array' );
+            $allowed_types = array( 'boolean', 'integer', 'decimal', 'range', 'array' );
             $type          = isset( $raw['type'] ) ? sanitize_key( $raw['type'] ) : 'boolean';
             if ( ! in_array( $type, $allowed_types, true ) ) {
                 $type = 'boolean';
@@ -1265,9 +1369,6 @@ class BRZ_Product_Specs {
         wp_send_json_success( array( 'message' => 'تنظیمات مشخصات محصول با موفقیت ذخیره شد.' ) );
     }
 
-    /**
-     * Frontend injection: Displays specifications inside WooCommerce's additional information tab.
-     */
     /**
      * Find matching max key for a min key.
      */
@@ -1385,24 +1486,38 @@ class BRZ_Product_Specs {
                     $value_html = $is_bakala ? '<i class="icon icon-red-close"></i>' : 'خیر';
                 }
             } elseif ( 'range' === $type ) {
-                $min  = get_post_meta( $product->get_id(), '_brz_spec_' . $key . '_min', true );
-                $max  = get_post_meta( $product->get_id(), '_brz_spec_' . $key . '_max', true );
+                $keys = self::get_range_meta_keys( $key );
+                $min  = get_post_meta( $product->get_id(), $keys[0], true );
+                $max  = get_post_meta( $product->get_id(), $keys[1], true );
 
                 if ( $min === '' && $max === '' ) {
                     continue;
                 }
 
+                // Parse user-defined templates from the options column
+                // Default: {min} تا {max}; بالای {min}; زیر {max}
+                $formats = array_map( 'trim', explode( ';', (string) $field['options'] ) );
+                $fmt_both = isset( $formats[0] ) && '' !== $formats[0] ? $formats[0] : '{min} تا {max}';
+                $fmt_min  = isset( $formats[1] ) && '' !== $formats[1] ? $formats[1] : 'بالای {min}';
+                $fmt_max  = isset( $formats[2] ) && '' !== $formats[2] ? $formats[2] : 'زیر {max}';
+
                 if ( $min !== '' && $max !== '' ) {
                     if ( $min === $max ) {
-                        $value_html = $prefix . self::to_persian_digits( $min ) . $suffix;
+                        $range_str = str_replace( '{min}', self::to_persian_digits( $min ), $fmt_min );
                     } else {
-                        $value_html = $prefix . self::to_persian_digits( $min ) . ' تا ' . self::to_persian_digits( $max ) . $suffix;
+                        $range_str = str_replace(
+                            array( '{min}', '{max}' ),
+                            array( self::to_persian_digits( $min ), self::to_persian_digits( $max ) ),
+                            $fmt_both
+                        );
                     }
                 } elseif ( $min !== '' ) {
-                    $value_html = $prefix . 'بالای ' . self::to_persian_digits( $min ) . $suffix;
+                    $range_str = str_replace( '{min}', self::to_persian_digits( $min ), $fmt_min );
                 } else {
-                    $value_html = $prefix . 'زیر ' . self::to_persian_digits( $max ) . $suffix;
+                    $range_str = str_replace( '{max}', self::to_persian_digits( $max ), $fmt_max );
                 }
+
+                $value_html = $prefix . $range_str . $suffix;
             } elseif ( 'array' === $type ) {
                 $val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
                 if ( empty( $val ) ) {
@@ -1418,7 +1533,7 @@ class BRZ_Product_Specs {
                 
                 $persian_values = array_map( array( __CLASS__, 'to_persian_digits' ), $decoded );
                 $value_html     = $prefix . implode( '، ', $persian_values ) . $suffix;
-            } elseif ( 'number' === $type ) {
+            } elseif ( 'integer' === $type || 'decimal' === $type ) {
                 $val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
                 if ( $val === '' ) {
                     continue;
