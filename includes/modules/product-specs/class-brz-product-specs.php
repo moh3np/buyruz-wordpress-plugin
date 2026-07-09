@@ -321,11 +321,17 @@ class BRZ_Product_Specs {
                     }
                 }
             } elseif ( 'array' === $type ) {
-                if ( is_array( $val ) ) {
+                if ( is_array( $val ) && ! empty( $val ) ) {
                     update_post_meta( $post_id, '_brz_spec_' . $key, wp_json_encode( array_map( 'sanitize_text_field', $val ) ) );
+                } else {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key );
                 }
             } elseif ( 'boolean' === $type ) {
-                update_post_meta( $post_id, '_brz_spec_' . $key, $val ? '1' : '0' );
+                if ( $val === null || $val === '' ) {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key );
+                } else {
+                    update_post_meta( $post_id, '_brz_spec_' . $key, $val ? '1' : '0' );
+                }
             } else {
                 if ( $val === null || $val === '' ) {
                     delete_post_meta( $post_id, '_brz_spec_' . $key );
@@ -340,6 +346,10 @@ class BRZ_Product_Specs {
     /**
      * Add product edit page metabox.
      */
+    public static function add_meta_boxes(): void {
+        self::add_metabox();
+    }
+
     public static function add_metabox(): void {
         add_meta_box(
             'brz_product_specs_metabox',
@@ -361,6 +371,42 @@ class BRZ_Product_Specs {
             echo '<p style="padding:10px 0; color:#c00;">هیچ فیلد مشخصات فنی تعریف نشده است. لطفا ابتدا از مسیر تنظیمات بایروز > مشخصات فنی محصول فیلدها را تعریف کنید.</p>';
             return;
         }
+
+        $active_fields   = array();
+        $inactive_fields = array();
+
+        foreach ( $fields as $field ) {
+            $key       = $field['key'];
+            $type      = $field['type'];
+            $has_value = false;
+
+            if ( 'range' === $type ) {
+                $min_val = get_post_meta( $post->ID, '_brz_spec_' . $key . '_min', true );
+                $max_val = get_post_meta( $post->ID, '_brz_spec_' . $key . '_max', true );
+                if ( $min_val !== '' || $max_val !== '' ) {
+                    $has_value = true;
+                }
+            } elseif ( 'array' === $type ) {
+                $saved_val = get_post_meta( $post->ID, '_brz_spec_' . $key, true );
+                if ( ! empty( $saved_val ) ) {
+                    $decoded = json_decode( $saved_val, true );
+                    if ( ! empty( $decoded ) && is_array( $decoded ) ) {
+                        $has_value = true;
+                    }
+                }
+            } else {
+                $saved_val = get_post_meta( $post->ID, '_brz_spec_' . $key, true );
+                if ( $saved_val !== '' ) {
+                    $has_value = true;
+                }
+            }
+
+            if ( $has_value ) {
+                $active_fields[] = $field;
+            } else {
+                $inactive_fields[] = $field;
+            }
+        }
         ?>
         <style>
             .brz-specs-container {
@@ -380,13 +426,31 @@ class BRZ_Product_Specs {
                 padding-bottom: 0;
             }
             .brz-spec-label {
-                width: 220px;
+                width: 200px;
                 font-weight: 600;
                 color: #333;
                 font-size: 14px;
             }
             .brz-spec-input-wrap {
                 flex: 1;
+                display: flex;
+                align-items: center;
+                gap: 15px;
+            }
+            .brz-spec-inputs-inner {
+                flex: 1;
+            }
+            .brz-spec-remove-btn {
+                background: none;
+                border: none;
+                color: #b0b0b0;
+                cursor: pointer;
+                font-size: 16px;
+                padding: 4px;
+                transition: color 0.15s;
+            }
+            .brz-spec-remove-btn:hover {
+                color: var(--md-error, #d32f2f);
             }
             
             /* Toggle Switch */
@@ -491,75 +555,119 @@ class BRZ_Product_Specs {
                 box-shadow: 0 0 0 2px rgba(26,115,232,.15) !important;
                 outline: none;
             }
+
+            /* Add Field Row at the bottom */
+            .brz-spec-add-row {
+                margin-top: 15px;
+                padding-top: 15px;
+                border-top: 1px dashed #e0e0e0;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .brz-spec-select-add {
+                padding: 6px 12px;
+                border-radius: 6px;
+                border: 1px solid #ccc;
+                font-size: 13px;
+                width: 250px;
+            }
         </style>
         <div class="brz-specs-container">
-            <?php
-            foreach ( $fields as $field ) {
-                $key   = $field['key'];
-                $type  = $field['type'];
-                $label = $field['label'];
-                
-                if ( 'range' === $type ) {
-                    $min_val = get_post_meta( $post->ID, '_brz_spec_' . $key . '_min', true );
-                    $max_val = get_post_meta( $post->ID, '_brz_spec_' . $key . '_max', true );
-                } elseif ( 'array' === $type ) {
-                    $saved_val = get_post_meta( $post->ID, '_brz_spec_' . $key, true );
+            <div id="brz-active-specs-list">
+                <?php
+                foreach ( $fields as $field ) {
+                    $key       = $field['key'];
+                    $type      = $field['type'];
+                    $label     = $field['label'];
+                    $is_active = in_array( $field, $active_fields, true );
+                    
+                    $min_val        = '';
+                    $max_val        = '';
                     $checked_values = array();
-                    if ( ! empty( $saved_val ) ) {
-                        $decoded = json_decode( $saved_val, true );
-                        if ( is_array( $decoded ) ) {
-                            $checked_values = $decoded;
+                    $saved_val      = '';
+
+                    if ( 'range' === $type ) {
+                        $min_val = get_post_meta( $post->ID, '_brz_spec_' . $key . '_min', true );
+                        $max_val = get_post_meta( $post->ID, '_brz_spec_' . $key . '_max', true );
+                    } elseif ( 'array' === $type ) {
+                        $saved_val = get_post_meta( $post->ID, '_brz_spec_' . $key, true );
+                        if ( ! empty( $saved_val ) ) {
+                            $decoded = json_decode( $saved_val, true );
+                            if ( is_array( $decoded ) ) {
+                                $checked_values = $decoded;
+                            }
                         }
+                    } else {
+                        $saved_val = get_post_meta( $post->ID, '_brz_spec_' . $key, true );
                     }
-                } else {
-                    $saved_val = get_post_meta( $post->ID, '_brz_spec_' . $key, true );
+                    ?>
+                    <div class="brz-spec-field-row" id="brz-spec-row-<?php echo esc_attr( $key ); ?>" style="<?php echo $is_active ? '' : 'display:none;'; ?>" data-key="<?php echo esc_attr( $key ); ?>">
+                        <input type="hidden" class="brz-spec-is-active-input" name="brz_spec_active[<?php echo esc_attr( $key ); ?>]" value="<?php echo $is_active ? '1' : '0'; ?>" />
+                        
+                        <div class="brz-spec-label" data-key="<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $label ); ?></div>
+                        
+                        <div class="brz-spec-input-wrap">
+                            <div class="brz-spec-inputs-inner">
+                                <?php if ( 'boolean' === $type ) : ?>
+                                    <label class="brz-switch">
+                                        <input type="hidden" name="brz_spec[<?php echo esc_attr( $key ); ?>]" value="0" />
+                                        <input type="checkbox" name="brz_spec[<?php echo esc_attr( $key ); ?>]" value="1" <?php checked( '1', $saved_val ); ?> />
+                                        <span class="brz-slider"></span>
+                                    </label>
+                                <?php elseif ( 'range' === $type ) : ?>
+                                    <div class="brz-range-row">
+                                        <span>حداقل:</span>
+                                        <input type="number" class="brz-range-input" name="brz_spec_range[<?php echo esc_attr( $key ); ?>][min]" value="<?php echo esc_attr( $min_val ); ?>" />
+                                        <span style="margin-right:10px;">حداکثر:</span>
+                                        <input type="number" class="brz-range-input" name="brz_spec_range[<?php echo esc_attr( $key ); ?>][max]" value="<?php echo esc_attr( $max_val ); ?>" />
+                                    </div>
+                                <?php elseif ( 'array' === $type ) : 
+                                    $options = array_map( 'trim', explode( ',', $field['options'] ) );
+                                    ?>
+                                    <div class="brz-checkbox-list">
+                                        <?php foreach ( $options as $opt ) : 
+                                            if ( '' === $opt ) continue;
+                                            $checked = in_array( $opt, $checked_values, true );
+                                            ?>
+                                            <label class="brz-checkbox-item">
+                                                <input type="checkbox" name="brz_spec_array[<?php echo esc_attr( $key ); ?>][]" value="<?php echo esc_attr( $opt ); ?>" <?php checked( true, $checked ); ?> />
+                                                <span><?php echo esc_html( $opt ); ?></span>
+                                            </label>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <div class="brz-spec-add-option-wrap" style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+                                        <input type="text" class="brz-new-option-input" placeholder="افزودن گزینه جدید..." style="width: 140px !important; padding: 4px 8px !important; font-size: 12px; border: 1px solid #ccc; border-radius: 4px;" />
+                                        <button type="button" class="button brz-add-option-btn" style="padding: 2px 10px; font-size: 11px; height: 26px; line-height: 24px;">+ افزودن به لیست</button>
+                                    </div>
+                                <?php elseif ( 'number' === $type ) : ?>
+                                    <input type="number" class="brz-number-input" name="brz_spec[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $saved_val ); ?>" />
+                                <?php endif; ?>
+                            </div>
+                            
+                            <button type="button" class="brz-spec-remove-btn" title="حذف مشخصه از این محصول" data-key="<?php echo esc_attr( $key ); ?>">✕</button>
+                        </div>
+                    </div>
+                    <?php
                 }
                 ?>
-                <div class="brz-spec-field-row">
-                    <div class="brz-spec-label" data-key="<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $label ); ?></div>
-                    <div class="brz-spec-input-wrap">
-                        <?php if ( 'boolean' === $type ) : ?>
-                            <label class="brz-switch">
-                                <input type="hidden" name="brz_spec[<?php echo esc_attr( $key ); ?>]" value="0" />
-                                <input type="checkbox" name="brz_spec[<?php echo esc_attr( $key ); ?>]" value="1" <?php checked( '1', $saved_val ); ?> />
-                                <span class="brz-slider"></span>
-                            </label>
-                        <?php elseif ( 'range' === $type ) : ?>
-                            <div class="brz-range-row">
-                                <span>حداقل:</span>
-                                <input type="number" class="brz-range-input" name="brz_spec_range[<?php echo esc_attr( $key ); ?>][min]" value="<?php echo esc_attr( $min_val ); ?>" />
-                                <span style="margin-right:10px;">حداکثر:</span>
-                                <input type="number" class="brz-range-input" name="brz_spec_range[<?php echo esc_attr( $key ); ?>][max]" value="<?php echo esc_attr( $max_val ); ?>" />
-                            </div>
-                        <?php elseif ( 'array' === $type ) : 
-                            $options = array_map( 'trim', explode( ',', $field['options'] ) );
-                            ?>
-                            <div class="brz-checkbox-list">
-                                <?php foreach ( $options as $opt ) : 
-                                    if ( '' === $opt ) continue;
-                                    $checked = in_array( $opt, $checked_values, true );
-                                    ?>
-                                    <label class="brz-checkbox-item">
-                                        <input type="checkbox" name="brz_spec_array[<?php echo esc_attr( $key ); ?>][]" value="<?php echo esc_attr( $opt ); ?>" <?php checked( true, $checked ); ?> />
-                                        <span><?php echo esc_html( $opt ); ?></span>
-                                    </label>
-                                <?php endforeach; ?>
-                            </div>
-                            <div class="brz-spec-add-option-wrap" style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
-                                <input type="text" class="brz-new-option-input" placeholder="افزودن گزینه جدید..." style="width: 140px !important; padding: 4px 8px !important; font-size: 12px; border: 1px solid #ccc; border-radius: 4px;" />
-                                <button type="button" class="button brz-add-option-btn" style="padding: 2px 10px; font-size: 11px; height: 26px; line-height: 24px;">+ افزودن به لیست</button>
-                            </div>
-                        <?php elseif ( 'number' === $type ) : ?>
-                            <input type="number" class="brz-number-input" name="brz_spec[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $saved_val ); ?>" />
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <?php
-            }
-            ?>
+            </div>
+
+            <!-- Selector to add new specifications to this product -->
+            <div class="brz-spec-add-row">
+                <span style="font-size: 13px; font-weight: 600; color: #555;">افزودن مشخصه جدید به این محصول:</span>
+                <select id="brz-spec-add-selector" class="brz-spec-select-add">
+                    <option value="">-- انتخاب مشخصه --</option>
+                    <?php foreach ( $inactive_fields as $field ) : ?>
+                        <option value="<?php echo esc_attr( $field['key'] ); ?>" id="brz-opt-<?php echo esc_attr( $field['key'] ); ?>"><?php echo esc_html( $field['label'] ); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
         </div>
+        
         <script>
             jQuery(document).ready(function($) {
+                // Add option within Array field list
                 $('.brz-add-option-btn').on('click', function(e) {
                     e.preventDefault();
                     var $wrap = $(this).closest('.brz-spec-input-wrap');
@@ -596,6 +704,39 @@ class BRZ_Product_Specs {
                         $(this).siblings('.brz-add-option-btn').click();
                     }
                 });
+
+                // Add spec field to product
+                $('#brz-spec-add-selector').on('change', function() {
+                    var key = $(this).val();
+                    if (key === '') return;
+
+                    var $row = $('#brz-spec-row-' + key);
+                    $row.fadeIn(250);
+                    $row.find('.brz-spec-is-active-input').val('1');
+
+                    $(this).find('option[value="' + key + '"]').remove();
+                    $(this).val('');
+                });
+
+                // Remove spec field from product
+                $('.brz-spec-remove-btn').on('click', function(e) {
+                    e.preventDefault();
+                    var key = $(this).data('key');
+                    var $row = $('#brz-spec-row-' + key);
+                    var label = $row.find('.brz-spec-label').text();
+
+                    $row.fadeOut(200, function() {
+                        $row.find('.brz-spec-is-active-input').val('0');
+                        
+                        $row.find('input[type="number"], input[type="text"]').val('');
+                        $row.find('input[type="checkbox"]').prop('checked', false);
+
+                        var $selector = $('#brz-spec-add-selector');
+                        if ($selector.find('option[value="' + key + '"]').length === 0) {
+                            $selector.append('<option value="' + key + '">' + label + '</option>');
+                        }
+                    });
+                });
             });
         </script>
         <?php
@@ -617,38 +758,40 @@ class BRZ_Product_Specs {
             return;
         }
 
-        $fields = self::get_fields();
+        $fields       = self::get_fields();
+        $active_flags = isset( $_POST['brz_spec_active'] ) && is_array( $_POST['brz_spec_active'] ) ? $_POST['brz_spec_active'] : array();
 
-        // 1. Boolean and Number fields.
-        if ( isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ) {
-            $raw_specs = $_POST['brz_spec'];
-            foreach ( $fields as $field ) {
-                $key = $field['key'];
-                if ( 'boolean' === $field['type'] ) {
-                    $val = isset( $raw_specs[ $key ] ) ? ( $raw_specs[ $key ] === '1' ? '1' : '0' ) : '0';
-                    update_post_meta( $post_id, '_brz_spec_' . $key, $val );
-                } elseif ( 'number' === $field['type'] ) {
-                    if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
-                        update_post_meta( $post_id, '_brz_spec_' . $key, intval( $raw_specs[ $key ] ) );
-                    } else {
-                        delete_post_meta( $post_id, '_brz_spec_' . $key );
-                    }
-                }
-            }
-        } else {
-            foreach ( $fields as $field ) {
-                if ( 'boolean' === $field['type'] ) {
-                    update_post_meta( $post_id, '_brz_spec_' . $field['key'], '0' );
-                }
-            }
-        }
+        foreach ( $fields as $field ) {
+            $key       = $field['key'];
+            $type      = $field['type'];
+            $is_active = isset( $active_flags[ $key ] ) && $active_flags[ $key ] === '1';
 
-        // 2. Range fields.
-        if ( isset( $_POST['brz_spec_range'] ) && is_array( $_POST['brz_spec_range'] ) ) {
-            $raw_ranges = $_POST['brz_spec_range'];
-            foreach ( $fields as $field ) {
-                $key = $field['key'];
-                if ( 'range' === $field['type'] && isset( $raw_ranges[ $key ] ) ) {
+            if ( ! $is_active ) {
+                // Delete all meta associated with this field to keep database clean.
+                if ( 'range' === $type ) {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
+                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
+                } else {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key );
+                }
+                continue;
+            }
+
+            // Save active field values.
+            if ( 'boolean' === $type ) {
+                $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
+                $val       = isset( $raw_specs[ $key ] ) && $raw_specs[ $key ] === '1' ? '1' : '0';
+                update_post_meta( $post_id, '_brz_spec_' . $key, $val );
+            } elseif ( 'number' === $type ) {
+                $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
+                if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
+                    update_post_meta( $post_id, '_brz_spec_' . $key, intval( $raw_specs[ $key ] ) );
+                } else {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key );
+                }
+            } elseif ( 'range' === $type ) {
+                $raw_ranges = isset( $_POST['brz_spec_range'] ) && is_array( $_POST['brz_spec_range'] ) ? $_POST['brz_spec_range'] : array();
+                if ( isset( $raw_ranges[ $key ] ) ) {
                     $min = $raw_ranges[ $key ]['min'];
                     $max = $raw_ranges[ $key ]['max'];
 
@@ -663,24 +806,17 @@ class BRZ_Product_Specs {
                     } else {
                         delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
                     }
+                } else {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
+                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
                 }
-            }
-        }
-
-        // 3. Array fields.
-        if ( isset( $_POST['brz_spec_array'] ) && is_array( $_POST['brz_spec_array'] ) ) {
-            $raw_arrays = $_POST['brz_spec_array'];
-            foreach ( $fields as $field ) {
-                $key = $field['key'];
-                if ( 'array' === $field['type'] ) {
-                    $val = isset( $raw_arrays[ $key ] ) && is_array( $raw_arrays[ $key ] ) ? $raw_arrays[ $key ] : array();
+            } elseif ( 'array' === $type ) {
+                $raw_arrays = isset( $_POST['brz_spec_array'] ) && is_array( $_POST['brz_spec_array'] ) ? $_POST['brz_spec_array'] : array();
+                $val        = isset( $raw_arrays[ $key ] ) && is_array( $raw_arrays[ $key ] ) ? $raw_arrays[ $key ] : array();
+                if ( ! empty( $val ) ) {
                     update_post_meta( $post_id, '_brz_spec_' . $key, wp_json_encode( array_map( 'sanitize_text_field', $val ) ) );
-                }
-            }
-        } else {
-            foreach ( $fields as $field ) {
-                if ( 'array' === $field['type'] ) {
-                    delete_post_meta( $post_id, '_brz_spec_' . $field['key'] );
+                } else {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key );
                 }
             }
         }
@@ -823,10 +959,9 @@ class BRZ_Product_Specs {
                     }, 3000);
                 }
 
-                // Toggle options input state on type change
                 $tbody.on('change', '.brz-spec-type', function() {
                     var $row = $(this).closest('tr');
-                    var val = $(this).val();
+                    var val  = $(this).val();
                     var $opt = $row.find('.brz-spec-options');
                     if (val === 'array') {
                         $opt.prop('disabled', false).css('background', '').focus();
@@ -835,7 +970,6 @@ class BRZ_Product_Specs {
                     }
                 });
 
-                // Add row click
                 $('#brz-spec-add-btn').on('click', function() {
                     var rowHtml = '<tr class="brz-spec-row is-new">' +
                         '<td><input type="text" class="brz-spec-key" placeholder="شناسه (مانند: age_range)" /></td>' +
@@ -854,7 +988,6 @@ class BRZ_Product_Specs {
                     $tbody.append(rowHtml);
                 });
 
-                // Delete row click
                 $tbody.on('click', '.brz-spec-delete-btn', function() {
                     var $row = $(this).closest('tr');
                     if ($row.hasClass('is-new')) {
@@ -866,45 +999,41 @@ class BRZ_Product_Specs {
                     }
                 });
 
-                // Save click
                 $('#brz-spec-save-btn').on('click', function() {
-                    var $btn = $(this);
+                    var $btn     = $(this);
                     var hasError = false;
                     
                     $('.brz-field-error').removeClass('brz-field-error');
 
                     var fields = [];
                     $tbody.find('.brz-spec-row').each(function() {
-                        var $row = $(this);
-                        var isNew = $row.hasClass('is-new');
-                        var keyInput = $row.find('.brz-spec-key');
-                        var labelInput = $row.find('.brz-spec-label');
-                        var typeSelect = $row.find('.brz-spec-type');
+                        var $row        = $(this);
+                        var isNew       = $row.hasClass('is-new');
+                        var keyInput    = $row.find('.brz-spec-key');
+                        var labelInput  = $row.find('.brz-spec-label');
+                        var typeSelect  = $row.find('.brz-spec-type');
                         var prefixInput = $row.find('.brz-spec-prefix');
                         var suffixInput = $row.find('.brz-spec-suffix');
                         var optionsInput = $row.find('.brz-spec-options');
 
-                        var key = $.trim(isNew ? keyInput.val() : $row.data('key'));
-                        var label = $.trim(labelInput.val());
-                        var type = typeSelect.val();
-                        var prefix = $.trim(prefixInput.val());
-                        var suffix = $.trim(suffixInput.val());
+                        var key     = $.trim(isNew ? keyInput.val() : $row.data('key'));
+                        var label   = $.trim(labelInput.val());
+                        var type    = typeSelect.val();
+                        var prefix  = $.trim(prefixInput.val());
+                        var suffix  = $.trim(suffixInput.val());
                         var options = $.trim(optionsInput.val());
 
-                        // Validate key (alphanumeric and underscore)
                         var keyRegex = /^[a-zA-Z0-9_]+$/;
                         if (key === '' || !keyRegex.test(key)) {
                             keyInput.addClass('brz-field-error');
                             hasError = true;
                         }
 
-                        // Validate label
                         if (label === '') {
                             labelInput.addClass('brz-field-error');
                             hasError = true;
                         }
 
-                        // Validate options for array
                         if (type === 'array' && options === '') {
                             optionsInput.addClass('brz-field-error');
                             hasError = true;
@@ -970,7 +1099,7 @@ class BRZ_Product_Specs {
         }
 
         $raw_fields = isset( $_POST['fields'] ) && is_array( $_POST['fields'] ) ? $_POST['fields'] : array();
-        $fields = array();
+        $fields        = array();
         $existing_keys = array();
 
         foreach ( $raw_fields as $raw ) {
@@ -985,7 +1114,7 @@ class BRZ_Product_Specs {
             $existing_keys[] = $key;
 
             $allowed_types = array( 'boolean', 'number', 'range', 'array' );
-            $type = isset( $raw['type'] ) ? sanitize_key( $raw['type'] ) : 'boolean';
+            $type          = isset( $raw['type'] ) ? sanitize_key( $raw['type'] ) : 'boolean';
             if ( ! in_array( $type, $allowed_types, true ) ) {
                 $type = 'boolean';
             }
@@ -1016,7 +1145,7 @@ class BRZ_Product_Specs {
             return;
         }
 
-        $fields = self::get_fields();
+        $fields          = self::get_fields();
         $specs_to_render = array();
 
         foreach ( $fields as $field ) {
