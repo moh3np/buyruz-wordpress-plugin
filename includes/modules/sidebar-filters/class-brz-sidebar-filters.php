@@ -854,7 +854,7 @@ class BRZ_Widget_Advanced_Filters extends WP_Widget {
             <select class="widefat" id="<?php echo esc_attr( $this->get_field_id( 'field_key' ) ); ?>" name="<?php echo esc_attr( $this->get_field_name( 'field_key' ) ); ?>">
                 <option value="">-- انتخاب مشخصه --</option>
                 <?php foreach ( $fields as $field ) : ?>
-                    <option value="<?php echo esc_attr( $field['key'] ); ?>" <?php selected( $selected_field, $field['key'] ); ?>>
+                    <option value="<?php echo esc_attr( base64_encode( $field['key'] ) ); ?>" <?php selected( $selected_field, $field['key'] ); ?>>
                         <?php echo esc_html( ! empty( $field['label'] ) ? $field['label'] : $field['key'] ); ?> (<?php echo esc_html( $field['type'] ); ?>)
                     </option>
                 <?php endforeach; ?>
@@ -869,7 +869,19 @@ class BRZ_Widget_Advanced_Filters extends WP_Widget {
     public function update( $new_instance, $old_instance ): array {
         $instance = $old_instance;
         $instance['title']     = sanitize_text_field( $new_instance['title'] );
-        $instance['field_key'] = sanitize_key( $new_instance['field_key'] );
+        
+        $field_key = isset( $new_instance['field_key'] ) ? sanitize_text_field( $new_instance['field_key'] ) : '';
+        if ( ! empty( $field_key ) ) {
+            $decoded = base64_decode( $field_key, true );
+            if ( false !== $decoded && base64_encode( $decoded ) === $field_key ) {
+                $instance['field_key'] = sanitize_key( $decoded );
+            } else {
+                $instance['field_key'] = sanitize_key( $field_key );
+            }
+        } else {
+            $instance['field_key'] = '';
+        }
+
         return $instance;
     }
 }
