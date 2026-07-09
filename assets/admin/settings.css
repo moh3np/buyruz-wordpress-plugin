@@ -693,13 +693,23 @@
 .brz-card input[type="url"],
 .brz-card input[type="number"],
 .brz-card input[type="email"],
-.brz-card textarea,
-.brz-card select {
+.brz-card textarea {
   width: 100%;
   padding: var(--md-space-md) var(--md-space-lg);
   border: 1px solid var(--md-outline);
   border-radius: var(--md-radius-sm);
   background: var(--md-surface);
+  color: var(--md-on-surface);
+  font: var(--md-font-body-md);
+  transition: all var(--md-transition-fast);
+}
+
+.brz-card select {
+  width: 100%;
+  padding: var(--md-space-md) var(--md-space-lg);
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-radius-sm);
+  background-color: var(--md-surface);
   color: var(--md-on-surface);
   font: var(--md-font-body-md);
   transition: all var(--md-transition-fast);
