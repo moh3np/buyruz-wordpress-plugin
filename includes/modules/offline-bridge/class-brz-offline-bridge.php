@@ -469,6 +469,44 @@ class BRZ_Offline_Bridge {
             exit;
         }
 
+        // Support for "create_specs" JSON object structure
+        if ( is_array( $items ) && isset( $items['create_specs'] ) && $items['create_specs'] ) {
+            if ( ! empty( $items['specs'] ) && is_array( $items['specs'] ) && class_exists( 'BRZ_Product_Specs' ) ) {
+                $fields = array();
+                $existing_keys = array();
+                foreach ( $items['specs'] as $raw ) {
+                    $key = isset( $raw['key'] ) ? sanitize_key( $raw['key'] ) : '';
+                    if ( empty( $key ) ) {
+                        continue;
+                    }
+                    if ( in_array( $key, $existing_keys, true ) ) {
+                        continue;
+                    }
+                    $existing_keys[] = $key;
+                    
+                    $allowed_types = array( 'boolean', 'number', 'range', 'array' );
+                    $type          = isset( $raw['type'] ) ? sanitize_key( $raw['type'] ) : 'boolean';
+                    if ( ! in_array( $type, $allowed_types, true ) ) {
+                        $type = 'boolean';
+                    }
+
+                    $fields[] = array(
+                        'key'     => $key,
+                        'label'   => sanitize_text_field( isset( $raw['label'] ) ? $raw['label'] : '' ),
+                        'type'    => $type,
+                        'prefix'  => sanitize_text_field( isset( $raw['prefix'] ) ? $raw['prefix'] : '' ),
+                        'suffix'  => sanitize_text_field( isset( $raw['suffix'] ) ? $raw['suffix'] : '' ),
+                        'options' => sanitize_text_field( isset( $raw['options'] ) ? $raw['options'] : '' ),
+                    );
+                }
+                update_option( 'brz_product_specs_fields', $fields );
+                wp_send_json_success( array(
+                    'message' => 'مشخصات فنی با موفقیت تعریف شدند.'
+                ) );
+                exit;
+            }
+        }
+
         // Processing array of products
         if ( ! wp_is_numeric_array( $items ) ) {
             wp_send_json_error( array( 'message' => 'آرایه محصولات نامعتبر.' ), 400 );
