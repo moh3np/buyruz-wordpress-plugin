@@ -35,84 +35,86 @@ class BRZ_Product_Specs {
     }
 
     /**
+     * Sanitize integer fields safely for PHP 8+ where passing extra arguments to built-in functions causes TypeError.
+     */
+    public static function sanitize_integer( $value ): int {
+        return intval( $value );
+    }
+
+    /**
      * Intercept postmeta additions and updates to automatically register new options for array type fields.
      */
     public static function monitor_meta_changes( $meta_id, $object_id, $meta_key, $meta_value ): void {
-        try {
-            if ( strpos( $meta_key, '_brz_spec_' ) !== 0 ) {
-                return;
-            }
+        if ( strpos( $meta_key, '_brz_spec_' ) !== 0 ) {
+            return;
+        }
 
-            // Avoid infinite loops if we are updating options.
-            remove_action( 'added_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10 );
-            remove_action( 'updated_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10 );
+        // Avoid infinite loops if we are updating options.
+        remove_action( 'added_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10 );
+        remove_action( 'updated_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10 );
 
-            $key = str_replace( '_brz_spec_', '', $meta_key );
-            // Skip range fields sub-metas.
-            if ( strpos( $key, '_min' ) !== false || strpos( $key, '_max' ) !== false ) {
-                add_action( 'added_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
-                add_action( 'updated_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
-                return;
-            }
-
-            $fields  = self::get_fields();
-            $updated = false;
-
-            foreach ( $fields as &$field ) {
-                if ( $field['key'] === $key && 'array' === $field['type'] ) {
-                    $values = array();
-
-                    // Decode the meta value which could be an array, JSON, serialized, or comma-separated string.
-                    if ( is_array( $meta_value ) ) {
-                        $values = $meta_value;
-                    } elseif ( is_string( $meta_value ) && ! empty( $meta_value ) ) {
-                        $decoded = json_decode( $meta_value, true );
-                        if ( is_array( $decoded ) ) {
-                            $values = $decoded;
-                        } else {
-                            $unserialized = maybe_unserialize( $meta_value );
-                            if ( is_array( $unserialized ) ) {
-                                $values = $unserialized;
-                            } else {
-                                $values = array_map( 'trim', explode( ',', $meta_value ) );
-                            }
-                        }
-                    }
-
-                    if ( empty( $values ) ) {
-                        break;
-                    }
-
-                    // Get current options and append new ones.
-                    $current_options = array_map( 'trim', explode( ',', (string) $field['options'] ) );
-                    $current_options = array_filter( $current_options );
-
-                    foreach ( $values as $val ) {
-                        $val = trim( $val );
-                        if ( '' !== $val && ! in_array( $val, $current_options, true ) ) {
-                            $current_options[] = $val;
-                            $updated           = true;
-                        }
-                    }
-
-                    if ( $updated ) {
-                        $field['options'] = implode( ', ', $current_options );
-                    }
-                    break;
-                }
-            }
-
-            if ( $updated ) {
-                update_option( 'brz_product_specs_fields', $fields );
-            }
-
-            // Re-add actions.
+        $key = str_replace( '_brz_spec_', '', $meta_key );
+        // Skip range fields sub-metas.
+        if ( strpos( $key, '_min' ) !== false || strpos( $key, '_max' ) !== false ) {
             add_action( 'added_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
             add_action( 'updated_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
-
-        } catch ( Throwable $t ) {
-            wp_die( 'Error in monitor_meta_changes: ' . esc_html( $t->getMessage() ) . '<br><pre>' . esc_html( $t->getTraceAsString() ) . '</pre>' );
+            return;
         }
+
+        $fields  = self::get_fields();
+        $updated = false;
+
+        foreach ( $fields as &$field ) {
+            if ( $field['key'] === $key && 'array' === $field['type'] ) {
+                $values = array();
+
+                // Decode the meta value which could be an array, JSON, serialized, or comma-separated string.
+                if ( is_array( $meta_value ) ) {
+                    $values = $meta_value;
+                } elseif ( is_string( $meta_value ) && ! empty( $meta_value ) ) {
+                    $decoded = json_decode( $meta_value, true );
+                    if ( is_array( $decoded ) ) {
+                        $values = $decoded;
+                    } else {
+                        $unserialized = maybe_unserialize( $meta_value );
+                        if ( is_array( $unserialized ) ) {
+                            $values = $unserialized;
+                        } else {
+                            $values = array_map( 'trim', explode( ',', $meta_value ) );
+                        }
+                    }
+                }
+
+                if ( empty( $values ) ) {
+                    break;
+                }
+
+                // Get current options and append new ones.
+                $current_options = array_map( 'trim', explode( ',', (string) $field['options'] ) );
+                $current_options = array_filter( $current_options );
+
+                foreach ( $values as $val ) {
+                    $val = trim( $val );
+                    if ( '' !== $val && ! in_array( $val, $current_options, true ) ) {
+                        $current_options[] = $val;
+                        $updated           = true;
+                    }
+                }
+
+                if ( $updated ) {
+                    $field['options'] = implode( ', ', $current_options );
+                }
+                break;
+            }
+        }
+
+        if ( $updated ) {
+            update_option( 'brz_product_specs_fields', $fields );
+        }
+
+        // Re-add actions.
+        add_action( 'added_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
+        add_action( 'updated_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
     }
 
     /**
@@ -192,7 +194,7 @@ class BRZ_Product_Specs {
                         'type'              => 'integer',
                         'single'            => true,
                         'show_in_rest'      => true,
-                        'sanitize_callback' => 'intval',
+                        'sanitize_callback' => array( __CLASS__, 'sanitize_integer' ),
                     )
                 );
                 register_post_meta(
@@ -202,7 +204,7 @@ class BRZ_Product_Specs {
                         'type'              => 'integer',
                         'single'            => true,
                         'show_in_rest'      => true,
-                        'sanitize_callback' => 'intval',
+                        'sanitize_callback' => array( __CLASS__, 'sanitize_integer' ),
                     )
                 );
             } else {
@@ -214,7 +216,7 @@ class BRZ_Product_Specs {
                     $sanitize_cb = 'rest_sanitize_boolean';
                 } elseif ( 'number' === $type ) {
                     $meta_type   = 'integer';
-                    $sanitize_cb = 'intval';
+                    $sanitize_cb = array( __CLASS__, 'sanitize_integer' );
                 }
 
                 register_post_meta(
@@ -866,83 +868,79 @@ class BRZ_Product_Specs {
      * Save product metadata values.
      */
     public static function save_metabox( int $post_id ): void {
-        try {
-            if ( ! isset( $_POST['brz_product_specs_nonce'] ) || ! wp_verify_nonce( $_POST['brz_product_specs_nonce'], 'brz_product_specs_save' ) ) {
-                return;
-            }
+        if ( ! isset( $_POST['brz_product_specs_nonce'] ) || ! wp_verify_nonce( $_POST['brz_product_specs_nonce'], 'brz_product_specs_save' ) ) {
+            return;
+        }
 
-            if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-                return;
-            }
+        if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+            return;
+        }
 
-            if ( ! current_user_can( 'edit_post', $post_id ) ) {
-                return;
-            }
+        if ( ! current_user_can( 'edit_post', $post_id ) ) {
+            return;
+        }
 
-            $fields       = self::get_fields();
-            $active_flags = isset( $_POST['brz_spec_active'] ) && is_array( $_POST['brz_spec_active'] ) ? $_POST['brz_spec_active'] : array();
+        $fields       = self::get_fields();
+        $active_flags = isset( $_POST['brz_spec_active'] ) && is_array( $_POST['brz_spec_active'] ) ? $_POST['brz_spec_active'] : array();
 
-            foreach ( $fields as $field ) {
-                $key       = $field['key'];
-                $type      = $field['type'];
-                $is_active = isset( $active_flags[ $key ] ) && $active_flags[ $key ] === '1';
+        foreach ( $fields as $field ) {
+            $key       = $field['key'];
+            $type      = $field['type'];
+            $is_active = isset( $active_flags[ $key ] ) && $active_flags[ $key ] === '1';
 
-                if ( ! $is_active ) {
-                    // Delete all meta associated with this field to keep database clean.
-                    if ( 'range' === $type ) {
-                        delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
-                        delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
-                    } else {
-                        delete_post_meta( $post_id, '_brz_spec_' . $key );
-                    }
-                    continue;
+            if ( ! $is_active ) {
+                // Delete all meta associated with this field to keep database clean.
+                if ( 'range' === $type ) {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
+                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
+                } else {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key );
                 }
+                continue;
+            }
 
-                // Save active field values.
-                if ( 'boolean' === $type ) {
-                    $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
-                    $val       = isset( $raw_specs[ $key ] ) && $raw_specs[ $key ] === '1' ? '1' : '0';
-                    update_post_meta( $post_id, '_brz_spec_' . $key, $val );
-                } elseif ( 'number' === $type ) {
-                    $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
-                    if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
-                        update_post_meta( $post_id, '_brz_spec_' . $key, intval( $raw_specs[ $key ] ) );
-                    } else {
-                        delete_post_meta( $post_id, '_brz_spec_' . $key );
-                    }
-                } elseif ( 'range' === $type ) {
-                    $raw_ranges = isset( $_POST['brz_spec_range'] ) && is_array( $_POST['brz_spec_range'] ) ? $_POST['brz_spec_range'] : array();
-                    if ( isset( $raw_ranges[ $key ] ) ) {
-                        $min = $raw_ranges[ $key ]['min'];
-                        $max = $raw_ranges[ $key ]['max'];
+            // Save active field values.
+            if ( 'boolean' === $type ) {
+                $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
+                $val       = isset( $raw_specs[ $key ] ) && $raw_specs[ $key ] === '1' ? '1' : '0';
+                update_post_meta( $post_id, '_brz_spec_' . $key, $val );
+            } elseif ( 'number' === $type ) {
+                $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
+                if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
+                    update_post_meta( $post_id, '_brz_spec_' . $key, intval( $raw_specs[ $key ] ) );
+                } else {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key );
+                }
+            } elseif ( 'range' === $type ) {
+                $raw_ranges = isset( $_POST['brz_spec_range'] ) && is_array( $_POST['brz_spec_range'] ) ? $_POST['brz_spec_range'] : array();
+                if ( isset( $raw_ranges[ $key ] ) ) {
+                    $min = $raw_ranges[ $key ]['min'];
+                    $max = $raw_ranges[ $key ]['max'];
 
-                        if ( '' !== $min ) {
-                            update_post_meta( $post_id, '_brz_spec_' . $key . '_min', intval( $min ) );
-                        } else {
-                            delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
-                        }
-
-                        if ( '' !== $max ) {
-                            update_post_meta( $post_id, '_brz_spec_' . $key . '_max', intval( $max ) );
-                        } else {
-                            delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
-                        }
+                    if ( '' !== $min ) {
+                        update_post_meta( $post_id, '_brz_spec_' . $key . '_min', intval( $min ) );
                     } else {
                         delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
+                    }
+
+                    if ( '' !== $max ) {
+                        update_post_meta( $post_id, '_brz_spec_' . $key . '_max', intval( $max ) );
+                    } else {
                         delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
                     }
-                } elseif ( 'array' === $type ) {
-                    $raw_arrays = isset( $_POST['brz_spec_array'] ) && is_array( $_POST['brz_spec_array'] ) ? $_POST['brz_spec_array'] : array();
-                    $val        = isset( $raw_arrays[ $key ] ) && is_array( $raw_arrays[ $key ] ) ? $raw_arrays[ $key ] : array();
-                    if ( ! empty( $val ) ) {
-                        update_post_meta( $post_id, '_brz_spec_' . $key, wp_json_encode( array_map( 'sanitize_text_field', $val ) ) );
-                    } else {
-                        delete_post_meta( $post_id, '_brz_spec_' . $key );
-                    }
+                } else {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_min' );
+                    delete_post_meta( $post_id, '_brz_spec_' . $key . '_max' );
+                }
+            } elseif ( 'array' === $type ) {
+                $raw_arrays = isset( $_POST['brz_spec_array'] ) && is_array( $_POST['brz_spec_array'] ) ? $_POST['brz_spec_array'] : array();
+                $val        = isset( $raw_arrays[ $key ] ) && is_array( $raw_arrays[ $key ] ) ? $raw_arrays[ $key ] : array();
+                if ( ! empty( $val ) ) {
+                    update_post_meta( $post_id, '_brz_spec_' . $key, wp_json_encode( array_map( 'sanitize_text_field', $val ) ) );
+                } else {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key );
                 }
             }
-        } catch ( Throwable $t ) {
-            wp_die( 'Error in save_metabox: ' . esc_html( $t->getMessage() ) . '<br><pre>' . esc_html( $t->getTraceAsString() ) . '</pre>' );
         }
     }
 
