@@ -862,12 +862,12 @@ class BRZ_Product_Specs {
                     var $row = $('#brz-spec-row-' + key);
                     var label = $row.find('.brz-spec-label').text().replace('✕ حذف مشخصه', '').trim();
 
-                    $row.fadeOut(200, function() {
-                        $row.find('.brz-spec-is-active-input').val('0');
-                        
-                        $row.find('input[type="number"], input[type="text"]').val('');
-                        $row.find('input[type="checkbox"]').prop('checked', false);
+                    // Set values and active flag instantly (synchronously) to prevent double-saving or fast-update bugs
+                    $row.find('.brz-spec-is-active-input').val('0');
+                    $row.find('input[type="number"], input[type="text"]').val('');
+                    $row.find('input[type="checkbox"]').prop('checked', false);
 
+                    $row.fadeOut(200, function() {
                         var $selector = $('#brz-spec-add-selector');
                         if ($selector.find('option[value="' + key + '"]').length === 0) {
                             $selector.append('<option value="' + key + '">' + label + '</option>');
@@ -1127,14 +1127,7 @@ class BRZ_Product_Specs {
                 });
 
                 $tbody.on('click', '.brz-spec-delete-btn', function() {
-                    var $row = $(this).closest('tr');
-                    if ($row.hasClass('is-new')) {
-                        $row.remove();
-                    } else {
-                        if (confirm('آیا از حذف این فیلد مطمئن هستید؟ دیتای این مشخصه در صفحات محصولات پنهان می‌شود ولی متادیتاهای ذخیره شده قبلی در دیتابیس باقی می‌مانند.')) {
-                            $row.remove();
-                        }
-                    }
+                    $(this).closest('tr').remove();
                 });
 
                 $('#brz-spec-save-btn').on('click', function() {
