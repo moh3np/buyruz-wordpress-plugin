@@ -21,9 +21,11 @@ class BRZ_Product_Specs {
             add_action( 'add_meta_boxes', array( __CLASS__, 'add_metabox' ) );
             add_action( 'save_post_product', array( __CLASS__, 'save_metabox' ) );
             add_action( 'wp_ajax_brz_save_product_specs_fields', array( __CLASS__, 'ajax_save_fields' ) );
+            add_action( 'wp_ajax_brz_save_unified_specs_layout', array( __CLASS__, 'ajax_save_unified_layout' ) );
         } else {
-            // Frontend: Inject custom attributes before default WC attributes.
-            add_action( 'woocommerce_product_additional_information', array( __CLASS__, 'render_custom_specs' ), 9 );
+            // Frontend: Inject unified layout specifications and remove WooCommerce default
+            add_action( 'woocommerce_product_additional_information', array( __CLASS__, 'remove_wc_default_attributes_display' ), 1 );
+            add_action( 'woocommerce_product_additional_information', array( __CLASS__, 'render_unified_product_specs' ), 10 );
         }
 
         // Expose specs field in REST API.
@@ -1114,6 +1116,92 @@ class BRZ_Product_Specs {
             .brz-spec-delete-btn:hover {
                 background: rgba(211,47,47,.08);
             }
+            
+            /* Unified Layout Custom Styles */
+            .brz-layout-container {
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+                margin-top: 15px;
+            }
+            .brz-draggable-list {
+                background: #fdfdfd;
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                padding: 10px;
+                min-height: 80px;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+            .brz-layout-item {
+                background: #fff;
+                border: 1px solid #d2d2d2;
+                border-radius: 6px;
+                padding: 8px 15px;
+                display: flex;
+                align-items: center;
+                cursor: grab;
+                user-select: none;
+                transition: background 0.15s, border-color 0.15s;
+            }
+            .brz-layout-item:hover {
+                background: #f7f9fc;
+                border-color: var(--brz-brand, #1a73e8);
+            }
+            .brz-layout-item.is-dragging {
+                opacity: 0.4;
+                border: 1px dashed var(--brz-brand, #1a73e8);
+                background: #f0f4f9;
+            }
+            .brz-layout-drag-handle {
+                font-size: 16px;
+                color: #888;
+                margin-left: 12px;
+                cursor: grab;
+            }
+            .brz-layout-item-label {
+                font-weight: 500;
+                color: #333;
+                flex-grow: 1;
+            }
+            .brz-layout-item-type {
+                font-size: 11px;
+                color: #888;
+                background: #f1f1f1;
+                padding: 2px 8px;
+                border-radius: 10px;
+            }
+            .brz-cat-override-card {
+                border: 1px solid #dcdcdc;
+                border-radius: 8px;
+                margin-top: 15px;
+                background: #fafafa;
+                overflow: hidden;
+            }
+            .brz-cat-override-header {
+                padding: 12px 15px;
+                border-bottom: 1px solid #dcdcdc;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-weight: bold;
+                background: #f1f1f1;
+            }
+            .brz-cat-override-body {
+                padding: 15px;
+            }
+            .brz-btn-danger-link {
+                background: none;
+                border: none;
+                color: #d32f2f;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            .brz-btn-danger-link:hover {
+                text-decoration: underline;
+            }
         </style>
         <div class="brz-single-column" dir="rtl">
             <form id="brz-product-specs-form">
@@ -1184,6 +1272,114 @@ class BRZ_Product_Specs {
                     </div>
                 </div>
             </form>
+
+            <!-- Card 2: Unified Specs Layout Manager -->
+            <?php
+            $available_items = self::get_all_available_layout_items();
+            $layout = self::get_unified_layout();
+            $global_order = $layout['global'];
+            $categories_layout = $layout['categories'];
+
+            $categories = get_terms( array(
+                'taxonomy'   => 'product_cat',
+                'hide_empty' => false,
+            ) );
+            ?>
+            <div class="brz-card" style="margin-top:20px;">
+                <div class="brz-card__header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <h3 class="brz-card__title">چیدمان جدول مشخصات صفحه محصول (Unified Layout)</h3>
+                    <div style="display:flex; align-items:center; gap:5px;">
+                        <select id="brz-cat-select" style="padding:6px; border-radius:6px; border:1px solid #ccc; font-size:13px; max-width:250px;">
+                            <option value="">-- چیدمان اختصاصی برای دسته‌بندی --</option>
+                            <?php if ( is_array( $categories ) && ! is_wp_error( $categories ) ) : ?>
+                                <?php foreach ( $categories as $cat ) : ?>
+                                    <option value="<?php echo esc_attr( $cat->term_id ); ?>"><?php echo esc_html( $cat->name ); ?></option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                        <button type="button" id="brz-add-cat-layout-btn" class="brz-button brz-button--secondary" style="padding: 7px 15px; font-size: 12px;">افزودن</button>
+                    </div>
+                </div>
+                <div class="brz-card__body">
+                    <p style="color:var(--md-on-surface-variant, #666); font-size:13px; margin-bottom:15px;">
+                        ترتیب نمایش مشخصه‌های فنی (بایروز)، ویژگی‌های ووکامرس (Attributes) و مقادیر فیزیکی را به صورت یکپارچه با درگ اند دراپ تعیین کنید. ویژگی‌های محلی (Local) به صورت خودکار به انتهای لیست محصول منتقل می‌شوند.
+                    </p>
+
+                    <!-- Global Layout List -->
+                    <div style="margin-bottom: 25px;">
+                        <h4 style="margin: 0 0 10px 0; font-weight: 600; color: var(--brz-brand, #1a73e8);">چیدمان عمومی فروشگاه (Global Layout)</h4>
+                        <div class="brz-draggable-list" id="brz-global-layout-list">
+                            <?php
+                            $ordered_items = array();
+                            foreach ( $global_order as $slug ) {
+                                if ( isset( $available_items[ $slug ] ) ) {
+                                    $ordered_items[ $slug ] = $available_items[ $slug ];
+                                    unset( $available_items[ $slug ] );
+                                }
+                            }
+                            foreach ( $available_items as $slug => $item ) {
+                                $ordered_items[ $slug ] = $item;
+                            }
+
+                            // Reload all items for category overrides cloning
+                            $available_items = self::get_all_available_layout_items();
+
+                            foreach ( $ordered_items as $slug => $item ) : ?>
+                                <div class="brz-layout-item" draggable="true" data-slug="<?php echo esc_attr( $slug ); ?>">
+                                    <span class="brz-layout-drag-handle">☰</span>
+                                    <span class="brz-layout-item-label"><?php echo esc_html( $item['label'] ); ?></span>
+                                    <span class="brz-layout-item-type"><?php echo esc_html( $item['type'] ); ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+
+                    <!-- Category Overrides Container -->
+                    <div id="brz-category-layouts-container">
+                        <?php foreach ( $categories_layout as $cat_id => $slugs ) : 
+                            $cat_term = get_term( intval( $cat_id ), 'product_cat' );
+                            if ( is_wp_error( $cat_term ) || ! $cat_term ) {
+                                continue;
+                            }
+                            ?>
+                            <div class="brz-cat-override-card" data-cat-id="<?php echo esc_attr( $cat_id ); ?>">
+                                <div class="brz-cat-override-header">
+                                    <span>چیدمان اختصاصی دسته‌بندی: <?php echo esc_html( $cat_term->name ); ?></span>
+                                    <button type="button" class="brz-btn-danger-link brz-remove-cat-layout-btn">✕ حذف این چیدمان</button>
+                                </div>
+                                <div class="brz-cat-override-body">
+                                    <div class="brz-draggable-list brz-cat-list" id="brz-cat-list-<?php echo esc_attr( $cat_id ); ?>">
+                                        <?php
+                                        $cat_items = $available_items;
+                                        $cat_ordered = array();
+                                        foreach ( $slugs as $slug ) {
+                                            if ( isset( $cat_items[ $slug ] ) ) {
+                                                $cat_ordered[ $slug ] = $cat_items[ $slug ];
+                                                unset( $cat_items[ $slug ] );
+                                            }
+                                        }
+                                        foreach ( $cat_items as $slug => $item ) {
+                                            $cat_ordered[ $slug ] = $item;
+                                        }
+
+                                        foreach ( $cat_ordered as $slug => $item ) : ?>
+                                            <div class="brz-layout-item" draggable="true" data-slug="<?php echo esc_attr( $slug ); ?>">
+                                                <span class="brz-layout-drag-handle">☰</span>
+                                                <span class="brz-layout-item-label"><?php echo esc_html( $item['label'] ); ?></span>
+                                                <span class="brz-layout-item-type"><?php echo esc_html( $item['type'] ); ?></span>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <div style="margin-top: 25px; border-top: 1px solid #eee; padding-top: 20px; text-align: left;">
+                        <button type="button" id="brz-save-layout-btn" class="brz-button">ذخیره چیدمان مشخصات</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <script>
@@ -1197,6 +1393,131 @@ class BRZ_Product_Specs {
                         $bar.removeClass('show');
                     }, 3000);
                 }
+
+                // Drag and drop sorting handler
+                function makeListSortable(list) {
+                    let dragEl;
+                    
+                    list.addEventListener('dragstart', function(e) {
+                        dragEl = e.target.closest('.brz-layout-item');
+                        if (!dragEl) return;
+                        e.dataTransfer.effectAllowed = 'move';
+                        dragEl.classList.add('is-dragging');
+                    });
+                    
+                    list.addEventListener('dragover', function(e) {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        const target = e.target.closest('.brz-layout-item');
+                        if (target && target !== dragEl && target.parentNode === list) {
+                            const rect = target.getBoundingClientRect();
+                            const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+                            list.insertBefore(dragEl, next ? target.nextSibling : target);
+                        }
+                    });
+                    
+                    list.addEventListener('dragend', function(e) {
+                        if (dragEl) {
+                            dragEl.classList.remove('is-dragging');
+                        }
+                    });
+                }
+
+                // Initialize drag sorting
+                const globalList = document.getElementById('brz-global-layout-list');
+                makeListSortable(globalList);
+
+                document.querySelectorAll('.brz-cat-list').forEach(function(list) {
+                    makeListSortable(list);
+                });
+
+                // Add Category Layout
+                $('#brz-add-cat-layout-btn').on('click', function() {
+                    const select = $('#brz-cat-select');
+                    const catId = select.val();
+                    const catName = select.find('option:selected').text();
+
+                    if (!catId) {
+                        alert('لطفاً ابتدا یک دسته‌بندی انتخاب کنید.');
+                        return;
+                    }
+
+                    if ($(`.brz-cat-override-card[data-cat-id="${catId}"]`).length > 0) {
+                        alert('چیدمان اختصاصی برای این دسته‌بندی قبلاً ایجاد شده است.');
+                        return;
+                    }
+
+                    const globalItemsHtml = Array.from(globalList.querySelectorAll('.brz-layout-item'))
+                        .map(el => el.outerHTML)
+                        .join('');
+
+                    const cardHtml = `
+                        <div class="brz-cat-override-card" data-cat-id="${catId}">
+                            <div class="brz-cat-override-header">
+                                <span>چیدمان اختصاصی دسته‌بندی: ${catName}</span>
+                                <button type="button" class="brz-btn-danger-link brz-remove-cat-layout-btn">✕ حذف این چیدمان</button>
+                            </div>
+                            <div class="brz-cat-override-body">
+                                <div class="brz-draggable-list brz-cat-list" id="brz-cat-list-${catId}">
+                                    ${globalItemsHtml}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    $('#brz-category-layouts-container').append(cardHtml);
+                    
+                    const newList = document.getElementById(`brz-cat-list-${catId}`);
+                    makeListSortable(newList);
+                    select.val('');
+                });
+
+                // Remove Category Override Layout
+                $(document).on('click', '.brz-remove-cat-layout-btn', function() {
+                    if (confirm('آیا مایل به حذف این چیدمان اختصاصی هستید؟ چیدمان این دسته‌بندی به حالت عمومی بازمی‌گردد.')) {
+                        $(this).closest('.brz-cat-override-card').remove();
+                    }
+                });
+
+                // Save layout configuration
+                $('#brz-save-layout-btn').on('click', function() {
+                    const btn = $(this);
+                    btn.prop('disabled', true).text('در حال ذخیره چیدمان…');
+
+                    const globalOrder = Array.from(globalList.querySelectorAll('.brz-layout-item'))
+                        .map(el => el.getAttribute('data-slug'));
+
+                    const categories = {};
+                    document.querySelectorAll('.brz-cat-override-card').forEach(function(card) {
+                        const catId = card.getAttribute('data-cat-id');
+                        const slugs = Array.from(card.querySelectorAll('.brz-layout-item'))
+                            .map(el => el.getAttribute('data-slug'));
+                        categories[catId] = slugs;
+                    });
+
+                    $.ajax({
+                        url: ajaxurl,
+                        type: 'POST',
+                        data: {
+                            action: 'brz_save_unified_specs_layout',
+                            global: globalOrder,
+                            categories: categories,
+                            _wpnonce: '<?php echo esc_js( wp_create_nonce( "brz_product_specs_save_layout_nonce" ) ); ?>'
+                        },
+                        success: function(res) {
+                            btn.prop('disabled', false).text('ذخیره چیدمان مشخصات');
+                            if (res.success) {
+                                showSnackbar(res.data.message || 'چیدمان با موفقیت ذخیره شد.', 'success');
+                            } else {
+                                showSnackbar('خطا: ' + res.data.message, 'error');
+                            }
+                        },
+                        error: function() {
+                            btn.prop('disabled', false).text('ذخیره چیدمان مشخصات');
+                            showSnackbar('خطای ارتباط با سرور.', 'error');
+                        }
+                    });
+                });
 
                 $tbody.on('change', '.brz-spec-type', function() {
                     var $row = $(this).closest('tr');
@@ -1592,5 +1913,383 @@ class BRZ_Product_Specs {
         $en = array('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
         $fa = array('۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹');
         return str_replace($en, $fa, (string) $str);
+    }
+
+    /**
+     * Disable standard WooCommerce attribute table.
+     */
+    public static function remove_wc_default_attributes_display(): void {
+        remove_action( 'woocommerce_product_additional_information', 'wc_display_product_attributes', 10 );
+    }
+
+    /**
+     * Get all available specifications layout items (specs, weight, dimensions, attributes).
+     */
+    public static function get_all_available_layout_items(): array {
+        $items = array();
+
+        $fields = self::get_fields();
+        if ( is_array( $fields ) ) {
+            foreach ( $fields as $f ) {
+                $items[ $f['key'] ] = array(
+                    'label' => $f['label'] ? $f['label'] : $f['key'],
+                    'type'  => 'مشخصه بایروز (' . $f['type'] . ')'
+                );
+            }
+        }
+
+        $items['weight'] = array(
+            'label' => 'وزن محصول',
+            'type'  => 'ویژگی فیزیکی ووکامرس'
+        );
+        $items['dimensions'] = array(
+            'label' => 'ابعاد محصول',
+            'type'  => 'ویژگی فیزیکی ووکامرس'
+        );
+
+        if ( function_exists( 'wc_get_attribute_taxonomies' ) ) {
+            $taxonomies = wc_get_attribute_taxonomies();
+            if ( is_array( $taxonomies ) ) {
+                foreach ( $taxonomies as $tax ) {
+                    $slug = wc_attribute_taxonomy_name( $tax->attribute_name );
+                    $items[ $slug ] = array(
+                        'label' => $tax->attribute_label ? $tax->attribute_label : $tax->attribute_name,
+                        'type'  => 'ویژگی ووکامرس (Attribute)'
+                    );
+                }
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * Retrieve the unified specs layout templates.
+     */
+    public static function get_unified_layout(): array {
+        $layout = get_option( 'brz_unified_specs_layout', null );
+        if ( is_array( $layout ) ) {
+            if ( ! isset( $layout['global'] ) || ! is_array( $layout['global'] ) ) {
+                $layout['global'] = array();
+            }
+            if ( ! isset( $layout['categories'] ) || ! is_array( $layout['categories'] ) ) {
+                $layout['categories'] = array();
+            }
+            return $layout;
+        }
+
+        // Default layout: specs fields, weight, dimensions, then wc attributes
+        $global = array();
+        $fields = self::get_fields();
+        foreach ( $fields as $f ) {
+            $global[] = $f['key'];
+        }
+
+        $global[] = 'weight';
+        $global[] = 'dimensions';
+
+        if ( function_exists( 'wc_get_attribute_taxonomies' ) ) {
+            $taxonomies = wc_get_attribute_taxonomies();
+            foreach ( $taxonomies as $tax ) {
+                $global[] = wc_attribute_taxonomy_name( $tax->attribute_name );
+            }
+        }
+
+        return array(
+            'global'     => array_values( array_unique( $global ) ),
+            'categories' => array(),
+        );
+    }
+
+    /**
+     * AJAX handler to save layout configurations.
+     */
+    public static function ajax_save_unified_layout(): void {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'دسترسی کافی ندارید.' ), 403 );
+        }
+
+        if ( ! check_ajax_referer( 'brz_product_specs_save_layout_nonce', '_wpnonce', false ) ) {
+            wp_send_json_error( array( 'message' => 'نشست معتبر نیست.' ), 403 );
+        }
+
+        $global = isset( $_POST['global'] ) && is_array( $_POST['global'] ) ? array_map( 'sanitize_text_field', $_POST['global'] ) : array();
+        $raw_categories = isset( $_POST['categories'] ) && is_array( $_POST['categories'] ) ? $_POST['categories'] : array();
+        
+        $categories = array();
+        foreach ( $raw_categories as $cat_id => $slugs ) {
+            $cat_id = strval( intval( $cat_id ) );
+            if ( is_array( $slugs ) ) {
+                $categories[ $cat_id ] = array_map( 'sanitize_text_field', $slugs );
+            }
+        }
+
+        $layout = array(
+            'global'     => $global,
+            'categories' => $categories
+        );
+
+        update_option( 'brz_unified_specs_layout', $layout, false );
+
+        wp_send_json_success( array( 'message' => 'چیدمان یکپارچه با موفقیت ذخیره شد.' ) );
+    }
+
+    /**
+     * Unified specifications tab rendering callback.
+     * Merges custom specs, WooCommerce attributes, weight, and dimensions into a single sorted list.
+     */
+    public static function render_unified_product_specs( $product = null ): void {
+        if ( ! is_object( $product ) ) {
+            global $product;
+        }
+        if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+            return;
+        }
+
+        $specs_values = array();
+
+        // 1. Gather Buyruz custom specs
+        $fields = self::get_fields();
+        if ( ! empty( $fields ) ) {
+            $fields_by_key = array();
+            foreach ( $fields as $field ) {
+                $fields_by_key[ $field['key'] ] = $field;
+            }
+            $all_keys = array_keys( $fields_by_key );
+            $processed_keys = array();
+
+            foreach ( $fields as $field ) {
+                $key = $field['key'];
+                if ( in_array( $key, $processed_keys, true ) ) {
+                    continue;
+                }
+
+                $max_key = self::get_matching_max_key( $key, $all_keys );
+
+                if ( $max_key ) {
+                    $max_field = $fields_by_key[ $max_key ];
+                    $processed_keys[] = $key;
+                    $processed_keys[] = $max_key;
+
+                    $min_val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
+                    $max_val = get_post_meta( $product->get_id(), '_brz_spec_' . $max_key, true );
+
+                    if ( $min_val === '' && $max_val === '' ) {
+                        continue;
+                    }
+
+                    $combined_label = trim( str_replace( array( 'حداقل', 'حداکثر' ), '', $field['label'] ) );
+                    if ( empty( $combined_label ) ) {
+                        $combined_label = $field['label'];
+                    }
+
+                    if ( $min_val !== '' && $max_val !== '' ) {
+                        if ( $min_val === $max_val ) {
+                            $value_html = $field['prefix'] . self::to_persian_digits( $min_val ) . $field['suffix'];
+                        } else {
+                            $clean_prefix = trim( str_replace( array( 'بالای', 'بیشتر از', 'کمتر از', 'زیر' ), '', $field['prefix'] ) );
+                            if ( ! empty( $clean_prefix ) && substr( $clean_prefix, -1 ) !== ' ' ) {
+                                $clean_prefix .= ' ';
+                            }
+                            $value_html = $clean_prefix . self::to_persian_digits( $min_val ) . ' تا ' . self::to_persian_digits( $max_val ) . $max_field['suffix'];
+                        }
+                    } elseif ( $min_val !== '' ) {
+                        $value_html = $field['prefix'] . self::to_persian_digits( $min_val ) . $field['suffix'];
+                    } else {
+                        $value_html = $max_field['prefix'] . self::to_persian_digits( $max_val ) . $max_field['suffix'];
+                    }
+
+                    if ( ! empty( $value_html ) ) {
+                        $specs_values[ $key ] = array(
+                            'label' => $combined_label,
+                            'value' => $value_html
+                        );
+                    }
+                    continue;
+                }
+
+                $processed_keys[] = $key;
+                $type       = $field['type'];
+                $label      = $field['label'];
+                $prefix     = $field['prefix'];
+                $suffix     = $field['suffix'];
+                $value_html = '';
+
+                if ( 'boolean' === $type ) {
+                    $val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
+                    if ( $val === '' ) {
+                        continue;
+                    }
+                    $is_bakala = self::is_bakala_theme();
+                    if ( $val === '1' ) {
+                        $value_html = $is_bakala ? '<i class="icon icon-green-mark"></i>' : 'بله';
+                    } else {
+                        $value_html = $is_bakala ? '<i class="icon icon-red-close"></i>' : 'خیر';
+                    }
+                } elseif ( 'range' === $type ) {
+                    $keys = self::get_range_meta_keys( $key );
+                    $min  = get_post_meta( $product->get_id(), $keys[0], true );
+                    $max  = get_post_meta( $product->get_id(), $keys[1], true );
+
+                    if ( $min === '' && $max === '' ) {
+                        continue;
+                    }
+
+                    $formats = array_map( 'trim', explode( ';', (string) $field['options'] ) );
+                    $fmt_both = isset( $formats[0] ) && '' !== $formats[0] ? $formats[0] : '{min} تا {max}';
+                    $fmt_min  = isset( $formats[1] ) && '' !== $formats[1] ? $formats[1] : 'بالای {min}';
+                    $fmt_max  = isset( $formats[2] ) && '' !== $formats[2] ? $formats[2] : 'زیر {max}';
+
+                    if ( $min !== '' && $max !== '' ) {
+                        if ( $min === $max ) {
+                            $range_str = str_replace( '{min}', self::to_persian_digits( $min ), $fmt_min );
+                        } else {
+                            $range_str = str_replace(
+                                array( '{min}', '{max}' ),
+                                array( self::to_persian_digits( $min ), self::to_persian_digits( $max ) ),
+                                $fmt_both
+                            );
+                        }
+                    } elseif ( $min !== '' ) {
+                        $range_str = str_replace( '{min}', self::to_persian_digits( $min ), $fmt_min );
+                    } else {
+                        $range_str = str_replace( '{max}', self::to_persian_digits( $max ), $fmt_max );
+                    }
+
+                    $value_html = $prefix . $range_str . $suffix;
+                } elseif ( 'array' === $type ) {
+                    $val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
+                    if ( empty( $val ) ) {
+                        continue;
+                    }
+                    $decoded = json_decode( $val, true );
+                    if ( ! is_array( $decoded ) ) {
+                        $decoded = maybe_unserialize( $val );
+                    }
+                    if ( empty( $decoded ) || ! is_array( $decoded ) ) {
+                        continue;
+                    }
+                    $persian_values = array_map( array( __CLASS__, 'to_persian_digits' ), $decoded );
+                    $value_html     = $prefix . implode( '، ', $persian_values ) . $suffix;
+                } elseif ( 'integer' === $type || 'decimal' === $type ) {
+                    $val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
+                    if ( $val === '' ) {
+                        continue;
+                    }
+                    $value_html = $prefix . self::to_persian_digits( $val ) . $suffix;
+                }
+
+                if ( ! empty( $value_html ) ) {
+                    $specs_values[ $key ] = array(
+                        'label' => $label,
+                        'value' => $value_html
+                    );
+                }
+            }
+        }
+
+        // 2. Gather WooCommerce attributes
+        $attributes = $product->get_attributes();
+        if ( ! empty( $attributes ) ) {
+            foreach ( $attributes as $slug => $attr ) {
+                if ( ! $attr->get_visible() ) {
+                    continue;
+                }
+
+                $label = wc_attribute_label( $slug, $product );
+
+                if ( $attr->is_taxonomy() ) {
+                    $values = wc_get_product_terms( $product->get_id(), $slug, array( 'fields' => 'names' ) );
+                    $value_html = implode( '، ', $values );
+                } else {
+                    $values = $attr->get_options();
+                    $value_html = implode( '، ', $values );
+                }
+
+                $specs_values[ $slug ] = array(
+                    'label' => $label,
+                    'value' => $value_html
+                );
+            }
+        }
+
+        // 3. Weight and dimensions
+        if ( $product->has_weight() ) {
+            $specs_values['weight'] = array(
+                'label' => 'وزن',
+                'value' => wc_format_weight( $product->get_weight() )
+            );
+        }
+
+        if ( $product->has_dimensions() ) {
+            $specs_values['dimensions'] = array(
+                'label' => 'ابعاد',
+                'value' => wc_format_dimensions( $product->get_dimensions( false ) )
+            );
+        }
+
+        if ( empty( $specs_values ) ) {
+            return;
+        }
+
+        // 4. Resolve active layout
+        $layout_config = self::get_unified_layout();
+        $layout_order  = $layout_config['global'];
+
+        $cats = get_the_terms( $product->get_id(), 'product_cat' );
+        if ( is_array( $cats ) ) {
+            foreach ( $cats as $cat ) {
+                $cat_id = strval( $cat->term_id );
+                if ( isset( $layout_config['categories'][ $cat_id ] ) && ! empty( $layout_config['categories'][ $cat_id ] ) ) {
+                    $layout_order = $layout_config['categories'][ $cat_id ];
+                    break;
+                }
+            }
+        }
+
+        // 5. Sort specifications
+        $sorted_specs = array();
+        foreach ( $layout_order as $slug ) {
+            if ( isset( $specs_values[ $slug ] ) ) {
+                $sorted_specs[ $slug ] = $specs_values[ $slug ];
+                unset( $specs_values[ $slug ] );
+            }
+        }
+
+        // Fail-safe: append any local attributes or leftover fields not registered in the schema at the bottom
+        foreach ( $specs_values as $slug => $spec ) {
+            $sorted_specs[ $slug ] = $spec;
+        }
+
+        if ( empty( $sorted_specs ) ) {
+            return;
+        }
+
+        // 6. Output HTML
+        if ( self::is_bakala_theme() ) {
+            ?>
+            <ul class="spec-list brz-custom-specs-list" style="margin-bottom:10px;">
+                <?php foreach ( $sorted_specs as $slug => $spec ) : ?>
+                    <li class="clearfix brz-spec-item-<?php echo esc_attr( $slug ); ?>">
+                        <span class="technicalspecs-title"><?php echo esc_html( $spec['label'] ); ?></span>
+                        <span class="technicalspecs-value"><span><?php echo wp_kses_post( $spec['value'] ); ?></span></span>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+            <?php
+        } else {
+            ?>
+            <table class="woocommerce-product-attributes shop_attributes brz-custom-specs-table" style="margin-bottom: 20px; width: 100%; border-collapse: collapse;">
+                <tbody>
+                    <?php foreach ( $sorted_specs as $slug => $spec ) : ?>
+                        <tr class="woocommerce-product-attributes-item brz-spec-item-<?php echo esc_attr( $slug ); ?>">
+                            <th class="woocommerce-product-attributes-item__label" style="text-align: right; font-weight: bold; padding: 8px 15px; width: 220px; border-bottom: 1px solid #eee;"><?php echo esc_html( $spec['label'] ); ?></th>
+                            <td class="woocommerce-product-attributes-item__value" style="padding: 8px 15px; border-bottom: 1px solid #eee;"><?php echo wp_kses_post( $spec['value'] ); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php
+        }
     }
 }
