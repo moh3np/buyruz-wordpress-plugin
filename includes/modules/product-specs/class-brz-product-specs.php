@@ -24,7 +24,7 @@ class BRZ_Product_Specs {
             add_action( 'wp_ajax_brz_save_unified_specs_layout', array( __CLASS__, 'ajax_save_unified_layout' ) );
         } else {
             // Frontend: Inject unified layout specifications and remove WooCommerce default
-            add_action( 'woocommerce_product_additional_information', array( __CLASS__, 'remove_wc_default_attributes_display' ), 1 );
+            remove_action( 'woocommerce_product_additional_information', 'wc_display_product_attributes', 10 );
             add_action( 'woocommerce_product_additional_information', array( __CLASS__, 'render_unified_product_specs' ), 10 );
         }
 
@@ -1150,9 +1150,22 @@ class BRZ_Product_Specs {
                 border-color: var(--brz-brand, #1a73e8);
             }
             .brz-layout-item.is-dragging {
-                opacity: 0.4;
-                border: 1px dashed var(--brz-brand, #1a73e8);
-                background: #f0f4f9;
+                box-shadow: 0 4px 12px rgba(26,115,232,.1);
+                border-color: var(--brz-brand, #1a73e8);
+                background: #fff;
+            }
+            .brz-layout-placeholder {
+                background: #f5f8fc;
+                border: 1.5px dashed var(--brz-brand, #1a73e8);
+                border-radius: 6px;
+                height: 40px;
+                margin-bottom: 6px;
+                box-sizing: border-box;
+            }
+            .ui-sortable-helper {
+                box-shadow: 0 8px 24px rgba(0,0,0,.12);
+                border-color: var(--brz-brand, #1a73e8) !important;
+                background: #fff !important;
             }
             .brz-layout-drag-handle {
                 font-size: 16px;
@@ -1394,41 +1407,27 @@ class BRZ_Product_Specs {
                     }, 3000);
                 }
 
-                // Drag and drop sorting handler
-                function makeListSortable(list) {
-                    let dragEl;
-                    
-                    list.addEventListener('dragstart', function(e) {
-                        dragEl = e.target.closest('.brz-layout-item');
-                        if (!dragEl) return;
-                        e.dataTransfer.effectAllowed = 'move';
-                        dragEl.classList.add('is-dragging');
-                    });
-                    
-                    list.addEventListener('dragover', function(e) {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                        const target = e.target.closest('.brz-layout-item');
-                        if (target && target !== dragEl && target.parentNode === list) {
-                            const rect = target.getBoundingClientRect();
-                            const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
-                            list.insertBefore(dragEl, next ? target.nextSibling : target);
-                        }
-                    });
-                    
-                    list.addEventListener('dragend', function(e) {
-                        if (dragEl) {
-                            dragEl.classList.remove('is-dragging');
+                // Drag and drop sorting handler using jQuery UI Sortable
+                function initSortable(selector) {
+                    $(selector).sortable({
+                        handle: '.brz-layout-drag-handle, .brz-layout-item-label',
+                        placeholder: 'brz-layout-placeholder',
+                        axis: 'y',
+                        tolerance: 'pointer',
+                        start: function(e, ui) {
+                            ui.placeholder.height(ui.item.outerHeight() - 2);
+                            ui.item.addClass('is-dragging');
+                        },
+                        stop: function(e, ui) {
+                            ui.item.removeClass('is-dragging');
                         }
                     });
                 }
 
-                // Initialize drag sorting
-                const globalList = document.getElementById('brz-global-layout-list');
-                makeListSortable(globalList);
-
-                document.querySelectorAll('.brz-cat-list').forEach(function(list) {
-                    makeListSortable(list);
+                // Initialize sortable lists
+                initSortable('#brz-global-layout-list');
+                $('.brz-cat-list').each(function() {
+                    initSortable(this);
                 });
 
                 // Add Category Layout
@@ -1447,7 +1446,7 @@ class BRZ_Product_Specs {
                         return;
                     }
 
-                    const globalItemsHtml = Array.from(globalList.querySelectorAll('.brz-layout-item'))
+                    const globalItemsHtml = Array.from(document.querySelectorAll('#brz-global-layout-list .brz-layout-item'))
                         .map(el => el.outerHTML)
                         .join('');
 
@@ -1467,8 +1466,7 @@ class BRZ_Product_Specs {
 
                     $('#brz-category-layouts-container').append(cardHtml);
                     
-                    const newList = document.getElementById(`brz-cat-list-${catId}`);
-                    makeListSortable(newList);
+                    initSortable(`#brz-cat-list-${catId}`);
                     select.val('');
                 });
 
@@ -1915,12 +1913,7 @@ class BRZ_Product_Specs {
         return str_replace($en, $fa, (string) $str);
     }
 
-    /**
-     * Disable standard WooCommerce attribute table.
-     */
-    public static function remove_wc_default_attributes_display(): void {
-        remove_action( 'woocommerce_product_additional_information', 'wc_display_product_attributes', 10 );
-    }
+
 
     /**
      * Get all available specifications layout items (specs, weight, dimensions, attributes).

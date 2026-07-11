@@ -1093,6 +1093,7 @@ class BRZ_Settings {
         }
         wp_enqueue_style( 'brz-settings-admin', BRZ_URL . 'assets/admin/settings.css', array(), BRZ_VERSION );
         wp_enqueue_script( 'brz-settings-admin', BRZ_URL . 'assets/admin/settings.js', array(), BRZ_VERSION, true );
+        wp_enqueue_script( 'jquery-ui-sortable' );
         wp_localize_script(
             'brz-settings-admin',
             'brzSettings',
