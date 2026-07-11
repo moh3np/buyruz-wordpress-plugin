@@ -1310,13 +1310,13 @@ class BRZ_Product_Specs {
                                                 </td>
                                                 <?php $is_range = ( $f['type'] === 'range' ); ?>
                                                 <td>
-                                                    <input type="text" class="brz-spec-prefix" value="<?php echo esc_attr( $is_range ? '' : $f['prefix'] ); ?>" placeholder="<?php echo $is_range ? 'تنظیم در بازه' : 'پیشوند'; ?>" maxlength="100" <?php echo $is_range ? 'disabled style="background:#f2f2f2;"' : ''; ?> />
+                                                    <input type="text" class="brz-spec-prefix" value="<?php echo esc_attr( $is_range ? '' : $f['prefix'] ); ?>" placeholder="<?php echo $is_range ? '⚙️ تنظیم پیشوند بازه' : 'پیشوند'; ?>" maxlength="100" <?php echo $is_range ? 'readonly style="cursor:pointer; background:#f8fafc; border-color:#1a73e8; color:#1a73e8; font-weight:600; text-align:center;"' : ''; ?> />
                                                 </td>
                                                 <td>
-                                                    <input type="text" class="brz-spec-suffix" value="<?php echo esc_attr( $is_range ? '' : $f['suffix'] ); ?>" placeholder="<?php echo $is_range ? 'تنظیم در بازه' : 'پسوند'; ?>" maxlength="100" <?php echo $is_range ? 'disabled style="background:#f2f2f2;"' : ''; ?> />
+                                                    <input type="text" class="brz-spec-suffix" value="<?php echo esc_attr( $is_range ? '' : $f['suffix'] ); ?>" placeholder="<?php echo $is_range ? '⚙️ تنظیم پسوند بازه' : 'پسوند'; ?>" maxlength="100" <?php echo $is_range ? 'readonly style="cursor:pointer; background:#f8fafc; border-color:#1a73e8; color:#1a73e8; font-weight:600; text-align:center;"' : ''; ?> />
                                                 </td>
                                                 <td>
-                                                    <input type="text" class="brz-spec-options" value="<?php echo esc_attr( $f['options'] ); ?>" placeholder="<?php echo $is_range ? 'تنظیم فرمت نمایش' : 'فرمت بازه یا گزینه‌ها'; ?>" <?php echo $is_range ? 'readonly style="cursor:pointer; background:#f8fafc; border-color:#1a73e8; color:#1a73e8; font-weight:600; text-align:center;"' : ''; ?> />
+                                                    <input type="text" class="brz-spec-options" value="<?php echo esc_attr( $f['options'] ); ?>" placeholder="<?php echo $is_range ? 'فرمت ذخیره شده در بازه' : 'فرمت بازه یا گزینه‌ها'; ?>" <?php echo $is_range ? 'disabled style="background:#f2f2f2;"' : ''; ?> />
                                                 </td>
                                                 <td style="text-align: center;">
                                                     <button type="button" class="brz-spec-delete-btn" title="حذف فیلد">✕</button>
@@ -1674,15 +1674,15 @@ class BRZ_Product_Specs {
                     
                     // Reset fields
                     $opt.prop('readonly', false).prop('disabled', false).css({ 'cursor': '', 'background': '', 'border-color': '', 'color': '', 'font-weight': '', 'text-align': '' }).val('');
-                    $pref.prop('disabled', false).css('background', '').attr('placeholder', 'پیشوند').val('');
-                    $suff.prop('disabled', false).css('background', '').attr('placeholder', 'پسوند').val('');
+                    $pref.prop('disabled', false).prop('readonly', false).css({ 'cursor': '', 'background': '', 'border-color': '', 'color': '', 'font-weight': '', 'text-align': '' }).attr('placeholder', 'پیشوند').val('');
+                    $suff.prop('disabled', false).prop('readonly', false).css({ 'cursor': '', 'background': '', 'border-color': '', 'color': '', 'font-weight': '', 'text-align': '' }).attr('placeholder', 'پسوند').val('');
                     
                     if (val === 'array') {
                         $opt.attr('placeholder', 'گزینه‌ها با کاما جدا شوند');
                     } else if (val === 'range') {
-                        $opt.prop('readonly', true).attr('placeholder', '⚙️ تنظیم فرمت نمایش').css({ 'cursor': 'pointer', 'background': '#f8fafc', 'border-color': '#1a73e8', 'color': '#1a73e8', 'font-weight': '600', 'text-align': 'center' });
-                        $pref.prop('disabled', true).css('background', '#f2f2f2').attr('placeholder', 'تنظیم در بازه').val('');
-                        $suff.prop('disabled', true).css('background', '#f2f2f2').attr('placeholder', 'تنظیم در بازه').val('');
+                        $opt.prop('disabled', true).css('background', '#f2f2f2').attr('placeholder', 'فرمت ذخیره شده در بازه').val('');
+                        $pref.prop('readonly', true).attr('placeholder', '⚙️ تنظیم پیشوند بازه').css({ 'cursor': 'pointer', 'background': '#f8fafc', 'border-color': '#1a73e8', 'color': '#1a73e8', 'font-weight': '600', 'text-align': 'center' });
+                        $suff.prop('readonly', true).attr('placeholder', '⚙️ تنظیم پسوند بازه').css({ 'cursor': 'pointer', 'background': '#f8fafc', 'border-color': '#1a73e8', 'color': '#1a73e8', 'font-weight': '600', 'text-align': 'center' });
                     } else {
                         $opt.prop('disabled', true).css('background', '#f2f2f2').attr('placeholder', '');
                     }
@@ -1745,13 +1745,13 @@ class BRZ_Product_Specs {
                     $('#brz-range-format-modal').css('display', 'flex');
                 }
 
-                $tbody.on('focus click', '.brz-spec-options', function(e) {
+                $tbody.on('focus click', '.brz-spec-prefix, .brz-spec-suffix', function(e) {
                     var $row = $(this).closest('tr');
                     var val = $row.find('.brz-spec-type').val();
                     if (val === 'range') {
                         e.preventDefault();
                         $(this).blur();
-                        openRangeFormatModal($(this));
+                        openRangeFormatModal($row.find('.brz-spec-options'));
                     }
                 });
 
