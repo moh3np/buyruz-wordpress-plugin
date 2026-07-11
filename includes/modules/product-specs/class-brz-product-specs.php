@@ -1402,7 +1402,7 @@ class BRZ_Product_Specs {
                             $available_items = self::get_all_available_layout_items();
 
                             foreach ( $ordered_items as $slug => $item ) : ?>
-                                <div class="brz-layout-item" draggable="true" data-slug="<?php echo esc_attr( $slug ); ?>">
+                                <div class="brz-layout-item" data-slug="<?php echo esc_attr( $slug ); ?>">
                                     <span class="brz-layout-drag-handle">☰</span>
                                     <span class="brz-layout-item-label"><?php echo esc_html( $item['label'] ); ?></span>
                                     <span class="brz-layout-item-type"><?php echo esc_html( $item['type'] ); ?></span>
@@ -1440,7 +1440,7 @@ class BRZ_Product_Specs {
                                         }
 
                                         foreach ( $cat_ordered as $slug => $item ) : ?>
-                                            <div class="brz-layout-item" draggable="true" data-slug="<?php echo esc_attr( $slug ); ?>">
+                                            <div class="brz-layout-item" data-slug="<?php echo esc_attr( $slug ); ?>">
                                                 <span class="brz-layout-drag-handle">☰</span>
                                                 <span class="brz-layout-item-label"><?php echo esc_html( $item['label'] ); ?></span>
                                                 <span class="brz-layout-item-type"><?php echo esc_html( $item['type'] ); ?></span>
