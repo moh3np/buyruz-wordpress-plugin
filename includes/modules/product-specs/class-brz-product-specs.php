@@ -2446,6 +2446,7 @@ class BRZ_Product_Specs {
         }
 
         $specs_values = array();
+        $normalized_labels = array();
 
         // 1. Gather Buyruz custom specs
         $fields = self::get_fields();
@@ -2503,6 +2504,8 @@ class BRZ_Product_Specs {
                             'label' => $combined_label,
                             'value' => $value_html
                         );
+                        $norm = str_replace( array( ' ', '-', '_', '‌' ), '', $combined_label );
+                        $normalized_labels[ $norm ] = $key;
                     }
                     continue;
                 }
@@ -2589,6 +2592,8 @@ class BRZ_Product_Specs {
                         'label' => $label,
                         'value' => $value_html
                     );
+                    $norm = str_replace( array( ' ', '-', '_', '‌' ), '', $label );
+                    $normalized_labels[ $norm ] = $key;
                 }
             }
         }
@@ -2602,6 +2607,10 @@ class BRZ_Product_Specs {
                 }
 
                 $label = wc_attribute_label( $slug, $product );
+                $norm  = str_replace( array( ' ', '-', '_', '‌' ), '', $label );
+                if ( isset( $normalized_labels[ $norm ] ) ) {
+                    continue;
+                }
 
                 if ( $attr->is_taxonomy() ) {
                     $values = wc_get_product_terms( $product->get_id(), $slug, array( 'fields' => 'names' ) );
@@ -2611,26 +2620,42 @@ class BRZ_Product_Specs {
                     $value_html = implode( '، ', $values );
                 }
 
+                $value_html = trim( $value_html );
+                if ( $value_html === '' ) {
+                    continue;
+                }
+
                 $specs_values[ $slug ] = array(
                     'label' => $label,
                     'value' => $value_html
                 );
+                $normalized_labels[ $norm ] = $slug;
             }
         }
 
         // 3. Weight and dimensions
         if ( $product->has_weight() ) {
-            $specs_values['weight'] = array(
-                'label' => 'وزن',
-                'value' => wc_format_weight( $product->get_weight() )
-            );
+            $label = 'وزن';
+            $norm  = str_replace( array( ' ', '-', '_', '‌' ), '', $label );
+            if ( ! isset( $normalized_labels[ $norm ] ) ) {
+                $specs_values['weight'] = array(
+                    'label' => $label,
+                    'value' => wc_format_weight( $product->get_weight() )
+                );
+                $normalized_labels[ $norm ] = 'weight';
+            }
         }
 
         if ( $product->has_dimensions() ) {
-            $specs_values['dimensions'] = array(
-                'label' => 'ابعاد',
-                'value' => wc_format_dimensions( $product->get_dimensions( false ) )
-            );
+            $label = 'ابعاد';
+            $norm  = str_replace( array( ' ', '-', '_', '‌' ), '', $label );
+            if ( ! isset( $normalized_labels[ $norm ] ) ) {
+                $specs_values['dimensions'] = array(
+                    'label' => $label,
+                    'value' => wc_format_dimensions( $product->get_dimensions( false ) )
+                );
+                $normalized_labels[ $norm ] = 'dimensions';
+            }
         }
 
         // 4. Resolve active layout
@@ -2652,16 +2677,22 @@ class BRZ_Product_Specs {
         if ( ! empty( $layout_order ) ) {
             foreach ( $layout_order as $slug ) {
                 if ( ! isset( $specs_values[ $slug ] ) && taxonomy_exists( $slug ) ) {
+                    $tax_obj = get_taxonomy( $slug );
+                    $label = $tax_obj ? $tax_obj->labels->singular_name : $slug;
+                    $norm  = str_replace( array( ' ', '-', '_', '‌' ), '', $label );
+                    if ( isset( $normalized_labels[ $norm ] ) ) {
+                        continue;
+                    }
+
                     $terms = get_the_terms( $product->get_id(), $slug );
                     if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
                         $term_names = wp_list_pluck( $terms, 'name' );
-                        $tax_obj = get_taxonomy( $slug );
-                        $label = $tax_obj ? $tax_obj->labels->singular_name : $slug;
                         
                         $specs_values[ $slug ] = array(
                             'label' => $label,
                             'value' => implode( '، ', $term_names )
                         );
+                        $normalized_labels[ $norm ] = $slug;
                     }
                 }
             }
