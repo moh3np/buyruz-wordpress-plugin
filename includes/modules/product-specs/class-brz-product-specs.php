@@ -1784,6 +1784,14 @@ class BRZ_Product_Specs {
                     $activeOptionsInput = null;
                 });
 
+                // Close modal when clicking outside
+                $('#brz-range-format-modal').on('click', function(e) {
+                    if (e.target === this) {
+                        $(this).hide();
+                        $activeOptionsInput = null;
+                    }
+                });
+
                 $('#brz-spec-add-btn').on('click', function() {
                     var rowHtml = '<tr class="brz-spec-row is-new">' +
                         '<td><input type="text" class="brz-spec-key" placeholder="شناسه (مانند: age_range)" /></td>' +
