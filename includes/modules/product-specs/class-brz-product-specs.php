@@ -1103,357 +1103,302 @@ class BRZ_Product_Specs {
             .brz-spec-options-input {
                 font-size: 11px !important;
             }
-            .brz-spec-delete-btn {
+            .brz-sp            /* Tab Navigation */
+            .brz-tab-nav {
+                display: flex;
+                gap: 5px;
+                border-bottom: 2px solid #e2e8f0;
+                margin-bottom: 20px;
+                padding-bottom: 0;
+            }
+            .brz-tab-btn {
                 background: none;
                 border: none;
-                color: var(--md-error, #d32f2f);
+                padding: 12px 24px;
+                font-size: 14.5px;
+                font-weight: 600;
+                color: #64748b;
                 cursor: pointer;
-                font-size: 16px;
-                padding: 4px;
-                border-radius: 4px;
-                transition: background 0.15s;
+                position: relative;
+                transition: all 0.15s ease;
+                border-bottom: 3px solid transparent;
+                margin-bottom: -2px;
             }
-            .brz-spec-delete-btn:hover {
-                background: rgba(211,47,47,.08);
+            .brz-tab-btn:hover {
+                color: var(--brz-brand, #1a73e8);
+            }
+            .brz-tab-btn.active {
+                color: var(--brz-brand, #1a73e8);
+                border-bottom-color: var(--brz-brand, #1a73e8);
+            }
+            .brz-tab-content {
+                display: none;
+            }
+            .brz-tab-content.active {
+                display: block;
             }
             
-            /* Modern SaaS UI styling for Unified Layout */
-            .brz-layout-container {
-                display: flex;
-                flex-direction: column;
+            /* Unified Layout AI Tooling */
+            .brz-flow-container {
+                display: grid;
+                grid-template-columns: 1.1fr 0.9fr;
                 gap: 24px;
                 margin-top: 15px;
             }
-            .brz-draggable-list {
-                background: #fafbfc;
-                border: 1.5px dashed #e2e8f0;
-                border-radius: 14px;
-                padding: 16px;
-                min-height: 100px;
+            @media (max-width: 960px) {
+                .brz-flow-container {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .brz-flow-list-wrapper {
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            .brz-flow-list {
                 display: flex;
                 flex-direction: column;
                 gap: 8px;
-                transition: background 0.2s, border-color 0.2s;
+                max-height: 480px;
+                overflow-y: auto;
+                padding-right: 2px;
             }
-            .brz-draggable-list:hover {
-                border-color: #cbd5e1;
-                background: #f8fafc;
-            }
-            .brz-layout-item {
+            .brz-flow-item {
                 background: #ffffff;
                 border: 1px solid #e2e8f0;
                 border-radius: 10px;
-                padding: 10px 18px;
+                padding: 10px 16px;
                 display: flex;
                 align-items: center;
-                cursor: grab;
-                user-select: none;
-                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.01);
+                gap: 12px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+                transition: transform 0.2s, border-color 0.2s;
             }
-            .brz-layout-item:hover {
-                border-color: var(--brz-brand, #1a73e8);
-                transform: translateY(-1px);
-                box-shadow: 0 4px 12px rgba(26, 115, 232, 0.08);
-                background: #fdfdfd;
+            .brz-flow-item:hover {
+                transform: translateX(-2px);
+                border-color: #cbd5e1;
             }
-            .brz-layout-item:active {
-                cursor: grabbing;
-            }
-            .brz-layout-item-type {
-                font-size: 11px;
-                font-weight: 500;
-                padding: 3px 10px;
-                border-radius: 20px;
-                letter-spacing: -0.2px;
-            }
-            /* Specs badge: Elegant Purple */
-            .brz-layout-item[data-slug^="manual_"] .brz-layout-item-type,
-            .brz-layout-item[data-slug^="min_"] .brz-layout-item-type,
-            .brz-layout-item[data-slug^="max_"] .brz-layout-item-type,
-            .brz-layout-item[data-slug^="best_"] .brz-layout-item-type,
-            .brz-layout-item[data-slug^="difficulty"] .brz-layout-item-type,
-            .brz-layout-item[data-slug^="is_"] .brz-layout-item-type,
-            .brz-layout-item[data-slug^="has_"] .brz-layout-item-type,
-            .brz-layout-item[data-slug^="needs_"] .brz-layout-item-type,
-            .brz-layout-item[data-slug^="card_count"] .brz-layout-item-type,
-            .brz-layout-item[data-slug^="meople_"] .brz-layout-item-type,
-            .brz-layout-item[data-slug^="pieces_"] .brz-layout-item-type {
-                background: #f3e8ff;
-                color: #6b21a8;
-                border: 1px solid #e9d5ff;
-            }
-            /* WooCommerce attribute badge: Sleek Blue */
-            .brz-layout-item[data-slug^="pa_"] .brz-layout-item-type {
-                background: #dbeafe;
-                color: #1e40af;
-                border: 1px solid #bfdbfe;
-            }
-            /* Weight & Dimensions physical badge: Fresh Green */
-            .brz-layout-item[data-slug="weight"] .brz-layout-item-type,
-            .brz-layout-item[data-slug="dimensions"] .brz-layout-item-type {
-                background: #dcfce7;
-                color: #15803d;
-                border: 1px solid #bbf7d0;
-            }
-            /* General fallback badge */
-            .brz-layout-item-type {
+            .brz-flow-number {
                 background: #f1f5f9;
                 color: #475569;
-                border: 1px solid #e2e8f0;
-            }
-            
-            .brz-layout-placeholder {
-                background: rgba(26, 115, 232, 0.03);
-                border: 2px dashed var(--brz-brand, #1a73e8);
-                border-radius: 10px;
-                height: 44px;
-                margin-bottom: 8px;
-                box-sizing: border-box;
-                position: relative;
-                animation: brzPulse 1.8s infinite ease-in-out;
-            }
-            @keyframes brzPulse {
-                0% { opacity: 0.6; }
-                50% { opacity: 0.9; background-color: rgba(26, 115, 232, 0.06); }
-                100% { opacity: 0.6; }
-            }
-            .ui-sortable-helper {
-                box-shadow: 0 10px 25px rgba(26, 115, 232, 0.15) !important;
-                border-color: var(--brz-brand, #1a73e8) !important;
-                background: #ffffff !important;
-                transform: scale(1.015) rotate(0.4deg);
-                cursor: grabbing !important;
-            }
-            .brz-layout-drag-handle {
-                font-size: 14px;
-                color: #94a3b8;
-                margin-left: 14px;
-                cursor: grab;
-                transition: color 0.15s;
+                font-size: 11px;
+                font-weight: 700;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                border: 1px solid #e2e8f0;
             }
-            .brz-layout-item:hover .brz-layout-drag-handle {
-                color: var(--brz-brand, #1a73e8);
-            }
-            .brz-layout-item-label {
+            .brz-flow-label {
                 font-weight: 600;
                 color: #1e293b;
                 flex-grow: 1;
                 font-size: 13.5px;
             }
-            .brz-cat-override-card {
-                border: 1px solid #e2e8f0;
-                border-radius: 14px;
-                margin-top: 20px;
-                background: #ffffff;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-                overflow: hidden;
-            }
-            .brz-cat-override-header {
-                padding: 14px 20px;
-                border-bottom: 1px solid #e2e8f0;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                font-weight: 700;
-                background: #f8fafc;
-                color: #0f172a;
-                font-size: 14px;
-            }
-            .brz-cat-override-body {
-                padding: 20px;
-            }
-            .brz-btn-danger-link {
-                background: none;
-                border: none;
-                color: #ef4444;
-                cursor: pointer;
-                font-size: 13px;
+            .brz-flow-badge {
+                font-size: 10.5px;
                 font-weight: 600;
-                transition: color 0.15s;
+                padding: 3px 10px;
+                border-radius: 20px;
             }
-            .brz-btn-danger-link:hover {
-                color: #b91c1c;
-                text-decoration: underline;
+            .brz-flow-badge.spec {
+                background: #f3e8ff;
+                color: #6b21a8;
+                border: 1px solid #e9d5ff;
+            }
+            .brz-flow-badge.attr {
+                background: #dbeafe;
+                color: #1e40af;
+                border: 1px solid #bfdbfe;
+            }
+            .brz-flow-badge.physical {
+                background: #dcfce7;
+                color: #15803d;
+                border: 1px solid #bbf7d0;
+            }
+            .brz-flow-badge.fallback {
+                background: #f1f5f9;
+                color: #475569;
+                border: 1px solid #e2e8f0;
+            }
+            .brz-flow-empty-msg {
+                padding: 40px 20px;
+                text-align: center;
+                color: #64748b;
+                font-style: italic;
+                background: #ffffff;
+                border: 1.5px dashed #cbd5e1;
+                border-radius: 10px;
+            }
+            .brz-textarea-input {
+                width: 100%;
+                box-sizing: border-box;
+                font-family: monospace;
+                direction: ltr;
+                text-align: left;
+                border-radius: 10px;
+                border: 1.5px solid #cbd5e1;
+                padding: 12px;
+                font-size: 12px;
+                resize: vertical;
+                transition: border-color 0.15s;
+            }
+            .brz-textarea-input:focus {
+                outline: none;
+                border-color: var(--brz-brand, #1a73e8);
+                box-shadow: 0 0 0 2px rgba(26,115,232,.1);
             }
         </style>
+
         <div class="brz-single-column" dir="rtl">
-            <form id="brz-product-specs-form">
-                <?php wp_nonce_field( 'brz_product_specs_save_fields', '_wpnonce' ); ?>
-                
-                <div class="brz-card">
-                    <div class="brz-card__header">
-                        <h3>سازنده مشخصات فنی محصول (Field Builder)</h3>
+            <!-- Tabs Navigation -->
+            <div class="brz-tab-nav">
+                <button type="button" class="brz-tab-btn active" data-tab="brz-tab-builder">سازنده مشخصات فنی (Field Builder)</button>
+                <button type="button" class="brz-tab-btn" data-tab="brz-tab-layout">چیدمان جدول مشخصات (Unified Layout)</button>
+            </div>
+
+            <!-- TAB 1: Field Builder -->
+            <div id="brz-tab-builder" class="brz-tab-content active">
+                <form id="brz-product-specs-form">
+                    <?php wp_nonce_field( 'brz_product_specs_save_fields', '_wpnonce' ); ?>
+                    
+                    <div class="brz-card">
+                        <div class="brz-card__header">
+                            <h3>سازنده مشخصات فنی محصول (Field Builder)</h3>
+                        </div>
+                        <div class="brz-card__body">
+                            <p style="color:var(--md-on-surface-variant, #666); font-size:13px; margin-bottom:15px;">
+                                فیلدهای سفارشی مشخصات محصول را ایجاد و تنظیم کنید. تغییر کلید (Key) فیلدهای ثبت شده امکان‌پذیر نیست زیرا باعث گسستگی داده‌های قبلی می‌شود.
+                            </p>
+                            
+                            <table class="brz-spec-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 15%;">شناسه یکتا (Key)</th>
+                                        <th style="width: 20%;">عنوان نمایشی</th>
+                                        <th style="width: 15%;">نوع فیلد</th>
+                                        <th style="width: 15%;">پیشوند نمایشی</th>
+                                        <th style="width: 15%;">پسوند نمایشی</th>
+                                        <th style="width: 15%;">گزینه‌ها / فرمت بازه</th>
+                                        <th style="width: 5%;">عملیات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="brz-spec-tbody">
+                                    <?php if ( ! empty( $fields ) ) : ?>
+                                        <?php foreach ( $fields as $f ) : ?>
+                                            <tr class="brz-spec-row" data-key="<?php echo esc_attr( $f['key'] ); ?>">
+                                                <td>
+                                                    <input type="text" class="brz-spec-key" value="<?php echo esc_attr( $f['key'] ); ?>" disabled />
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="brz-spec-label" value="<?php echo esc_attr( $f['label'] ); ?>" placeholder="مثلاً: رده سنی" maxlength="150" />
+                                                </td>
+                                                <td>
+                                                    <select class="brz-spec-type" disabled>
+                                                        <option value="boolean" <?php selected( $f['type'], 'boolean' ); ?>>ساده (بله/خیر)</option>
+                                                        <option value="integer" <?php selected( $f['type'], 'integer' ); ?>>عدد صحیح (Integer)</option>
+                                                        <option value="decimal" <?php selected( $f['type'], 'decimal' ); ?>>عدد اعشاری (Decimal)</option>
+                                                        <option value="range" <?php selected( $f['type'], 'range' ); ?>>بازه عددی (کمینه/بیشینه)</option>
+                                                        <option value="array" <?php selected( $f['type'], 'array' ); ?>>آرایه انتخابی (چند گزینه‌ای)</option>
+                                                    </select>
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="brz-spec-prefix" value="<?php echo esc_attr( $f['prefix'] ); ?>" placeholder="پیشوند" maxlength="100" />
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="brz-spec-suffix" value="<?php echo esc_attr( $f['suffix'] ); ?>" placeholder="پسوند" maxlength="100" />
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="brz-spec-options" value="<?php echo esc_attr( $f['options'] ); ?>" placeholder="فرمت بازه یا گزینه‌ها" />
+                                                </td>
+                                                <td style="text-align: center;">
+                                                    <button type="button" class="brz-spec-delete-btn" title="حذف فیلد">✕</button>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+
+                            <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+                                <button type="button" id="brz-spec-add-btn" class="brz-button brz-button--secondary">افزودن فیلد جدید</button>
+                                <button type="button" id="brz-spec-save-btn" class="brz-button">ذخیره تغییرات</button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="brz-card__body">
-                        <p style="color:var(--md-on-surface-variant, #666); font-size:13px; margin-bottom:15px;">
-                            فیلدهای سفارشی مشخصات محصول را ایجاد و تنظیم کنید. تغییر کلید (Key) فیلدهای ثبت شده امکان‌پذیر نیست زیرا باعث گسستگی داده‌های قبلی می‌شود.
-                        </p>
-                        
-                        <table class="brz-spec-table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 15%;">شناسه یکتا (Key)</th>
-                                    <th style="width: 20%;">عنوان نمایشی</th>
-                                    <th style="width: 15%;">نوع فیلد</th>
-                                    <th style="width: 15%;">پیشوند نمایشی</th>
-                                    <th style="width: 15%;">پسوند نمایشی</th>
-                                    <th style="width: 15%;">گزینه‌ها / فرمت بازه</th>
-                                    <th style="width: 5%;">عملیات</th>
-                                </tr>
-                            </thead>
-                            <tbody id="brz-spec-tbody">
-                                <?php if ( ! empty( $fields ) ) : ?>
-                                    <?php foreach ( $fields as $f ) : ?>
-                                        <tr class="brz-spec-row" data-key="<?php echo esc_attr( $f['key'] ); ?>">
-                                            <td>
-                                                <input type="text" class="brz-spec-key" value="<?php echo esc_attr( $f['key'] ); ?>" disabled />
-                                            </td>
-                                            <td>
-                                                <input type="text" class="brz-spec-label" value="<?php echo esc_attr( $f['label'] ); ?>" placeholder="مثلاً: رده سنی" maxlength="150" />
-                                            </td>
-                                            <td>
-                                                <select class="brz-spec-type" disabled>
-                                                    <option value="boolean" <?php selected( $f['type'], 'boolean' ); ?>>ساده (بله/خیر)</option>
-                                                    <option value="integer" <?php selected( $f['type'], 'integer' ); ?>>عدد صحیح (Integer)</option>
-                                                    <option value="decimal" <?php selected( $f['type'], 'decimal' ); ?>>عدد اعشاری (Decimal)</option>
-                                                    <option value="range" <?php selected( $f['type'], 'range' ); ?>>بازه عددی (کمینه/بیشینه)</option>
-                                                    <option value="array" <?php selected( $f['type'], 'array' ); ?>>آرایه انتخابی (چند گزینه‌ای)</option>
-                                                </select>
-                                            </td>
-                                            <td>
-                                                <input type="text" class="brz-spec-prefix" value="<?php echo esc_attr( $f['prefix'] ); ?>" placeholder="پیشوند" maxlength="100" />
-                                            </td>
-                                            <td>
-                                                <input type="text" class="brz-spec-suffix" value="<?php echo esc_attr( $f['suffix'] ); ?>" placeholder="پسوند" maxlength="100" />
-                                            </td>
-                                            <td>
-                                                <input type="text" class="brz-spec-options" value="<?php echo esc_attr( $f['options'] ); ?>" placeholder="فرمت بازه یا گزینه‌ها" />
-                                            </td>
-                                            <td style="text-align: center;">
-                                                <button type="button" class="brz-spec-delete-btn" title="حذف فیلد">✕</button>
-                                            </td>
-                                        </tr>
+                </form>
+            </div>
+
+            <!-- TAB 2: Unified Specs Layout -->
+            <div id="brz-tab-layout" class="brz-tab-content">
+                <?php
+                $layout = self::get_unified_layout();
+                $categories = get_terms( array(
+                    'taxonomy'   => 'product_cat',
+                    'hide_empty' => false,
+                ) );
+                ?>
+                <div class="brz-card">
+                    <div class="brz-card__header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                        <h3 class="brz-card__title">مدیریت هوشمند چیدمان مشخصات با هوش مصنوعی (AI-Assisted Layout)</h3>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <select id="brz-layout-switcher" style="padding:6px 12px; border-radius:8px; border:1px solid #ccc; font-size:13px; min-width:240px; height: 32px; box-sizing: border-box;">
+                                <option value="global">چیدمان عمومی فروشگاه (Global Layout)</option>
+                                <?php if ( is_array( $categories ) && ! is_wp_error( $categories ) ) : ?>
+                                    <?php foreach ( $categories as $cat ) : ?>
+                                        <option value="<?php echo esc_attr( $cat->term_id ); ?>">چیدمان اختصاصی: <?php echo esc_html( $cat->name ); ?></option>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
-                            </tbody>
-                        </table>
-
-                        <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
-                            <button type="button" id="brz-spec-add-btn" class="brz-button brz-button--secondary">افزودن فیلد جدید</button>
-                            <button type="button" id="brz-spec-save-btn" class="brz-button">ذخیره تغییرات</button>
+                            </select>
+                            <button type="button" id="brz-layout-create-override-btn" class="brz-button brz-button--secondary" style="padding: 6px 15px; font-size: 12px; display: none; height: 32px;">ایجاد چیدمان اختصاصی</button>
+                            <button type="button" id="brz-layout-delete-override-btn" class="brz-button brz-button--danger" style="padding: 6px 15px; font-size: 12px; display: none; background:#ef4444; color:#fff; border:none; border-radius:6px; cursor:pointer; height: 32px;">حذف چیدمان اختصاصی</button>
                         </div>
                     </div>
-                </div>
-            </form>
+                    <div class="brz-card__body">
+                        <p style="color:var(--md-on-surface-variant, #666); font-size:13px; margin-bottom:20px;">
+                            با این ابزار می‌توانید ترتیب نمایش مشخصه‌ها را بدون نیاز به مرتب‌سازی دستی سنگین و فقط با کمک هوش مصنوعی تنظیم کنید. لیست آیتم‌ها را کپی کنید، به ایجنت بدهید تا بهینه کند و خروجی دریافتی را در کادر پیست نمایید.
+                        </p>
 
-            <!-- Card 2: Unified Specs Layout Manager -->
-            <?php
-            $available_items = self::get_all_available_layout_items();
-            $layout = self::get_unified_layout();
-            $global_order = $layout['global'];
-            $categories_layout = $layout['categories'];
-
-            $categories = get_terms( array(
-                'taxonomy'   => 'product_cat',
-                'hide_empty' => false,
-            ) );
-            ?>
-            <div class="brz-card" style="margin-top:20px;">
-                <div class="brz-card__header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                    <h3 class="brz-card__title">چیدمان جدول مشخصات صفحه محصول (Unified Layout)</h3>
-                    <div style="display:flex; align-items:center; gap:5px;">
-                        <select id="brz-cat-select" style="padding:6px; border-radius:6px; border:1px solid #ccc; font-size:13px; max-width:250px;">
-                            <option value="">-- چیدمان اختصاصی برای دسته‌بندی --</option>
-                            <?php if ( is_array( $categories ) && ! is_wp_error( $categories ) ) : ?>
-                                <?php foreach ( $categories as $cat ) : ?>
-                                    <option value="<?php echo esc_attr( $cat->term_id ); ?>"><?php echo esc_html( $cat->name ); ?></option>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </select>
-                        <button type="button" id="brz-add-cat-layout-btn" class="brz-button brz-button--secondary" style="padding: 7px 15px; font-size: 12px;">افزودن</button>
-                    </div>
-                </div>
-                <div class="brz-card__body">
-                    <p style="color:var(--md-on-surface-variant, #666); font-size:13px; margin-bottom:15px;">
-                        ترتیب نمایش مشخصه‌های فنی (بایروز)، ویژگی‌های ووکامرس (Attributes) و مقادیر فیزیکی را به صورت یکپارچه با درگ اند دراپ تعیین کنید. ویژگی‌های محلی (Local) به صورت خودکار به انتهای لیست محصول منتقل می‌شوند.
-                    </p>
-
-                    <!-- Global Layout List -->
-                    <div style="margin-bottom: 25px;">
-                        <h4 style="margin: 0 0 10px 0; font-weight: 600; color: var(--brz-brand, #1a73e8);">چیدمان عمومی فروشگاه (Global Layout)</h4>
-                        <div class="brz-draggable-list" id="brz-global-layout-list">
-                            <?php
-                            $ordered_items = array();
-                            foreach ( $global_order as $slug ) {
-                                if ( isset( $available_items[ $slug ] ) ) {
-                                    $ordered_items[ $slug ] = $available_items[ $slug ];
-                                    unset( $available_items[ $slug ] );
-                                }
-                            }
-                            foreach ( $available_items as $slug => $item ) {
-                                $ordered_items[ $slug ] = $item;
-                            }
-
-                            // Reload all items for category overrides cloning
-                            $available_items = self::get_all_available_layout_items();
-
-                            foreach ( $ordered_items as $slug => $item ) : ?>
-                                <div class="brz-layout-item" data-slug="<?php echo esc_attr( $slug ); ?>">
-                                    <span class="brz-layout-drag-handle">☰</span>
-                                    <span class="brz-layout-item-label"><?php echo esc_html( $item['label'] ); ?></span>
-                                    <span class="brz-layout-item-type"><?php echo esc_html( $item['type'] ); ?></span>
+                        <div class="brz-flow-container">
+                            <!-- Column 1: AI Actions -->
+                            <div style="display: flex; flex-direction: column; gap: 15px;">
+                                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:15px;">
+                                    <h4 style="margin:0 0 10px 0; color:#1e293b; font-weight:600;">گام اول: کپی لیست برای ایجنت</h4>
+                                    <p style="font-size:12px; color:#64748b; margin-bottom:12px; line-height:1.5;">
+                                        لیست فیلدها و ترتیبی که در پیش‌نمایش سمت چپ می‌بینید را کپی کرده و به ایجنت بدهید تا با استفاده از روانشناسی کاربر آن را بهینه‌سازی کند.
+                                    </p>
+                                    <button type="button" id="brz-layout-copy-btn" class="brz-button brz-button--secondary" style="width:100%; justify-content:center;">کپی لیست مشخصات برای هوش مصنوعی</button>
                                 </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
 
-                    <!-- Category Overrides Container -->
-                    <div id="brz-category-layouts-container">
-                        <?php foreach ( $categories_layout as $cat_id => $slugs ) : 
-                            $cat_term = get_term( intval( $cat_id ), 'product_cat' );
-                            if ( is_wp_error( $cat_term ) || ! $cat_term ) {
-                                continue;
-                            }
-                            ?>
-                            <div class="brz-cat-override-card" data-cat-id="<?php echo esc_attr( $cat_id ); ?>">
-                                <div class="brz-cat-override-header">
-                                    <span>چیدمان اختصاصی دسته‌بندی: <?php echo esc_html( $cat_term->name ); ?></span>
-                                    <button type="button" class="brz-btn-danger-link brz-remove-cat-layout-btn">✕ حذف این چیدمان</button>
-                                </div>
-                                <div class="brz-cat-override-body">
-                                    <div class="brz-draggable-list brz-cat-list" id="brz-cat-list-<?php echo esc_attr( $cat_id ); ?>">
-                                        <?php
-                                        $cat_items = $available_items;
-                                        $cat_ordered = array();
-                                        foreach ( $slugs as $slug ) {
-                                            if ( isset( $cat_items[ $slug ] ) ) {
-                                                $cat_ordered[ $slug ] = $cat_items[ $slug ];
-                                                unset( $cat_items[ $slug ] );
-                                            }
-                                        }
-                                        foreach ( $cat_items as $slug => $item ) {
-                                            $cat_ordered[ $slug ] = $item;
-                                        }
-
-                                        foreach ( $cat_ordered as $slug => $item ) : ?>
-                                            <div class="brz-layout-item" data-slug="<?php echo esc_attr( $slug ); ?>">
-                                                <span class="brz-layout-drag-handle">☰</span>
-                                                <span class="brz-layout-item-label"><?php echo esc_html( $item['label'] ); ?></span>
-                                                <span class="brz-layout-item-type"><?php echo esc_html( $item['type'] ); ?></span>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
+                                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:15px;">
+                                    <h4 style="margin:0 0 10px 0; color:#1e293b; font-weight:600;">گام دوم: جایگذاری چیدمان بهینه شده</h4>
+                                    <p style="font-size:12px; color:#64748b; margin-bottom:12px; line-height:1.5;">
+                                        خروجی بهینه‌سازی شده دریافتی از ایجنت را در کادر زیر پیست کنید. پردازشگر به صورت هوشمند شناسه‌ها را استخراج می‌کند.
+                                    </p>
+                                    <textarea id="brz-layout-paste-input" rows="7" class="brz-textarea-input" placeholder="آیتم‌های دریافتی از هوش مصنوعی را اینجا پیست کنید..."></textarea>
+                                    <button type="button" id="brz-layout-apply-btn" class="brz-button" style="width:100%; margin-top:12px; justify-content:center;">بروزرسانی پیش‌نمایش چیدمان</button>
                                 </div>
                             </div>
-                        <?php endforeach; ?>
-                    </div>
 
-                    <div style="margin-top: 25px; border-top: 1px solid #eee; padding-top: 20px; text-align: left;">
-                        <button type="button" id="brz-save-layout-btn" class="brz-button">ذخیره چیدمان مشخصات</button>
+                            <!-- Column 2: Live Flow Preview -->
+                            <div class="brz-flow-list-wrapper">
+                                <h4 id="brz-flow-preview-title" style="margin:0; color:#0f172a; font-weight:700; font-size:14px;">پیش‌نمایش ترتیب نمایش چیدمان</h4>
+                                <div class="brz-flow-list" id="brz-flow-list-container">
+                                    <!-- Dynamic Flow Items Rendered Here -->
+                                </div>
+                                <div id="brz-flow-fallback-msg" class="brz-flow-empty-msg" style="display:none;"></div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 25px; border-top: 1px solid #e2e8f0; padding-top: 20px; text-align: left;">
+                            <button type="button" id="brz-layout-save-btn" class="brz-button">ذخیره نهایی چیدمان</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1471,103 +1416,233 @@ class BRZ_Product_Specs {
                     }, 3000);
                 }
 
-                // Drag and drop sorting handler using jQuery UI Sortable
-                function initSortable(selector) {
-                    $(selector).sortable({
-                        handle: '.brz-layout-drag-handle, .brz-layout-item-label',
-                        placeholder: 'brz-layout-placeholder',
-                        axis: 'y',
-                        tolerance: 'pointer',
-                        start: function(e, ui) {
-                            ui.placeholder.height(ui.item.outerHeight() - 2);
-                            ui.item.addClass('is-dragging');
-                        },
-                        stop: function(e, ui) {
-                            ui.item.removeClass('is-dragging');
+                // TAB SYSTEM
+                $('.brz-tab-btn').on('click', function() {
+                    var tabId = $(this).data('tab');
+                    $('.brz-tab-btn').removeClass('active');
+                    $(this).addClass('active');
+                    
+                    $('.brz-tab-content').removeClass('active');
+                    $('#' + tabId).addClass('active');
+                });
+
+                // AI ASSISTED LAYOUT SYSTEM STATE
+                let layoutState = <?php echo json_encode( $layout ); ?>;
+                const availableItems = <?php echo json_encode( self::get_all_available_layout_items() ); ?>;
+
+                function renderActiveLayout() {
+                    const activeKey = $('#brz-layout-switcher').val();
+                    const container = $('#brz-flow-list-container');
+                    const fallbackMsg = $('#brz-flow-fallback-msg');
+                    const deleteBtn = $('#brz-layout-delete-override-btn');
+                    const createBtn = $('#brz-layout-create-override-btn');
+                    
+                    container.empty();
+                    fallbackMsg.hide();
+                    deleteBtn.hide();
+                    createBtn.hide();
+
+                    let order = [];
+                    let isOverride = false;
+
+                    if (activeKey === 'global') {
+                        order = layoutState.global;
+                        $('#brz-flow-preview-title').text('پیش‌نمایش ترتیب نمایش عمومی (Global)');
+                    } else {
+                        isOverride = layoutState.categories && layoutState.categories.hasOwnProperty(activeKey);
+                        if (isOverride) {
+                            order = layoutState.categories[activeKey];
+                            deleteBtn.show();
+                            $('#brz-flow-preview-title').text('پیش‌نمایش ترتیب چیدمان اختصاصی دسته');
+                        } else {
+                            createBtn.show();
+                            fallbackMsg.html('این دسته‌بندی در حال حاضر دارای چیدمان اختصاصی نیست و از <b>چیدمان عمومی فروشگاه (Global Layout)</b> ارث‌بری می‌کند.').show();
+                            $('#brz-flow-preview-title').text('ارث‌بری از عمومی (Global)');
+                            return;
                         }
+                    }
+
+                    // Map keys to available layout metadata
+                    const orderedItems = [];
+                    const clonedAvailable = { ...availableItems };
+
+                    for (const key of order) {
+                        if (clonedAvailable.hasOwnProperty(key)) {
+                            orderedItems.push({ key: key, ...clonedAvailable[key] });
+                            delete clonedAvailable[key];
+                        }
+                    }
+                    // Append any missing items as fail-safe
+                    for (const key in clonedAvailable) {
+                        orderedItems.push({ key: key, ...clonedAvailable[key] });
+                    }
+
+                    // Render DOM elements
+                    orderedItems.forEach((item, index) => {
+                        let badgeClass = 'fallback';
+                        let badgeLabel = 'ویژگی';
+
+                        if (item.key.startsWith('manual_') || item.key.startsWith('min_') || item.key.startsWith('max_') || item.key.startsWith('best_') || item.key === 'difficulty' || item.key.startsWith('is_') || item.key.startsWith('has_') || item.key.startsWith('needs_') || item.key === 'card_count' || item.key.startsWith('meople_') || item.key.startsWith('pieces_')) {
+                            badgeClass = 'spec';
+                            badgeLabel = 'مشخصه بایروز';
+                        } else if (item.key.startsWith('pa_')) {
+                            badgeClass = 'attr';
+                            badgeLabel = 'ویژگی ووکامرس';
+                        } else if (item.key === 'weight' || item.key === 'dimensions') {
+                            badgeClass = 'physical';
+                            badgeLabel = 'ویژگی فیزیکی';
+                        }
+
+                        const itemHtml = `
+                            <div class="brz-flow-item" data-slug="${item.key}">
+                                <span class="brz-flow-number">${index + 1}</span>
+                                <span class="brz-flow-label">${item.label}</span>
+                                <span class="brz-flow-badge ${badgeClass}">${badgeLabel}</span>
+                            </div>
+                        `;
+                        container.append(itemHtml);
                     });
                 }
 
-                // Initialize sortable lists
-                initSortable('#brz-global-layout-list');
-                $('.brz-cat-list').each(function() {
-                    initSortable(this);
+                // Initialize Unified Layout Preview
+                renderActiveLayout();
+
+                // Switch Layout Handler
+                $('#brz-layout-switcher').on('change', function() {
+                    renderActiveLayout();
+                    $('#brz-layout-paste-input').val('');
                 });
 
-                // Add Category Layout
-                $('#brz-add-cat-layout-btn').on('click', function() {
-                    const select = $('#brz-cat-select');
-                    const catId = select.val();
-                    const catName = select.find('option:selected').text();
-
-                    if (!catId) {
-                        alert('لطفاً ابتدا یک دسته‌بندی انتخاب کنید.');
-                        return;
-                    }
-
-                    if ($(`.brz-cat-override-card[data-cat-id="${catId}"]`).length > 0) {
-                        alert('چیدمان اختصاصی برای این دسته‌بندی قبلاً ایجاد شده است.');
-                        return;
-                    }
-
-                    const globalItemsHtml = Array.from(document.querySelectorAll('#brz-global-layout-list .brz-layout-item'))
-                        .map(el => el.outerHTML)
-                        .join('');
-
-                    const cardHtml = `
-                        <div class="brz-cat-override-card" data-cat-id="${catId}">
-                            <div class="brz-cat-override-header">
-                                <span>چیدمان اختصاصی دسته‌بندی: ${catName}</span>
-                                <button type="button" class="brz-btn-danger-link brz-remove-cat-layout-btn">✕ حذف این چیدمان</button>
-                            </div>
-                            <div class="brz-cat-override-body">
-                                <div class="brz-draggable-list brz-cat-list" id="brz-cat-list-${catId}">
-                                    ${globalItemsHtml}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-
-                    $('#brz-category-layouts-container').append(cardHtml);
+                // Create Override Handler
+                $('#brz-layout-create-override-btn').on('click', function() {
+                    const activeKey = $('#brz-layout-switcher').val();
+                    if (activeKey === 'global') return;
                     
-                    initSortable(`#brz-cat-list-${catId}`);
-                    select.val('');
+                    // Initialize category override with a clone of global layout order
+                    if (!layoutState.categories) {
+                        layoutState.categories = {};
+                    }
+                    layoutState.categories[activeKey] = [...layoutState.global];
+                    renderActiveLayout();
+                    showSnackbar('چیدمان اختصاصی ایجاد شد. اکنون می‌توانید آن را بهینه‌سازی کنید.', 'success');
                 });
 
-                // Remove Category Override Layout
-                $(document).on('click', '.brz-remove-cat-layout-btn', function() {
-                    if (confirm('آیا مایل به حذف این چیدمان اختصاصی هستید؟ چیدمان این دسته‌بندی به حالت عمومی بازمی‌گردد.')) {
-                        $(this).closest('.brz-cat-override-card').remove();
+                // Delete Override Handler
+                $('#brz-layout-delete-override-btn').on('click', function() {
+                    const activeKey = $('#brz-layout-switcher').val();
+                    if (activeKey === 'global') return;
+                    
+                    if (confirm('آیا مایل به حذف چیدمان اختصاصی این دسته‌بندی هستید؟ چیدمان این دسته‌بندی به عمومی بازمی‌گردد.')) {
+                        if (layoutState.categories && layoutState.categories.hasOwnProperty(activeKey)) {
+                            delete layoutState.categories[activeKey];
+                        }
+                        renderActiveLayout();
+                        showSnackbar('چیدمان اختصاصی حذف شد و به چیدمان عمومی بازگشت.', 'success');
                     }
                 });
 
-                // Save layout configuration
-                $('#brz-save-layout-btn').on('click', function() {
+                // Copy for AI Button Click Handler
+                $('#brz-layout-copy-btn').on('click', function() {
+                    const activeKey = $('#brz-layout-switcher').val();
+                    let order = [];
+
+                    if (activeKey === 'global') {
+                        order = layoutState.global;
+                    } else if (layoutState.categories && layoutState.categories.hasOwnProperty(activeKey)) {
+                        order = layoutState.categories[activeKey];
+                    } else {
+                        // Fallback to global if override not created
+                        order = layoutState.global;
+                    }
+
+                    // Format text line-by-line
+                    let text = "--- لیست شناسه‌های جدول مشخصات جهت بهینه‌سازی ترتیب ---\n";
+                    text += "لطفاً این لیست را بر اساس اولویت ذهنی کاربر و نرخ تبدیل بهینه کنید. فقط لیست نهایی کلیدها را خط به خط بازگردانید.\n\n";
+                    
+                    order.forEach((key, index) => {
+                        if (availableItems.hasOwnProperty(key)) {
+                            text += `${index + 1}. ${key} : ${availableItems[key].label} (${availableItems[key].type})\n`;
+                        }
+                    });
+
+                    // Add browser clipboard fallback
+                    const $temp = $('<textarea>');
+                    $('body').append($temp);
+                    $temp.val(text).select();
+                    document.execCommand('copy');
+                    $temp.remove();
+
+                    showSnackbar('لیست مشخصات در کلیپ‌بورد کپی شد. اکنون آن را به ایجنت بدهید.', 'success');
+                });
+
+                // Apply Pasted Order Handler (Smart Resilient Parser)
+                $('#brz-layout-apply-btn').on('click', function() {
+                    const text = $.trim($('#brz-layout-paste-input').val());
+                    if (text === '') {
+                        alert('لطفاً ابتدا چیدمان جدید دریافتی را در کادر پیست کنید.');
+                        return;
+                    }
+
+                    const activeKey = $('#brz-layout-switcher').val();
+                    
+                    // Regex search for valid slugs (alphanumeric and underscore) in the pasted text
+                    const pattern = /[a-zA-Z0-9_]+/g;
+                    const matches = text.match(pattern) || [];
+                    
+                    const ordered = [];
+                    const seen = new Set();
+
+                    // 1. Process valid matched slugs from paste
+                    matches.forEach(match => {
+                        if (availableItems.hasOwnProperty(match) && !seen.has(match)) {
+                            ordered.push(match);
+                            seen.add(match);
+                        }
+                    });
+
+                    if (ordered.length === 0) {
+                        alert('هیچ شناسه معتبری در متن وارد شده یافت نشد. لطفاً ساختار کپی شده از چت ایجنت را چک کنید.');
+                        return;
+                    }
+
+                    // 2. Append any missing slugs (fail-safe) to the end
+                    for (const key in availableItems) {
+                        if (!seen.has(key)) {
+                            ordered.push(key);
+                        }
+                    }
+
+                    // 3. Update the state visually
+                    if (activeKey === 'global') {
+                        layoutState.global = ordered;
+                    } else {
+                        if (!layoutState.categories) {
+                            layoutState.categories = {};
+                        }
+                        layoutState.categories[activeKey] = ordered;
+                    }
+
+                    // 4. Rerender list visual preview
+                    renderActiveLayout();
+                    showSnackbar('پیش‌نمایش چیدمان بروز شد. برای اعمال قطعی دکمه «ذخیره نهایی چیدمان» را بزنید.', 'success');
+                });
+
+                // Save layout configuration to server via AJAX (Option 2)
+                $('#brz-layout-save-btn').on('click', function() {
                     const btn = $(this);
                     btn.prop('disabled', true).text('در حال ذخیره چیدمان…');
-
-                    const globalOrder = Array.from(globalList.querySelectorAll('.brz-layout-item'))
-                        .map(el => el.getAttribute('data-slug'));
-
-                    const categories = {};
-                    document.querySelectorAll('.brz-cat-override-card').forEach(function(card) {
-                        const catId = card.getAttribute('data-cat-id');
-                        const slugs = Array.from(card.querySelectorAll('.brz-layout-item'))
-                            .map(el => el.getAttribute('data-slug'));
-                        categories[catId] = slugs;
-                    });
 
                     $.ajax({
                         url: ajaxurl,
                         type: 'POST',
                         data: {
                             action: 'brz_save_unified_specs_layout',
-                            global: globalOrder,
-                            categories: categories,
+                            global: layoutState.global,
+                            categories: layoutState.categories || {},
                             _wpnonce: '<?php echo esc_js( wp_create_nonce( "brz_product_specs_save_layout_nonce" ) ); ?>'
                         },
                         success: function(res) {
-                            btn.prop('disabled', false).text('ذخیره چیدمان مشخصات');
+                            btn.prop('disabled', false).text('ذخیره نهایی چیدمان');
                             if (res.success) {
                                 showSnackbar(res.data.message || 'چیدمان با موفقیت ذخیره شد.', 'success');
                             } else {
@@ -1575,12 +1650,13 @@ class BRZ_Product_Specs {
                             }
                         },
                         error: function() {
-                            btn.prop('disabled', false).text('ذخیره چیدمان مشخصات');
+                            btn.prop('disabled', false).text('ذخیره نهایی چیدمان');
                             showSnackbar('خطای ارتباط با سرور.', 'error');
                         }
                     });
                 });
 
+                // Original Field Builder Scripts
                 $tbody.on('change', '.brz-spec-type', function() {
                     var $row = $(this).closest('tr');
                     var val  = $(this).val();
