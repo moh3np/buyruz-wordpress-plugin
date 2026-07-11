@@ -75,6 +75,11 @@ class BRZ_Modules {
                 'description' => 'سیستم فیلتر محصولات پیشرفته سایدبار با استفاده از جدول جستجوی سفارشی و آژاکس.',
                 'class'       => 'BRZ_Sidebar_Filters',
             ),
+            'attributes_analyzer' => array(
+                'label'       => 'آنالیز ویژگی‌ها',
+                'description' => 'ارائه آمار دقیق استفاده از ویژگی‌ها و گزینه‌های ووکامرس برای هوش مصنوعی.',
+                'class'       => 'BRZ_Attributes_Analyzer',
+            ),
         );
     }
 

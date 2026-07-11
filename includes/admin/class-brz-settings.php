@@ -514,6 +514,10 @@ class BRZ_Settings {
                 'title'       => 'مشخصات فنی محصول',
                 'description' => 'سازنده فیلدهای داینامیک مشخصات محصول با قابلیت تنظیم نوع فیلد و پیشوند/پسوند.',
             ),
+            'buyruz-module-attributes_analyzer' => array(
+                'title'       => 'آنالیز ویژگی‌ها',
+                'description' => 'ارائه آمار دقیق استفاده از ویژگی‌ها و گزینه‌های محصولات جهت تصمیم‌گیری و پاکسازی.',
+            ),
         );
 
         return isset( $meta[ $active_slug ] ) ? $meta[ $active_slug ] : array(
@@ -762,6 +766,11 @@ class BRZ_Settings {
 
             if ( 'sidebar_filters' === $module_slug && $active ) {
                 BRZ_Sidebar_Filters::render_admin_page();
+                return;
+            }
+
+            if ( 'attributes_analyzer' === $module_slug && $active ) {
+                BRZ_Attributes_Analyzer::render_admin_page();
                 return;
             }
 

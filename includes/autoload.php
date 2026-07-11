@@ -56,6 +56,7 @@ spl_autoload_register( function( $class ) {
         'BRZ_SSO_Portal'                 => 'modules/sso-portal/class-brz-sso-portal.php',
         'BRZ_Product_Specs'              => 'modules/product-specs/class-brz-product-specs.php',
         'BRZ_Sidebar_Filters'            => 'modules/sidebar-filters/class-brz-sidebar-filters.php',
+        'BRZ_Attributes_Analyzer'        => 'modules/attributes-analyzer/class-brz-attributes-analyzer.php',
     );
 
     $map = apply_filters( 'brz/autoload_map', $map );
