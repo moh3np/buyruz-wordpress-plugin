@@ -337,6 +337,54 @@ class BRZ_Offline_Bridge {
 
         $dependency_ids = array();
 
+        // Support for "delete_dependencies" JSON object structure
+        if ( is_array( $items ) && isset( $items['delete_dependencies'] ) && $items['delete_dependencies'] ) {
+            error_log( '[BRZ_Offline_Bridge] delete_dependencies triggered.' );
+
+            $deleted_attributes = array();
+
+            if ( ! empty( $items['attributes'] ) && is_array( $items['attributes'] ) ) {
+                foreach ( $items['attributes'] as $attr_name ) {
+                    if ( empty( $attr_name ) ) {
+                        continue;
+                    }
+
+                    // Clean prefix pa_ if included
+                    $clean_name = ( strpos( $attr_name, 'pa_' ) === 0 ) ? substr( $attr_name, 3 ) : $attr_name;
+                    $taxonomy   = 'pa_' . $clean_name;
+
+                    // 1. Delete all terms under this taxonomy completely
+                    $terms = get_terms( array(
+                        'taxonomy'   => $taxonomy,
+                        'hide_empty' => false,
+                    ) );
+
+                    if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+                        foreach ( $terms as $term ) {
+                            wp_delete_term( $term->term_id, $taxonomy );
+                        }
+                    }
+
+                    // 2. Delete the attribute from WooCommerce
+                    $attr_id = wc_attribute_taxonomy_id_by_name( $clean_name );
+                    if ( $attr_id ) {
+                        $deleted = wc_delete_attribute( $attr_id );
+                        if ( $deleted ) {
+                            $deleted_attributes[] = $attr_name;
+                        } else {
+                            error_log( '[BRZ_Offline_Bridge] Failed to delete attribute: ' . $attr_name );
+                        }
+                    }
+                }
+            }
+
+            wp_send_json_success( array(
+                'message'            => 'ویژگی‌ها و تمام گزینه‌های مربوط به آن‌ها با موفقیت حذف شدند.',
+                'deleted_attributes' => $deleted_attributes
+            ) );
+            exit;
+        }
+
         // Support for "create_dependencies" JSON object structure
         if ( is_array( $items ) && isset( $items['create_dependencies'] ) && $items['create_dependencies'] ) {
 
