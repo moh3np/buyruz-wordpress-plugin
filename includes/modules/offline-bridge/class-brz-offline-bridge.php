@@ -500,11 +500,28 @@ class BRZ_Offline_Bridge {
                     );
                 }
                 update_option( 'brz_product_specs_fields', $fields );
-                wp_send_json_success( array(
-                    'message' => 'مشخصات فنی با موفقیت تعریف شدند.'
-                ) );
-                exit;
             }
+            
+            // Support for layout import in create_specs structure
+            if ( isset( $items['layout'] ) && is_array( $items['layout'] ) ) {
+                $layout = array(
+                    'global'     => isset( $items['layout']['global'] ) && is_array( $items['layout']['global'] ) ? array_map( 'sanitize_key', $items['layout']['global'] ) : array(),
+                    'categories' => array(),
+                );
+                if ( isset( $items['layout']['categories'] ) && is_array( $items['layout']['categories'] ) ) {
+                    foreach ( $items['layout']['categories'] as $cat_key => $cat_layout ) {
+                        if ( is_array( $cat_layout ) ) {
+                            $layout['categories'][sanitize_key( $cat_key )] = array_map( 'sanitize_key', $cat_layout );
+                        }
+                    }
+                }
+                update_option( 'brz_unified_specs_layout', $layout );
+            }
+            
+            wp_send_json_success( array(
+                'message' => 'مشخصات فنی و چیدمان با موفقیت تعریف و همگام‌سازی شدند.'
+            ) );
+            exit;
         }
 
         // Processing array of products

@@ -2633,10 +2633,6 @@ class BRZ_Product_Specs {
             );
         }
 
-        if ( empty( $specs_values ) ) {
-            return;
-        }
-
         // 4. Resolve active layout
         $layout_config = self::get_unified_layout();
         $layout_order  = $layout_config['global'];
@@ -2650,6 +2646,29 @@ class BRZ_Product_Specs {
                     break;
                 }
             }
+        }
+
+        // 4.5. Gather custom taxonomies specified in the layout order but not in standard attributes (e.g. pwb-brand, yith_product_brand)
+        if ( ! empty( $layout_order ) ) {
+            foreach ( $layout_order as $slug ) {
+                if ( ! isset( $specs_values[ $slug ] ) && taxonomy_exists( $slug ) ) {
+                    $terms = get_the_terms( $product->get_id(), $slug );
+                    if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+                        $term_names = wp_list_pluck( $terms, 'name' );
+                        $tax_obj = get_taxonomy( $slug );
+                        $label = $tax_obj ? $tax_obj->labels->singular_name : $slug;
+                        
+                        $specs_values[ $slug ] = array(
+                            'label' => $label,
+                            'value' => implode( '، ', $term_names )
+                        );
+                    }
+                }
+            }
+        }
+
+        if ( empty( $specs_values ) ) {
+            return;
         }
 
         // 5. Sort specifications
