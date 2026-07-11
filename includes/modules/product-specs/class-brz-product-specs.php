@@ -1898,17 +1898,7 @@ class BRZ_Product_Specs {
                 $max_val = get_post_meta( $product->get_id(), '_brz_spec_' . $max_key, true );
 
                 if ( $min_val === '' && $max_val === '' ) {
-                    if ( strpos( $key, 'age' ) !== false || strpos( $key, 'سن' ) !== false || ( isset( $field['label'] ) && ( strpos( $field['label'], 'سن' ) !== false || strpos( $field['label'], 'age' ) !== false ) ) ) {
-                        $fallback = self::get_audience_fallback_range( $product->get_id() );
-                        if ( $fallback ) {
-                            $min_val = $fallback['min'];
-                            $max_val = $fallback['max'];
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    }
+                    continue;
                 }
 
                 // Determine combined label by stripping out "حداقل" and "حداکثر"
@@ -2311,17 +2301,7 @@ class BRZ_Product_Specs {
                     $max_val = get_post_meta( $product->get_id(), '_brz_spec_' . $max_key, true );
 
                     if ( $min_val === '' && $max_val === '' ) {
-                        if ( strpos( $key, 'age' ) !== false || strpos( $key, 'سن' ) !== false || ( isset( $field['label'] ) && ( strpos( $field['label'], 'سن' ) !== false || strpos( $field['label'], 'age' ) !== false ) ) ) {
-                            $fallback = self::get_audience_fallback_range( $product->get_id() );
-                            if ( $fallback ) {
-                                $min_val = $fallback['min'];
-                                $max_val = $fallback['max'];
-                            } else {
-                                continue;
-                            }
-                        } else {
-                            continue;
-                        }
+                        continue;
                     }
 
                     $combined_label = trim( str_replace( array( 'حداقل', 'حداکثر' ), '', $field['label'] ) );
