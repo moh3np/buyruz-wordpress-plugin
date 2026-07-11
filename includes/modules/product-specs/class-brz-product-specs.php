@@ -2578,13 +2578,21 @@ class BRZ_Product_Specs {
                         continue;
                     }
                     $persian_values = array_map( array( __CLASS__, 'to_persian_digits' ), $decoded );
-                    $value_html     = $prefix . implode( '، ', $persian_values ) . $suffix;
+                    $suffix_display = $suffix;
+                    if ( ! empty( $suffix_display ) && ! in_array( substr( $suffix_display, 0, 1 ), array( ' ', '؛', ';', '<' ), true ) ) {
+                        $suffix_display = ' ' . $suffix_display;
+                    }
+                    $value_html     = $prefix . implode( '، ', $persian_values ) . $suffix_display;
                 } elseif ( 'integer' === $type || 'decimal' === $type ) {
                     $val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
                     if ( $val === '' ) {
                         continue;
                     }
-                    $value_html = $prefix . self::to_persian_digits( $val ) . $suffix;
+                    $suffix_display = $suffix;
+                    if ( ! empty( $suffix_display ) && ! in_array( substr( $suffix_display, 0, 1 ), array( ' ', '؛', ';', '<' ), true ) ) {
+                        $suffix_display = ' ' . $suffix_display;
+                    }
+                    $value_html = $prefix . self::to_persian_digits( $val ) . $suffix_display;
                 }
 
                 if ( ! empty( $value_html ) ) {
@@ -2614,11 +2622,23 @@ class BRZ_Product_Specs {
 
                 if ( $attr->is_taxonomy() ) {
                     $values = wc_get_product_terms( $product->get_id(), $slug, array( 'fields' => 'names' ) );
-                    $value_html = implode( '، ', $values );
                 } else {
                     $values = $attr->get_options();
-                    $value_html = implode( '، ', $values );
                 }
+
+                $formatted_values = array();
+                $is_bakala = self::is_bakala_theme();
+                foreach ( $values as $val ) {
+                    $val_clean = mb_strtolower( trim( $val ) );
+                    if ( in_array( $val_clean, array( 'yes', 'بله', 'دارد' ), true ) ) {
+                        $formatted_values[] = $is_bakala ? '<i class="icon icon-green-mark"></i>' : 'بله';
+                    } elseif ( in_array( $val_clean, array( 'no', 'خیر', 'ندارد' ), true ) ) {
+                        $formatted_values[] = $is_bakala ? '<i class="icon icon-red-close"></i>' : 'خیر';
+                    } else {
+                        $formatted_values[] = esc_html( $val );
+                    }
+                }
+                $value_html = implode( '، ', $formatted_values );
 
                 $value_html = trim( $value_html );
                 if ( $value_html === '' ) {
