@@ -146,6 +146,16 @@ class BRZ_Sidebar_Filters {
                 $min_val = get_post_meta( $product_id, $keys[0], true );
                 $max_val = get_post_meta( $product_id, $keys[1], true );
 
+                if ( $min_val === '' && $max_val === '' ) {
+                    if ( strpos( $key, 'age' ) !== false || strpos( $key, 'سن' ) !== false || ( isset( $field['label'] ) && ( strpos( $field['label'], 'سن' ) !== false || strpos( $field['label'], 'age' ) !== false ) ) ) {
+                        $fallback = BRZ_Product_Specs::get_audience_fallback_range( $product_id );
+                        if ( $fallback ) {
+                            $min_val = $fallback['min'];
+                            $max_val = $fallback['max'];
+                        }
+                    }
+                }
+
                 if ( $min_val !== '' && $min_val !== null ) {
                     $wpdb->insert(
                         $table,
@@ -721,13 +731,13 @@ class BRZ_Widget_Advanced_Filters extends WP_Widget {
             echo $args['before_title'] . esc_html( $title ) . $args['after_title']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         }
 
-        echo '<div class="brz-filter-widget-control brz-filter-type-' . esc_attr( $type ) . '" data-key="' . esc_attr( $field_key ) . '">';
+        $filter_mode = ! empty( $instance['filter_mode'] ) ? $instance['filter_mode'] : 'slider';
+        $filter_presets = ! empty( $instance['filter_presets'] ) ? $instance['filter_presets'] : '';
+        $filter_step = ! empty( $instance['filter_step'] ) ? intval( $instance['filter_step'] ) : 1;
+
+        echo '<div class="brz-filter-widget-control brz-filter-type-' . esc_attr( $type ) . '" data-key="' . esc_attr( $field_key ) . '" data-filter-mode="' . esc_attr( $filter_mode ) . '">';
 
         if ( 'range' === $type ) {
-            // Range dual slider
-            $min_val = isset( $_GET[ $field_key . '_min' ] ) ? sanitize_text_field( wp_unslash( $_GET[ $field_key . '_min' ] ) ) : '';
-            $max_val = isset( $_GET[ $field_key . '_max' ] ) ? sanitize_text_field( wp_unslash( $_GET[ $field_key . '_max' ] ) ) : '';
-
             global $wpdb;
             $table = BRZ_Sidebar_Filters::table_name();
             $limits = $wpdb->get_row( $wpdb->prepare(
@@ -742,23 +752,170 @@ class BRZ_Widget_Advanced_Filters extends WP_Widget {
                 $max_limit += 10;
             }
 
-            $curr_min = ( $min_val !== '' ) ? intval( $min_val ) : $min_limit;
-            $curr_max = ( $max_val !== '' ) ? intval( $max_val ) : $max_limit;
+            if ( 'slider' === $filter_mode ) {
+                $min_val = isset( $_GET[ $field_key . '_min' ] ) ? sanitize_text_field( wp_unslash( $_GET[ $field_key . '_min' ] ) ) : '';
+                $max_val = isset( $_GET[ $field_key . '_max' ] ) ? sanitize_text_field( wp_unslash( $_GET[ $field_key . '_max' ] ) ) : '';
+                $curr_min = ( $min_val !== '' ) ? intval( $min_val ) : $min_limit;
+                $curr_max = ( $max_val !== '' ) ? intval( $max_val ) : $max_limit;
+                ?>
+                <div class="brz-range-slider-wrapper" data-min-limit="<?php echo esc_attr( $min_limit ); ?>" data-max-limit="<?php echo esc_attr( $max_limit ); ?>" data-step="<?php echo esc_attr( $filter_step ); ?>" data-prefix="<?php echo esc_attr( trim( $prefix ) ); ?>" data-suffix="<?php echo esc_attr( trim( $suffix ) ); ?>">
+                    <div class="brz-range-values">
+                        <span class="brz-range-value-min"><?php echo esc_html( $prefix . $curr_min . $suffix ); ?></span>
+                        <span class="brz-range-value-separator">تا</span>
+                        <span class="brz-range-value-max"><?php echo esc_html( $prefix . $curr_max . $suffix ); ?></span>
+                    </div>
+                    <div class="brz-range-slider-track-container">
+                        <div class="brz-range-slider-track"></div>
+                        <input type="range" class="brz-range-input-min" min="<?php echo esc_attr( $min_limit ); ?>" max="<?php echo esc_attr( $max_limit ); ?>" value="<?php echo esc_attr( $curr_min ); ?>" step="<?php echo esc_attr( $filter_step ); ?>" />
+                        <input type="range" class="brz-range-input-max" min="<?php echo esc_attr( $min_limit ); ?>" max="<?php echo esc_attr( $max_limit ); ?>" value="<?php echo esc_attr( $curr_max ); ?>" step="<?php echo esc_attr( $filter_step ); ?>" />
+                    </div>
+                </div>
+                <?php
+            } elseif ( 'single_value' === $filter_mode ) {
+                $curr_val = isset( $_GET[ $field_key ] ) ? sanitize_text_field( wp_unslash( $_GET[ $field_key ] ) ) : '';
+                $curr_val_num = ( $curr_val !== '' ) ? intval( $curr_val ) : $min_limit;
+                $display_val = ( $curr_val !== '' ) ? $prefix . $curr_val_num . $suffix : 'نمایش همه';
+                ?>
+                <div class="brz-single-slider-wrapper" data-min-limit="<?php echo esc_attr( $min_limit ); ?>" data-max-limit="<?php echo esc_attr( $max_limit ); ?>" data-step="<?php echo esc_attr( $filter_step ); ?>" data-prefix="<?php echo esc_attr( trim( $prefix ) ); ?>" data-suffix="<?php echo esc_attr( trim( $suffix ) ); ?>">
+                    <div class="brz-range-values" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="brz-range-value-exact"><?php echo esc_html( $display_val ); ?></span>
+                        <button type="button" class="brz-range-reset" title="پاک کردن فیلتر" style="background: none; border: none; color: var(--brz-filters-accent, #ff4757); cursor: pointer; font-size: 11px; padding: 2px 5px; <?php echo ( $curr_val !== '' ) ? '' : 'display: none;'; ?>">✕ پاک‌کردن</button>
+                    </div>
+                    <div class="brz-range-slider-track-container">
+                        <div class="brz-range-slider-track"></div>
+                        <input type="range" class="brz-range-input-exact" min="<?php echo esc_attr( $min_limit ); ?>" max="<?php echo esc_attr( $max_limit ); ?>" value="<?php echo esc_attr( $curr_val_num ); ?>" step="<?php echo esc_attr( $filter_step ); ?>" data-active="<?php echo ( $curr_val !== '' ) ? '1' : '0'; ?>" />
+                    </div>
+                </div>
+                <?php
+            } elseif ( 'chips' === $filter_mode ) {
+                $presets = array();
+                if ( ! empty( $filter_presets ) ) {
+                    $lines = explode( "\n", str_replace( "\r", "", $filter_presets ) );
+                    foreach ( $lines as $line ) {
+                        $line = trim( $line );
+                        if ( empty( $line ) ) continue;
+                        
+                        $parts = explode( ':', $line, 2 );
+                        if ( count( $parts ) === 2 ) {
+                            $label_preset = trim( $parts[0] );
+                            $range_preset = trim( $parts[1] );
+                        } else {
+                            $range_preset = trim( $parts[0] );
+                            $label_preset = '';
+                        }
+                        
+                        $min = '';
+                        $max = '';
+                        if ( strpos( $range_preset, '-' ) !== false ) {
+                            $r_parts = explode( '-', $range_preset );
+                            $min = isset( $r_parts[0] ) && $r_parts[0] !== '' ? intval( $r_parts[0] ) : '';
+                            $max = isset( $r_parts[1] ) && $r_parts[1] !== '' ? intval( $r_parts[1] ) : '';
+                        } elseif ( strpos( $range_preset, '+' ) !== false ) {
+                            $min = intval( str_replace( '+', '', $range_preset ) );
+                            $max = '';
+                        } else {
+                            $min = intval( $range_preset );
+                            $max = intval( $range_preset );
+                        }
+                        
+                        if ( empty( $label_preset ) ) {
+                            if ( $min !== '' && $max !== '' ) {
+                                $label_preset = $prefix . $min . ' تا ' . $max . $suffix;
+                            } elseif ( $min !== '' ) {
+                                $label_preset = 'بالای ' . $min . $suffix;
+                            } else {
+                                $label_preset = 'زیر ' . $max . $suffix;
+                            }
+                        }
+                        
+                        $presets[] = array(
+                            'label' => $label_preset,
+                            'min'   => $min,
+                            'max'   => $max,
+                        );
+                    }
+                }
 
-            ?>
-            <div class="brz-range-slider-wrapper" data-min-limit="<?php echo esc_attr( $min_limit ); ?>" data-max-limit="<?php echo esc_attr( $max_limit ); ?>">
-                <div class="brz-range-values">
-                    <span class="brz-range-value-min"><?php echo esc_html( $prefix . $curr_min . $suffix ); ?></span>
-                    <span class="brz-range-value-separator">تا</span>
-                    <span class="brz-range-value-max"><?php echo esc_html( $prefix . $curr_max . $suffix ); ?></span>
+                if ( ! empty( $presets ) ) {
+                    echo '<div class="brz-range-chips-list">';
+                    foreach ( $presets as $preset ) {
+                        $p_min = $preset['min'];
+                        $p_max = $preset['max'];
+                        
+                        $is_active = false;
+                        $url_min = isset( $_GET[ $field_key . '_min' ] ) ? sanitize_text_field( wp_unslash( $_GET[ $field_key . '_min' ] ) ) : '';
+                        $url_max = isset( $_GET[ $field_key . '_max' ] ) ? sanitize_text_field( wp_unslash( $_GET[ $field_key . '_max' ] ) ) : '';
+                        
+                        if ( $p_min !== '' && $p_max !== '' ) {
+                            if ( $url_min !== '' && $url_max !== '' && intval( $url_min ) === intval( $p_min ) && intval( $url_max ) === intval( $p_max ) ) {
+                                $is_active = true;
+                            }
+                        } elseif ( $p_min !== '' ) {
+                            if ( $url_min !== '' && intval( $url_min ) === intval( $p_min ) && $url_max === '' ) {
+                                $is_active = true;
+                            }
+                        } elseif ( $p_max !== '' ) {
+                            if ( $url_min === '' && $url_max !== '' && intval( $url_max ) === intval( $p_max ) ) {
+                                $is_active = true;
+                            }
+                        }
+                        
+                        $active_class = $is_active ? 'active' : '';
+                        ?>
+                        <button type="button" class="brz-range-chip <?php echo $active_class; ?>" data-min="<?php echo esc_attr( $p_min ); ?>" data-max="<?php echo esc_attr( $p_max ); ?>">
+                            <?php echo esc_html( $preset['label'] ); ?>
+                        </button>
+                        <?php
+                    }
+                    echo '</div>';
+                } else {
+                    echo '<p class="brz-no-options">بازه پیش‌فرضی تعریف نشده است.</p>';
+                }
+            } elseif ( 'inputs' === $filter_mode ) {
+                $min_val = isset( $_GET[ $field_key . '_min' ] ) ? sanitize_text_field( wp_unslash( $_GET[ $field_key . '_min' ] ) ) : '';
+                $max_val = isset( $_GET[ $field_key . '_max' ] ) ? sanitize_text_field( wp_unslash( $_GET[ $field_key . '_max' ] ) ) : '';
+                ?>
+                <div class="brz-number-range-inputs">
+                    <div class="brz-num-input-wrap">
+                        <span class="brz-num-label">از</span>
+                        <input type="number" data-suffix="_min" value="<?php echo esc_attr( $min_val ); ?>" step="<?php echo esc_attr( $filter_step ); ?>" placeholder="<?php echo esc_attr( $min_limit ); ?>" class="brz-number-input" />
+                        <span class="brz-num-suffix"><?php echo esc_html( $suffix ); ?></span>
+                    </div>
+                    <div class="brz-num-input-wrap">
+                        <span class="brz-num-label">تا</span>
+                        <input type="number" data-suffix="_max" value="<?php echo esc_attr( $max_val ); ?>" step="<?php echo esc_attr( $filter_step ); ?>" placeholder="<?php echo esc_attr( $max_limit ); ?>" class="brz-number-input" />
+                        <span class="brz-num-suffix"><?php echo esc_html( $suffix ); ?></span>
+                    </div>
                 </div>
-                <div class="brz-range-slider-track-container">
-                    <div class="brz-range-slider-track"></div>
-                    <input type="range" class="brz-range-input-min" min="<?php echo esc_attr( $min_limit ); ?>" max="<?php echo esc_attr( $max_limit ); ?>" value="<?php echo esc_attr( $curr_min ); ?>" step="1" />
-                    <input type="range" class="brz-range-input-max" min="<?php echo esc_attr( $min_limit ); ?>" max="<?php echo esc_attr( $max_limit ); ?>" value="<?php echo esc_attr( $curr_max ); ?>" step="1" />
+                <?php
+            } elseif ( 'dropdown' === $filter_mode ) {
+                $min_val = isset( $_GET[ $field_key . '_min' ] ) ? sanitize_text_field( wp_unslash( $_GET[ $field_key . '_min' ] ) ) : '';
+                $max_val = isset( $_GET[ $field_key . '_max' ] ) ? sanitize_text_field( wp_unslash( $_GET[ $field_key . '_max' ] ) ) : '';
+                $curr_min = ( $min_val !== '' ) ? intval( $min_val ) : '';
+                $curr_max = ( $max_val !== '' ) ? intval( $max_val ) : '';
+                ?>
+                <div class="brz-range-dropdowns">
+                    <div class="brz-dropdown-wrap" style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                        <span class="brz-dropdown-label" style="font-size: 13px; color: var(--brz-filters-text); min-width: 25px;">از:</span>
+                        <select class="brz-range-select-min" style="flex-grow: 1; padding: 6px; border: 1px solid var(--brz-filters-border); border-radius: 6px; font-size: 13px; background: none; color: var(--brz-filters-text);">
+                            <option value="">همه</option>
+                            <?php for ( $i = $min_limit; $i <= $max_limit; $i += $filter_step ) : ?>
+                                <option value="<?php echo $i; ?>" <?php selected( $curr_min, $i ); ?>><?php echo $prefix . $i . $suffix; ?></option>
+                            <?php endfor; ?>
+                        </select>
+                    </div>
+                    <div class="brz-dropdown-wrap" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px;">
+                        <span class="brz-dropdown-label" style="font-size: 13px; color: var(--brz-filters-text); min-width: 25px;">تا:</span>
+                        <select class="brz-range-select-max" style="flex-grow: 1; padding: 6px; border: 1px solid var(--brz-filters-border); border-radius: 6px; font-size: 13px; background: none; color: var(--brz-filters-text);">
+                            <option value="">همه</option>
+                            <?php for ( $i = $min_limit; $i <= $max_limit; $i += $filter_step ) : ?>
+                                <option value="<?php echo $i; ?>" <?php selected( $curr_max, $i ); ?>><?php echo $prefix . $i . $suffix; ?></option>
+                            <?php endfor; ?>
+                        </select>
+                    </div>
                 </div>
-            </div>
-            <?php
+                <?php
+            }
         } elseif ( 'array' === $type ) {
             // Array choices list (chips/checkboxes)
             $options_str = isset( $field['options'] ) ? $field['options'] : '';
@@ -844,6 +1001,9 @@ class BRZ_Widget_Advanced_Filters extends WP_Widget {
 
         $title = isset( $instance['title'] ) ? esc_attr( $instance['title'] ) : '';
         $selected_field = isset( $instance['field_key'] ) ? sanitize_key( $instance['field_key'] ) : '';
+        $filter_mode = isset( $instance['filter_mode'] ) ? sanitize_key( $instance['filter_mode'] ) : 'slider';
+        $filter_presets = isset( $instance['filter_presets'] ) ? esc_textarea( $instance['filter_presets'] ) : '';
+        $filter_step = isset( $instance['filter_step'] ) ? intval( $instance['filter_step'] ) : 1;
         ?>
         <p>
             <label for="<?php echo esc_attr( $this->get_field_id( 'title' ) ); ?>">عنوان ویجت (در صورت خالی بودن، برچسب مشخصه استفاده می‌شود):</label>
@@ -860,6 +1020,37 @@ class BRZ_Widget_Advanced_Filters extends WP_Widget {
                 <?php endforeach; ?>
             </select>
         </p>
+        <p>
+            <label for="<?php echo esc_attr( $this->get_field_id( 'filter_mode' ) ); ?>">نوع نمایش فیلتر (فقط برای فیلدهای بازه‌ای):</label>
+            <select class="widefat brz-widget-filter-mode-select" id="<?php echo esc_attr( $this->get_field_id( 'filter_mode' ) ); ?>" name="<?php echo esc_attr( $this->get_field_name( 'filter_mode' ) ); ?>">
+                <option value="slider" <?php selected( $filter_mode, 'slider' ); ?>>اسلایدر محدوده دو زبانه (Dual Slider)</option>
+                <option value="single_value" <?php selected( $filter_mode, 'single_value' ); ?>>ارزش تک عددی / انطباق هوشمند (Smart Overlap)</option>
+                <option value="chips" <?php selected( $filter_mode, 'chips' ); ?>>دکمه‌های انتخاب سریع بازه (Preset Chips)</option>
+                <option value="inputs" <?php selected( $filter_mode, 'inputs' ); ?>>کادرهای عددی «از» و «تا» (Numeric Inputs)</option>
+                <option value="dropdown" <?php selected( $filter_mode, 'dropdown' ); ?>>منوهای کشویی «از» و «تا» (Dropdowns)</option>
+            </select>
+        </p>
+        <p class="brz-presets-field-p" style="<?php echo ( $filter_mode === 'chips' ) ? '' : 'display:none;'; ?>">
+            <label for="<?php echo esc_attr( $this->get_field_id( 'filter_presets' ) ); ?>">بازه‌های چیپس‌ها (هر بازه در یک خط به فرمت <code>عنوان:بازه</code> مثلاً <code>کودک:0-8</code> یا <code>3-4</code>):</label>
+            <textarea class="widefat" id="<?php echo esc_attr( $this->get_field_id( 'filter_presets' ) ); ?>" name="<?php echo esc_attr( $this->get_field_name( 'filter_presets' ) ); ?>" rows="4"><?php echo $filter_presets; ?></textarea>
+        </p>
+        <p>
+            <label for="<?php echo esc_attr( $this->get_field_id( 'filter_step' ) ); ?>">گام تغییرات فیلتر (اسلایدر/دراپ‌دان):</label>
+            <input class="widefat" id="<?php echo esc_attr( $this->get_field_id( 'filter_step' ) ); ?>" name="<?php echo esc_attr( $this->get_field_name( 'filter_step' ) ); ?>" type="number" step="1" min="1" value="<?php echo $filter_step; ?>" />
+        </p>
+        <script>
+            jQuery(document).ready(function($) {
+                $('body').on('change', '.brz-widget-filter-mode-select', function() {
+                    var $select = $(this);
+                    var $presetsField = $select.closest('p').next('.brz-presets-field-p');
+                    if ($select.val() === 'chips') {
+                        $presetsField.show();
+                    } else {
+                        $presetsField.hide();
+                    }
+                });
+            });
+        </script>
         <?php
     }
 
@@ -868,7 +1059,10 @@ class BRZ_Widget_Advanced_Filters extends WP_Widget {
      */
     public function update( $new_instance, $old_instance ): array {
         $instance = $old_instance;
-        $instance['title']     = sanitize_text_field( $new_instance['title'] );
+        $instance['title']          = sanitize_text_field( $new_instance['title'] );
+        $instance['filter_mode']    = isset( $new_instance['filter_mode'] ) ? sanitize_key( $new_instance['filter_mode'] ) : 'slider';
+        $instance['filter_presets'] = isset( $new_instance['filter_presets'] ) ? sanitize_textarea_field( $new_instance['filter_presets'] ) : '';
+        $instance['filter_step']    = isset( $new_instance['filter_step'] ) ? max( 1, intval( $new_instance['filter_step'] ) ) : 1;
         
         $field_key = isset( $new_instance['field_key'] ) ? sanitize_text_field( $new_instance['field_key'] ) : '';
         if ( ! empty( $field_key ) ) {

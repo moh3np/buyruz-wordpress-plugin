@@ -1898,7 +1898,17 @@ class BRZ_Product_Specs {
                 $max_val = get_post_meta( $product->get_id(), '_brz_spec_' . $max_key, true );
 
                 if ( $min_val === '' && $max_val === '' ) {
-                    continue;
+                    if ( strpos( $key, 'age' ) !== false || strpos( $key, 'سن' ) !== false || ( isset( $field['label'] ) && ( strpos( $field['label'], 'سن' ) !== false || strpos( $field['label'], 'age' ) !== false ) ) ) {
+                        $fallback = self::get_audience_fallback_range( $product->get_id() );
+                        if ( $fallback ) {
+                            $min_val = $fallback['min'];
+                            $max_val = $fallback['max'];
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        continue;
+                    }
                 }
 
                 // Determine combined label by stripping out "حداقل" and "حداکثر"
@@ -2059,6 +2069,93 @@ class BRZ_Product_Specs {
         return str_replace($en, $fa, (string) $str);
     }
 
+    /**
+     * Parse age range from WooCommerce term name or description dynamically.
+     */
+    public static function parse_range_from_term( $term_name, $term_description = '' ): ?array {
+        $text = $term_name . ' ' . $term_description;
+        
+        $persian_digits = array( '۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹' );
+        $arabic_digits  = array( '٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩' );
+        $english_digits = array( '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' );
+        
+        $text = str_replace( $persian_digits, $english_digits, $text );
+        $text = str_replace( $arabic_digits, $english_digits, $text );
+        
+        if ( preg_match( '/([0-9]+)\s*(?:تا|to|-)\s*([0-9]+)/i', $text, $matches ) ) {
+            return array(
+                'min' => intval( $matches[1] ),
+                'max' => intval( $matches[2] ),
+            );
+        }
+        
+        if ( preg_match( '/(?:بالای|بزرگتر از|over|>|\+)\s*([0-9]+)/i', $text, $matches ) ) {
+            return array(
+                'min' => intval( $matches[1] ),
+                'max' => 99,
+            );
+        }
+        if ( preg_match( '/([0-9]+)\s*(?:\+)/i', $text, $matches ) ) {
+            return array(
+                'min' => intval( $matches[1] ),
+                'max' => 99,
+            );
+        }
+        
+        if ( preg_match( '/(?:زیر|کمتر از|under|<)\s*([0-9]+)/i', $text, $matches ) ) {
+            return array(
+                'min' => 0,
+                'max' => intval( $matches[1] ),
+            );
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get fallback range from WooCommerce Target Audience attribute dynamically.
+     */
+    public static function get_audience_fallback_range( int $product_id ): ?array {
+        if ( ! function_exists( 'wc_get_product' ) ) {
+            return null;
+        }
+        $product = wc_get_product( $product_id );
+        if ( ! $product ) {
+            return null;
+        }
+        
+        $attributes = $product->get_attributes();
+        foreach ( $attributes as $attribute_name => $attribute ) {
+            if ( ! $attribute->is_taxonomy() ) {
+                continue;
+            }
+            
+            $taxonomy = $attribute->get_taxonomy_object();
+            $label = $taxonomy ? $taxonomy->attribute_label : '';
+            $slug = $taxonomy ? $taxonomy->attribute_name : $attribute_name;
+            
+            if ( 
+                strpos( $label, 'مخاطب' ) !== false || 
+                strpos( $label, 'سن' ) !== false || 
+                strpos( $slug, 'audience' ) !== false || 
+                strpos( $slug, 'target' ) !== false || 
+                strpos( $slug, 'age' ) !== false 
+            ) {
+                $terms = wp_get_post_terms( $product_id, $slug, array( 'fields' => 'all' ) );
+                if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+                    foreach ( $terms as $term ) {
+                        $range = self::parse_range_from_term( $term->name, $term->description );
+                        if ( $range ) {
+                            return $range;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return null;
+    }
+
 
 
     /**
@@ -2214,7 +2311,17 @@ class BRZ_Product_Specs {
                     $max_val = get_post_meta( $product->get_id(), '_brz_spec_' . $max_key, true );
 
                     if ( $min_val === '' && $max_val === '' ) {
-                        continue;
+                        if ( strpos( $key, 'age' ) !== false || strpos( $key, 'سن' ) !== false || ( isset( $field['label'] ) && ( strpos( $field['label'], 'سن' ) !== false || strpos( $field['label'], 'age' ) !== false ) ) ) {
+                            $fallback = self::get_audience_fallback_range( $product->get_id() );
+                            if ( $fallback ) {
+                                $min_val = $fallback['min'];
+                                $max_val = $fallback['max'];
+                            } else {
+                                continue;
+                            }
+                        } else {
+                            continue;
+                        }
                     }
 
                     $combined_label = trim( str_replace( array( 'حداقل', 'حداکثر' ), '', $field['label'] ) );

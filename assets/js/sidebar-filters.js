@@ -22,6 +22,11 @@ document.addEventListener('DOMContentLoaded', function() {
         initDualRangeSlider(wrapper);
     });
 
+    const singleSliders = document.querySelectorAll('.brz-single-slider-wrapper');
+    singleSliders.forEach(function(wrapper) {
+        initSingleRangeSlider(wrapper);
+    });
+
     // Setup events
     setupFilterEvents(config);
 });
@@ -44,8 +49,8 @@ function initDualRangeSlider(wrapper) {
 
     const minLimit = parseFloat(minInput.min);
     const maxLimit = parseFloat(maxInput.max);
-    const prefix = minValText.textContent.replace(/[0-9\s]/g, '').trim();
-    const suffix = maxValText.textContent.replace(/[0-9\s]/g, '').trim();
+    const prefix = wrapper.getAttribute('data-prefix') || minValText.textContent.replace(/[0-9\s]/g, '').trim();
+    const suffix = wrapper.getAttribute('data-suffix') || maxValText.textContent.replace(/[0-9\s]/g, '').trim();
 
     function updateTrack() {
         let minVal = parseFloat(minInput.value);
@@ -113,6 +118,51 @@ function setupFilterEvents(config) {
 
     // 2. Intercept standard WooCommerce attribute widgets and categories clicks to unify AJAX filtering
     document.body.addEventListener('click', function(e) {
+        // Chip clicks
+        const chip = e.target.closest('.brz-range-chip');
+        if (chip) {
+            e.preventDefault();
+            const control = chip.closest('.brz-filter-widget-control');
+            const wasActive = chip.classList.contains('active');
+            
+            control.querySelectorAll('.brz-range-chip').forEach(c => c.classList.remove('active'));
+            if (!wasActive) {
+                chip.classList.add('active');
+            }
+            fetchFilteredProducts();
+            return;
+        }
+
+        // Exact range reset button
+        const resetBtn = e.target.closest('.brz-range-reset');
+        if (resetBtn) {
+            e.preventDefault();
+            const control = resetBtn.closest('.brz-filter-widget-control');
+            const exactInput = control.querySelector('.brz-range-input-exact');
+            if (exactInput) {
+                exactInput.setAttribute('data-active', '0');
+                exactInput.value = exactInput.getAttribute('min') || 0;
+                
+                const exactValText = control.querySelector('.brz-range-value-exact');
+                if (exactValText) exactValText.textContent = 'نمایش همه';
+                resetBtn.style.display = 'none';
+                
+                const activeTrack = control.querySelector('.brz-range-slider-track-active');
+                if (activeTrack) {
+                    if (document.documentElement.dir === 'rtl' || window.getComputedStyle(control).direction === 'rtl') {
+                        activeTrack.style.right = '0%';
+                        activeTrack.style.left = '100%';
+                    } else {
+                        activeTrack.style.left = '0%';
+                        activeTrack.style.right = '100%';
+                    }
+                }
+                
+                fetchFilteredProducts();
+            }
+            return;
+        }
+
         if (!config.ajax_enabled) return;
 
         // Intercept standard woocommerce attribute links, category links, or reset links in sidebar
@@ -170,17 +220,55 @@ function setupFilterEvents(config) {
             const type = control.className.split(' ').find(c => c.startsWith('brz-filter-type-')).replace('brz-filter-type-', '');
 
             if ('range' === type) {
-                const minInput = control.querySelector('.brz-range-input-min');
-                const maxInput = control.querySelector('.brz-range-input-max');
-                if (minInput && maxInput) {
-                    const minLimit = minInput.getAttribute('min');
-                    const maxLimit = maxInput.getAttribute('max');
-                    // Only send parameters if they differ from boundaries to keep URL clean
-                    if (minInput.value !== minLimit) {
+                const mode = control.getAttribute('data-filter-mode') || 'slider';
+                
+                if (mode === 'slider') {
+                    const minInput = control.querySelector('.brz-range-input-min');
+                    const maxInput = control.querySelector('.brz-range-input-max');
+                    if (minInput && maxInput) {
+                        const minLimit = minInput.getAttribute('min');
+                        const maxLimit = maxInput.getAttribute('max');
+                        if (minInput.value !== minLimit) {
+                            params.set(key + '_min', minInput.value);
+                        }
+                        if (maxInput.value !== maxLimit) {
+                            params.set(key + '_max', maxInput.value);
+                        }
+                    }
+                } else if (mode === 'single_value') {
+                    const exactInput = control.querySelector('.brz-range-input-exact');
+                    if (exactInput && exactInput.getAttribute('data-active') === '1') {
+                        params.set(key, exactInput.value);
+                    }
+                } else if (mode === 'chips') {
+                    const activeChip = control.querySelector('.brz-range-chip.active');
+                    if (activeChip) {
+                        const min = activeChip.getAttribute('data-min');
+                        const max = activeChip.getAttribute('data-max');
+                        if (min !== '') {
+                            params.set(key + '_min', min);
+                        }
+                        if (max !== '') {
+                            params.set(key + '_max', max);
+                        }
+                    }
+                } else if (mode === 'inputs') {
+                    const minInput = control.querySelector('[data-suffix="_min"]');
+                    const maxInput = control.querySelector('[data-suffix="_max"]');
+                    if (minInput && minInput.value !== '') {
                         params.set(key + '_min', minInput.value);
                     }
-                    if (maxInput.value !== maxLimit) {
+                    if (maxInput && maxInput.value !== '') {
                         params.set(key + '_max', maxInput.value);
+                    }
+                } else if (mode === 'dropdown') {
+                    const minSelect = control.querySelector('.brz-range-select-min');
+                    const maxSelect = control.querySelector('.brz-range-select-max');
+                    if (minSelect && minSelect.value !== '') {
+                        params.set(key + '_min', minSelect.value);
+                    }
+                    if (maxSelect && maxSelect.value !== '') {
+                        params.set(key + '_max', maxSelect.value);
                     }
                 }
             } else if ('array' === type) {
@@ -221,14 +309,54 @@ function setupFilterEvents(config) {
             const type = control.className.split(' ').find(c => c.startsWith('brz-filter-type-')).replace('brz-filter-type-', '');
 
             if ('range' === type) {
-                const minInput = control.querySelector('.brz-range-input-min');
-                const maxInput = control.querySelector('.brz-range-input-max');
-                if (minInput && maxInput) {
-                    const urlMin = params.get(key + '_min');
-                    const urlMax = params.get(key + '_max');
-                    minInput.value = urlMin !== null ? urlMin : minInput.getAttribute('min');
-                    maxInput.value = urlMax !== null ? urlMax : maxInput.getAttribute('max');
-                    initDualRangeSlider(control);
+                const mode = control.getAttribute('data-filter-mode') || 'slider';
+                
+                if (mode === 'slider') {
+                    const minInput = control.querySelector('.brz-range-input-min');
+                    const maxInput = control.querySelector('.brz-range-input-max');
+                    if (minInput && maxInput) {
+                        const urlMin = params.get(key + '_min');
+                        const urlMax = params.get(key + '_max');
+                        minInput.value = urlMin !== null ? urlMin : minInput.getAttribute('min');
+                        maxInput.value = urlMax !== null ? urlMax : maxInput.getAttribute('max');
+                        initDualRangeSlider(control);
+                    }
+                } else if (mode === 'single_value') {
+                    const exactInput = control.querySelector('.brz-range-input-exact');
+                    if (exactInput) {
+                        const urlVal = params.get(key);
+                        if (urlVal !== null) {
+                            exactInput.value = urlVal;
+                            exactInput.setAttribute('data-active', '1');
+                        } else {
+                            exactInput.value = exactInput.getAttribute('min') || 0;
+                            exactInput.setAttribute('data-active', '0');
+                        }
+                        initSingleRangeSlider(control);
+                    }
+                } else if (mode === 'chips') {
+                    const chips = control.querySelectorAll('.brz-range-chip');
+                    const urlMin = params.get(key + '_min') || '';
+                    const urlMax = params.get(key + '_max') || '';
+                    chips.forEach(function(chip) {
+                        const chipMin = chip.getAttribute('data-min') || '';
+                        const chipMax = chip.getAttribute('data-max') || '';
+                        if (urlMin === chipMin && urlMax === chipMax) {
+                            chip.classList.add('active');
+                        } else {
+                            chip.classList.remove('active');
+                        }
+                    });
+                } else if (mode === 'inputs') {
+                    const minInput = control.querySelector('[data-suffix="_min"]');
+                    const maxInput = control.querySelector('[data-suffix="_max"]');
+                    if (minInput) minInput.value = params.get(key + '_min') || '';
+                    if (maxInput) maxInput.value = params.get(key + '_max') || '';
+                } else if (mode === 'dropdown') {
+                    const minSelect = control.querySelector('.brz-range-select-min');
+                    const maxSelect = control.querySelector('.brz-range-select-max');
+                    if (minSelect) minSelect.value = params.get(key + '_min') || '';
+                    if (maxSelect) maxSelect.value = params.get(key + '_max') || '';
                 }
             } else if ('array' === type) {
                 const checkboxes = control.querySelectorAll('input[type="checkbox"]');
@@ -259,24 +387,21 @@ function setupFilterEvents(config) {
         const productsContainer = document.querySelector(config.container_selector);
         if (!productsContainer) return;
 
-        // 1. Check if AJAX is enabled
+        // 1. Build request URL
         let fetchUrl = targetUrl;
         if (!fetchUrl) {
-            const widgetParams = getFilterQueryParameters();
-            
-            // Build current url merging our parameters
             const url = new URL(window.location.href);
             const params = url.searchParams;
+            const widgetParams = getFilterQueryParameters();
 
-            // Clear our existing spec filter variables from URL
+            // Clear our widget parameters from original URL to prevent merging old values
             const activeControls = document.querySelectorAll('.brz-filter-widget-control');
-            activeControls.forEach(control => {
+            activeControls.forEach(function(control) {
                 const key = control.getAttribute('data-key');
                 params.delete(key);
                 params.delete(key + '_min');
                 params.delete(key + '_max');
             });
-            params.delete('paged'); // reset page to 1 on filter change
 
             // Add our active widget parameters
             widgetParams.forEach((value, name) => {
@@ -361,4 +486,53 @@ function setupFilterEvents(config) {
                 overlay.classList.remove('active');
             });
     }
+}
+
+/**
+ * Initialize Single Range Slider (Smart Overlap).
+ */
+function initSingleRangeSlider(wrapper) {
+    const exactInput = wrapper.querySelector('.brz-range-input-exact');
+    const exactValText = wrapper.querySelector('.brz-range-value-exact');
+    const resetBtn = wrapper.querySelector('.brz-range-reset');
+    if (!exactInput) return;
+
+    const minLimit = parseInt(exactInput.getAttribute('min'), 10) || 0;
+    const maxLimit = parseInt(exactInput.getAttribute('max'), 10) || 100;
+    const prefix = wrapper.getAttribute('data-prefix') || '';
+    const suffix = wrapper.getAttribute('data-suffix') || '';
+
+    function updateDisplay() {
+        const val = parseInt(exactInput.value, 10);
+        const isActive = exactInput.getAttribute('data-active') === '1';
+        if (isActive) {
+            exactValText.textContent = (prefix ? prefix + ' ' : '') + val + (suffix ? ' ' + suffix : '');
+            if (resetBtn) resetBtn.style.display = 'inline-block';
+        } else {
+            exactValText.textContent = 'نمایش همه';
+            if (resetBtn) resetBtn.style.display = 'none';
+        }
+        
+        let activeTrack = wrapper.querySelector('.brz-range-slider-track-active');
+        if (!activeTrack) {
+            activeTrack = document.createElement('div');
+            activeTrack.className = 'brz-range-slider-track-active';
+            wrapper.querySelector('.brz-range-slider-track-container').appendChild(activeTrack);
+        }
+        const percent = ((val - minLimit) / (maxLimit - minLimit)) * 100;
+        if (document.documentElement.dir === 'rtl' || window.getComputedStyle(wrapper).direction === 'rtl') {
+            activeTrack.style.right = '0%';
+            activeTrack.style.left = (100 - percent) + '%';
+        } else {
+            activeTrack.style.left = '0%';
+            activeTrack.style.right = (100 - percent) + '%';
+        }
+    }
+
+    exactInput.addEventListener('input', function() {
+        exactInput.setAttribute('data-active', '1');
+        updateDisplay();
+    });
+
+    updateDisplay();
 }
