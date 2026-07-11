@@ -1117,102 +1117,166 @@ class BRZ_Product_Specs {
                 background: rgba(211,47,47,.08);
             }
             
-            /* Unified Layout Custom Styles */
+            /* Modern SaaS UI styling for Unified Layout */
             .brz-layout-container {
                 display: flex;
                 flex-direction: column;
-                gap: 20px;
+                gap: 24px;
                 margin-top: 15px;
             }
             .brz-draggable-list {
-                background: #fdfdfd;
-                border: 1px solid #e0e0e0;
-                border-radius: 8px;
-                padding: 10px;
-                min-height: 80px;
+                background: #fafbfc;
+                border: 1.5px dashed #e2e8f0;
+                border-radius: 14px;
+                padding: 16px;
+                min-height: 100px;
                 display: flex;
                 flex-direction: column;
-                gap: 6px;
+                gap: 8px;
+                transition: background 0.2s, border-color 0.2s;
+            }
+            .brz-draggable-list:hover {
+                border-color: #cbd5e1;
+                background: #f8fafc;
             }
             .brz-layout-item {
-                background: #fff;
-                border: 1px solid #d2d2d2;
-                border-radius: 6px;
-                padding: 8px 15px;
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
+                padding: 10px 18px;
                 display: flex;
                 align-items: center;
                 cursor: grab;
                 user-select: none;
-                transition: background 0.15s, border-color 0.15s;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.01);
             }
             .brz-layout-item:hover {
-                background: #f7f9fc;
                 border-color: var(--brz-brand, #1a73e8);
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(26, 115, 232, 0.08);
+                background: #fdfdfd;
             }
-            .brz-layout-item.is-dragging {
-                box-shadow: 0 4px 12px rgba(26,115,232,.1);
-                border-color: var(--brz-brand, #1a73e8);
-                background: #fff;
-            }
-            .brz-layout-placeholder {
-                background: #f5f8fc;
-                border: 1.5px dashed var(--brz-brand, #1a73e8);
-                border-radius: 6px;
-                height: 40px;
-                margin-bottom: 6px;
-                box-sizing: border-box;
-            }
-            .ui-sortable-helper {
-                box-shadow: 0 8px 24px rgba(0,0,0,.12);
-                border-color: var(--brz-brand, #1a73e8) !important;
-                background: #fff !important;
-            }
-            .brz-layout-drag-handle {
-                font-size: 16px;
-                color: #888;
-                margin-left: 12px;
-                cursor: grab;
-            }
-            .brz-layout-item-label {
-                font-weight: 500;
-                color: #333;
-                flex-grow: 1;
+            .brz-layout-item:active {
+                cursor: grabbing;
             }
             .brz-layout-item-type {
                 font-size: 11px;
-                color: #888;
-                background: #f1f1f1;
-                padding: 2px 8px;
+                font-weight: 500;
+                padding: 3px 10px;
+                border-radius: 20px;
+                letter-spacing: -0.2px;
+            }
+            /* Specs badge: Elegant Purple */
+            .brz-layout-item[data-slug^="manual_"] .brz-layout-item-type,
+            .brz-layout-item[data-slug^="min_"] .brz-layout-item-type,
+            .brz-layout-item[data-slug^="max_"] .brz-layout-item-type,
+            .brz-layout-item[data-slug^="best_"] .brz-layout-item-type,
+            .brz-layout-item[data-slug^="difficulty"] .brz-layout-item-type,
+            .brz-layout-item[data-slug^="is_"] .brz-layout-item-type,
+            .brz-layout-item[data-slug^="has_"] .brz-layout-item-type,
+            .brz-layout-item[data-slug^="needs_"] .brz-layout-item-type,
+            .brz-layout-item[data-slug^="card_count"] .brz-layout-item-type,
+            .brz-layout-item[data-slug^="meople_"] .brz-layout-item-type,
+            .brz-layout-item[data-slug^="pieces_"] .brz-layout-item-type {
+                background: #f3e8ff;
+                color: #6b21a8;
+                border: 1px solid #e9d5ff;
+            }
+            /* WooCommerce attribute badge: Sleek Blue */
+            .brz-layout-item[data-slug^="pa_"] .brz-layout-item-type {
+                background: #dbeafe;
+                color: #1e40af;
+                border: 1px solid #bfdbfe;
+            }
+            /* Weight & Dimensions physical badge: Fresh Green */
+            .brz-layout-item[data-slug="weight"] .brz-layout-item-type,
+            .brz-layout-item[data-slug="dimensions"] .brz-layout-item-type {
+                background: #dcfce7;
+                color: #15803d;
+                border: 1px solid #bbf7d0;
+            }
+            /* General fallback badge */
+            .brz-layout-item-type {
+                background: #f1f5f9;
+                color: #475569;
+                border: 1px solid #e2e8f0;
+            }
+            
+            .brz-layout-placeholder {
+                background: rgba(26, 115, 232, 0.03);
+                border: 2px dashed var(--brz-brand, #1a73e8);
                 border-radius: 10px;
+                height: 44px;
+                margin-bottom: 8px;
+                box-sizing: border-box;
+                position: relative;
+                animation: brzPulse 1.8s infinite ease-in-out;
+            }
+            @keyframes brzPulse {
+                0% { opacity: 0.6; }
+                50% { opacity: 0.9; background-color: rgba(26, 115, 232, 0.06); }
+                100% { opacity: 0.6; }
+            }
+            .ui-sortable-helper {
+                box-shadow: 0 10px 25px rgba(26, 115, 232, 0.15) !important;
+                border-color: var(--brz-brand, #1a73e8) !important;
+                background: #ffffff !important;
+                transform: scale(1.015) rotate(0.4deg);
+                cursor: grabbing !important;
+            }
+            .brz-layout-drag-handle {
+                font-size: 14px;
+                color: #94a3b8;
+                margin-left: 14px;
+                cursor: grab;
+                transition: color 0.15s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .brz-layout-item:hover .brz-layout-drag-handle {
+                color: var(--brz-brand, #1a73e8);
+            }
+            .brz-layout-item-label {
+                font-weight: 600;
+                color: #1e293b;
+                flex-grow: 1;
+                font-size: 13.5px;
             }
             .brz-cat-override-card {
-                border: 1px solid #dcdcdc;
-                border-radius: 8px;
-                margin-top: 15px;
-                background: #fafafa;
+                border: 1px solid #e2e8f0;
+                border-radius: 14px;
+                margin-top: 20px;
+                background: #ffffff;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.02);
                 overflow: hidden;
             }
             .brz-cat-override-header {
-                padding: 12px 15px;
-                border-bottom: 1px solid #dcdcdc;
+                padding: 14px 20px;
+                border-bottom: 1px solid #e2e8f0;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                font-weight: bold;
-                background: #f1f1f1;
+                font-weight: 700;
+                background: #f8fafc;
+                color: #0f172a;
+                font-size: 14px;
             }
             .brz-cat-override-body {
-                padding: 15px;
+                padding: 20px;
             }
             .brz-btn-danger-link {
                 background: none;
                 border: none;
-                color: #d32f2f;
+                color: #ef4444;
                 cursor: pointer;
                 font-size: 13px;
-                font-weight: 500;
+                font-weight: 600;
+                transition: color 0.15s;
             }
             .brz-btn-danger-link:hover {
+                color: #b91c1c;
                 text-decoration: underline;
             }
         </style>
