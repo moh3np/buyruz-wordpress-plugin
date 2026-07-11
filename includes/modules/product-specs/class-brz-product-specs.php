@@ -2260,7 +2260,7 @@ class BRZ_Product_Specs {
                 <!-- State 1: Both values -->
                 <div style="margin-bottom:18px;">
                     <div style="font-weight:600; font-size:12.5px; color:#475569; margin-bottom:8px;">۱. قالب نمایش وقتی هر دو مقدار وارد شده‌اند:</div>
-                    <div style="display:flex; gap:8px; align-items:center; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; direction: ltr;">
+                    <div style="display:flex; gap:8px; align-items:center; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; direction: rtl;">
                         <input type="text" id="brz-rf-both-before" placeholder="پیشوند (قبل)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; text-align:center;" />
                         <span style="font-size:11px; color:#64748b; font-weight:600; background:#e2e8f0; padding:2px 6px; border-radius:4px;">min</span>
                         <input type="text" id="brz-rf-both-between" placeholder="بین" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; text-align:center;" />
@@ -2272,7 +2272,7 @@ class BRZ_Product_Specs {
                 <!-- State 2: Min value only -->
                 <div style="margin-bottom:18px;">
                     <div style="font-weight:600; font-size:12.5px; color:#475569; margin-bottom:8px;">۲. قالب نمایش وقتی فقط مقدار حداقل وارد شده:</div>
-                    <div style="display:flex; gap:8px; align-items:center; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; direction: ltr;">
+                    <div style="display:flex; gap:8px; align-items:center; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; direction: rtl;">
                         <input type="text" id="brz-rf-min-before" placeholder="پیشوند (قبل)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; text-align:center;" />
                         <span style="font-size:11px; color:#64748b; font-weight:600; background:#e2e8f0; padding:2px 6px; border-radius:4px;">min</span>
                         <input type="text" id="brz-rf-min-after" placeholder="پسوند (بعد)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; text-align:center;" />
@@ -2282,7 +2282,7 @@ class BRZ_Product_Specs {
                 <!-- State 3: Max value only -->
                 <div style="margin-bottom:20px;">
                     <div style="font-weight:600; font-size:12.5px; color:#475569; margin-bottom:8px;">۳. قالب نمایش وقتی فقط مقدار حداکثر وارد شده:</div>
-                    <div style="display:flex; gap:8px; align-items:center; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; direction: ltr;">
+                    <div style="display:flex; gap:8px; align-items:center; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; direction: rtl;">
                         <input type="text" id="brz-rf-max-before" placeholder="پیشوند (قبل)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; text-align:center;" />
                         <span style="font-size:11px; color:#64748b; font-weight:600; background:#e2e8f0; padding:2px 6px; border-radius:4px;">max</span>
                         <input type="text" id="brz-rf-max-after" placeholder="پسوند (بعد)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; text-align:center;" />
