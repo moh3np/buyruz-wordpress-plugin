@@ -24,7 +24,9 @@ class BRZ_Product_Specs {
             add_action( 'wp_ajax_brz_save_unified_specs_layout', array( __CLASS__, 'ajax_save_unified_layout' ) );
         } else {
             // Frontend: Inject unified layout specifications and remove WooCommerce default
-            remove_action( 'woocommerce_product_additional_information', 'wc_display_product_attributes', 10 );
+            add_action( 'wp', function() {
+                remove_action( 'woocommerce_product_additional_information', 'wc_display_product_attributes', 10 );
+            }, 20 );
             add_action( 'woocommerce_product_additional_information', array( __CLASS__, 'render_unified_product_specs' ), 10 );
         }
 
