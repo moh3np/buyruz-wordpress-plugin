@@ -312,7 +312,8 @@
     var isDependencyPayload = !Array.isArray(items) && items.create_dependencies === true;
     var isSpecsPayload = !Array.isArray(items) && items.create_specs === true;
     var isDeletePayload = !Array.isArray(items) && items.delete_dependencies === true;
-    if (!isDependencyPayload && !isSpecsPayload && !isDeletePayload && (!Array.isArray(items) || items.length === 0)) {
+    var isMigratePayload = !Array.isArray(items) && items.migrate_attributes === true;
+    if (!isDependencyPayload && !isSpecsPayload && !isDeletePayload && !isMigratePayload && (!Array.isArray(items) || items.length === 0)) {
       showError(i18n.invalidArray || 'آرایه خالی یا نامعتبر.');
       return;
     }
@@ -327,7 +328,7 @@
 
     var BATCH_SIZE = 50;
     var chunks = [];
-    if (isDependencyPayload || isSpecsPayload || isDeletePayload) {
+    if (isDependencyPayload || isSpecsPayload || isDeletePayload || isMigratePayload) {
       chunks.push(items);
     } else {
       for (var i = 0; i < items.length; i += BATCH_SIZE) {
@@ -493,6 +494,12 @@
               inputEl.value = '';
               inputEl.focus();
             }
+        } else if (isMigratePayload) {
+            showSnackbar('ویژگی‌های قدیمی با موفقیت به مشخصات فنی بایروز انتقال یافتند.', 5000);
+            if (inputEl) {
+              inputEl.value = '';
+              inputEl.focus();
+            }
         } else {
             // Show snackbar
             if (totalFailedCount > 0) {
@@ -506,7 +513,7 @@
             }
         }
 
-        if (!isDependencyPayload && !isSpecsPayload && !isDeletePayload) {
+        if (!isDependencyPayload && !isSpecsPayload && !isDeletePayload && !isMigratePayload) {
             renderStats({ total: items.length, success_count: totalSuccessCount, failed_count: totalFailedCount });
             if (allResults.length) renderResults(allResults);
         }
@@ -515,7 +522,7 @@
 
       var currentChunk = chunks[batchIndex];
 
-      if (progressContainer && !isDependencyPayload && !isSpecsPayload && !isDeletePayload) {
+      if (progressContainer && !isDependencyPayload && !isSpecsPayload && !isDeletePayload && !isMigratePayload) {
         progressContainer.style.display = 'block';
         var pct = Math.round((processedCount / items.length) * 100);
         if (progressBar) progressBar.style.width = pct + '%';
@@ -540,7 +547,7 @@
             if (data.results) allResults = allResults.concat(data.results);
             totalSuccessCount += (data.success_count || 0);
             totalFailedCount += (data.failed_count || 0);
-            processedCount += (isDependencyPayload || isSpecsPayload || isDeletePayload) ? 1 : currentChunk.length;
+            processedCount += (isDependencyPayload || isSpecsPayload || isDeletePayload || isMigratePayload) ? 1 : currentChunk.length;
 
             if (data.dependency_ids) {
                 if (!allDependencyIds) allDependencyIds = {};

@@ -385,6 +385,14 @@ class BRZ_Offline_Bridge {
             exit;
         }
 
+        // Support for "migrate_attributes" JSON object structure
+        if ( is_array( $items ) && isset( $items['migrate_attributes'] ) && $items['migrate_attributes'] ) {
+            error_log( '[BRZ_Offline_Bridge] migrate_attributes triggered.' );
+            $result = self::migrate_attributes_to_specs( $items );
+            wp_send_json_success( $result );
+            exit;
+        }
+
         // Support for "create_dependencies" JSON object structure
         if ( is_array( $items ) && isset( $items['create_dependencies'] ) && $items['create_dependencies'] ) {
 
@@ -1214,5 +1222,296 @@ class BRZ_Offline_Bridge {
         }
 
         unset( self::$old_values[ $id ] );
+    }
+
+    /**
+     * Migrate global product attributes to Buyruz custom product specifications based on mapping.
+     *
+     * @param array $payload The migration payload.
+     * @return array
+     */
+    public static function migrate_attributes_to_specs( array $payload ): array {
+        if ( empty( $payload['mappings'] ) || ! is_array( $payload['mappings'] ) ) {
+            return array(
+                'success' => false,
+                'message' => 'جدول نگاشت (mappings) نامعتبر یا خالی است.'
+            );
+        }
+
+        global $wpdb;
+        $mappings = $payload['mappings'];
+        $delete_attributes = ! empty( $payload['delete_attributes'] );
+
+        // Extract list of taxonomies to process
+        $target_taxonomies = array();
+        $tax_to_mapping = array();
+        foreach ( $mappings as $mapping ) {
+            if ( empty( $mapping['attribute'] ) || empty( $mapping['meta_key'] ) ) {
+                continue;
+            }
+            $attr = sanitize_text_field( $mapping['attribute'] );
+            $clean_name = ( strpos( $attr, 'pa_' ) === 0 ) ? substr( $attr, 3 ) : $attr;
+            $taxonomy = 'pa_' . $clean_name;
+            $target_taxonomies[] = $taxonomy;
+            $tax_to_mapping[ $taxonomy ] = $mapping;
+        }
+
+        if ( empty( $target_taxonomies ) ) {
+            return array(
+                'success' => false,
+                'message' => 'هیچ ویژگی معتبری برای نگاشت یافت نشد.'
+            );
+        }
+
+        // Find all product IDs associated with any of these taxonomies
+        $placeholders = implode( ',', array_fill( 0, count( $target_taxonomies ), '%s' ) );
+        $product_ids = $wpdb->get_col( $wpdb->prepare(
+            "SELECT DISTINCT tr.object_id 
+             FROM {$wpdb->term_relationships} tr
+             INNER JOIN {$wpdb->term_taxonomy} tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
+             INNER JOIN {$wpdb->posts} p ON tr.object_id = p.ID
+             WHERE tt.taxonomy IN ($placeholders)
+               AND p.post_type = 'product'
+               AND p.post_status NOT IN ('trash', 'auto-draft')",
+            $target_taxonomies
+        ) );
+
+        $product_ids = array_map( 'intval', $product_ids );
+        $total_products = count( $product_ids );
+        $processed_count = 0;
+        $migrated_stats = array();
+
+        self::$skip_hook_logging = true; // Disable change logging
+
+        foreach ( $product_ids as $product_id ) {
+            $product = wc_get_product( $product_id );
+            if ( ! $product ) {
+                continue;
+            }
+
+            $product_attributes = $product->get_attributes();
+            $changed = false;
+
+            foreach ( $target_taxonomies as $taxonomy ) {
+                if ( ! isset( $product_attributes[ $taxonomy ] ) ) {
+                    continue;
+                }
+
+                $mapping = $tax_to_mapping[ $taxonomy ];
+                $meta_key = sanitize_text_field( $mapping['meta_key'] );
+                $logic = isset( $mapping['logic'] ) ? sanitize_text_field( $mapping['logic'] ) : '';
+
+                // Get term names
+                $terms = wp_get_post_terms( $product_id, $taxonomy, array( 'fields' => 'names' ) );
+                if ( is_wp_error( $terms ) || empty( $terms ) ) {
+                    continue;
+                }
+
+                $term_value = implode( ' | ', $terms );
+
+                // Parse the value
+                $parsed = self::parse_mapped_value( $term_value, $logic );
+
+                if ( null !== $parsed ) {
+                    // Store value
+                    if ( is_array( $parsed ) && isset( $parsed['min'] ) && isset( $parsed['max'] ) ) {
+                        // Range spec
+                        if ( class_exists( 'BRZ_Product_Specs' ) ) {
+                            $keys = \BRZ_Product_Specs::get_range_meta_keys( $meta_key );
+                        } else {
+                            if ( 'manual_age' === $meta_key ) {
+                                $keys = array( '_brz_spec_manual_min_age', '_brz_spec_manual_max_age' );
+                            } elseif ( 'players' === $meta_key ) {
+                                $keys = array( '_brz_spec_min_players', '_brz_spec_max_players' );
+                            } elseif ( 'time' === $meta_key ) {
+                                $keys = array( '_brz_spec_min_time', '_brz_spec_max_time' );
+                            } else {
+                                $keys = array( '_brz_spec_' . $meta_key . '_min', '_brz_spec_' . $meta_key . '_max' );
+                            }
+                        }
+                        
+                        $product->update_meta_data( $keys[0], $parsed['min'] );
+                        $product->update_meta_data( $keys[1], $parsed['max'] );
+                        
+                        if ( 'manual_age' === $meta_key ) {
+                            $product->update_meta_data( '_brz_spec_filter_min_age', $parsed['min'] );
+                            $product->update_meta_data( '_brz_spec_filter_max_age', $parsed['max'] );
+                        }
+
+                        $migrated_stats[ $meta_key . '_min' ] = ( $migrated_stats[ $meta_key . '_min' ] ?? 0 ) + 1;
+                        $migrated_stats[ $meta_key . '_max' ] = ( $migrated_stats[ $meta_key . '_max' ] ?? 0 ) + 1;
+                    } else {
+                        // Simple value type
+                        $prefixed_meta_key = '_brz_spec_' . $meta_key;
+                        
+                        if ( is_array( $parsed ) ) {
+                            $product->update_meta_data( $prefixed_meta_key, wp_json_encode( $parsed ) );
+                        } else {
+                            $product->update_meta_data( $prefixed_meta_key, $parsed );
+                        }
+
+                        $migrated_stats[ $meta_key ] = ( $migrated_stats[ $meta_key ] ?? 0 ) + 1;
+                    }
+
+                    // Remove attribute from product
+                    unset( $product_attributes[ $taxonomy ] );
+                    $changed = true;
+                }
+            }
+
+            if ( $changed ) {
+                $product->set_attributes( $product_attributes );
+                $product->save();
+                $processed_count++;
+            }
+        }
+
+        self::$skip_hook_logging = false; // Re-enable change logging
+
+        // Clean up global attributes entirely
+        $deleted_attributes = array();
+        if ( $delete_attributes ) {
+            foreach ( $target_taxonomies as $taxonomy ) {
+                $clean_name = ( strpos( $taxonomy, 'pa_' ) === 0 ) ? substr( $taxonomy, 3 ) : $taxonomy;
+                
+                // 1. Delete terms
+                $terms = get_terms( array(
+                    'taxonomy'   => $taxonomy,
+                    'hide_empty' => false,
+                ) );
+
+                if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+                    foreach ( $terms as $term ) {
+                        wp_delete_term( $term->term_id, $taxonomy );
+                    }
+                }
+
+                // 2. Delete attribute
+                $attr_id = wc_attribute_taxonomy_id_by_name( $clean_name );
+                if ( $attr_id ) {
+                    $deleted = wc_delete_attribute( $attr_id );
+                    if ( $deleted ) {
+                        $deleted_attributes[] = $taxonomy;
+                    }
+                }
+            }
+        }
+
+        return array(
+            'success'            => true,
+            'message'            => sprintf( 'انتقال با موفقیت انجام شد. %d محصول بروزرسانی شدند.', $processed_count ),
+            'total_products'     => $total_products,
+            'processed_products' => $processed_count,
+            'migrated_stats'     => $migrated_stats,
+            'deleted_attributes' => $deleted_attributes
+        );
+    }
+
+    /**
+     * Parse attribute term values to target spec format based on logic.
+     *
+     * @param string $val Raw string value.
+     * @param string $logic Parsing logic key.
+     * @return mixed
+     */
+    public static function parse_mapped_value( string $val, string $logic ) {
+        $val = trim( $val );
+        if ( '' === $val ) {
+            return null;
+        }
+
+        // Convert Persian/Arabic digits to English digits
+        $persian_digits = array( '۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹' );
+        $arabic_digits  = array( '٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩' );
+        $english_digits = array( '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' );
+        
+        $normalized = str_replace( $persian_digits, $english_digits, $val );
+        $normalized = str_replace( $arabic_digits, $english_digits, $normalized );
+
+        switch ( $logic ) {
+            case 'extract_min_age':
+                if ( preg_match( '/([0-9]+)/', $normalized, $matches ) ) {
+                    return intval( $matches[1] );
+                }
+                return null;
+
+            case 'extract_number':
+                if ( preg_match( '/([0-9]+)/', $normalized, $matches ) ) {
+                    return intval( $matches[1] );
+                }
+                return null;
+
+            case 'extract_range':
+                if ( preg_match_all( '/([0-9]+)/', $normalized, $matches ) ) {
+                    $numbers = array_map( 'intval', $matches[1] );
+                    if ( count( $numbers ) >= 2 ) {
+                        return array(
+                            'min' => $numbers[0],
+                            'max' => $numbers[1]
+                        );
+                    } elseif ( count( $numbers ) === 1 ) {
+                        return array(
+                            'min' => $numbers[0],
+                            'max' => $numbers[0]
+                        );
+                    }
+                }
+                return null;
+
+            case 'extract_array_numbers':
+                if ( preg_match_all( '/([0-9]+)/', $normalized, $matches ) ) {
+                    return array_map( 'strval', $matches[1] );
+                }
+                return null;
+
+            case 'map_difficulty':
+                $difficulty_val = str_replace( ' ', '', $normalized );
+                if ( false !== strpos( $difficulty_val, 'خیلیآسان' ) || false !== strpos( $difficulty_val, 'خیلیساده' ) || false !== strpos( $difficulty_val, 'veryeasy' ) ) {
+                    return 1;
+                }
+                if ( false !== strpos( $difficulty_val, 'آسان' ) || false !== strpos( $difficulty_val, 'ساده' ) || false !== strpos( $difficulty_val, 'easy' ) ) {
+                    return 2;
+                }
+                if ( false !== strpos( $difficulty_val, 'متوسط' ) || false !== strpos( $difficulty_val, 'medium' ) ) {
+                    return 3;
+                }
+                if ( false !== strpos( $difficulty_val, 'خیلیسخت' ) || false !== strpos( $difficulty_val, 'veryhard' ) ) {
+                    return 5;
+                }
+                if ( false !== strpos( $difficulty_val, 'سخت' ) || false !== strpos( $difficulty_val, 'hard' ) ) {
+                    return 4;
+                }
+                if ( preg_match( '/([1-5])/', $normalized, $matches ) ) {
+                    return intval( $matches[1] );
+                }
+                return 3;
+
+            case 'map_bead':
+                if ( preg_match( '/([0-9]+)/', $normalized, $matches ) ) {
+                    return intval( $matches[1] );
+                }
+                
+                $lower = strtolower( $normalized );
+                if ( in_array( $lower, array( 'yes', 'y', '1', 'true', 'بله', 'دارد' ), true ) ) {
+                    return 1;
+                }
+                if ( in_array( $lower, array( 'no', 'n', '0', 'false', 'خیر', 'ندارد' ), true ) ) {
+                    return 0;
+                }
+                return null;
+
+            case 'map_boolean':
+                $lower = strtolower( $normalized );
+                if ( in_array( $lower, array( 'yes', 'y', '1', 'true', 'بله', 'دارد' ), true ) ) {
+                    return 1;
+                }
+                if ( in_array( $lower, array( 'no', 'n', '0', 'false', 'خیر', 'ندارد' ), true ) ) {
+                    return 0;
+                }
+                return 0;
+
+            default:
+                return $val;
+        }
     }
 }
