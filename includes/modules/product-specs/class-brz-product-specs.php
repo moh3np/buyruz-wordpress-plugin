@@ -1402,6 +1402,7 @@ class BRZ_Product_Specs {
                     </div>
                 </div>
             </div>
+            <?php self::render_range_format_modal(); ?>
         </div>
 
         <script>
@@ -1670,10 +1671,106 @@ class BRZ_Product_Specs {
                     if (val === 'array') {
                         $opt.prop('disabled', false).css('background', '').attr('placeholder', 'گزینه‌ها با کاما جدا شوند').val('');
                     } else if (val === 'range') {
-                        $opt.prop('disabled', false).css('background', '').attr('placeholder', '{min} تا {max}; بالای {min}; زیر {max}').val('');
+                        $opt.prop('disabled', false).css('background', '').attr('placeholder', 'کلیک کنید تا بازه تنظیم شود').val('');
                     } else {
                         $opt.prop('disabled', true).css('background', '#f2f2f2').attr('placeholder', '').val('');
                     }
+                });
+
+                // Range Format Modal Handling
+                var $activeOptionsInput = null;
+
+                function openRangeFormatModal($input) {
+                    $activeOptionsInput = $input;
+                    var rawVal = $input.val();
+                    
+                    var parts = rawVal.split(';');
+                    var bothFmt = $.trim(parts[0] || '');
+                    var minFmt = $.trim(parts[1] || '');
+                    var maxFmt = $.trim(parts[2] || '');
+                    
+                    var bothBefore = '', bothBetween = ' تا ', bothAfter = '';
+                    if (bothFmt.indexOf('{min}') !== -1 && bothFmt.indexOf('{max}') !== -1) {
+                        bothBefore = bothFmt.substring(0, bothFmt.indexOf('{min}'));
+                        bothBetween = bothFmt.substring(bothFmt.indexOf('{min}') + 5, bothFmt.indexOf('{max}'));
+                        bothAfter = bothFmt.substring(bothFmt.indexOf('{max}') + 5);
+                    } else {
+                        var $row = $input.closest('tr');
+                        bothAfter = $row.find('.brz-spec-suffix').val() || '';
+                    }
+                    
+                    var minBefore = 'بالای ', minAfter = '';
+                    if (minFmt.indexOf('{min}') !== -1) {
+                        minBefore = minFmt.substring(0, minFmt.indexOf('{min}'));
+                        minAfter = minFmt.substring(minFmt.indexOf('{min}') + 5);
+                    } else {
+                        var $row = $input.closest('tr');
+                        var prefix = $row.find('.brz-spec-prefix').val() || '';
+                        var suffix = $row.find('.brz-spec-suffix').val() || '';
+                        minBefore = prefix ? prefix + ' ' : 'بالای ';
+                        minAfter = suffix;
+                    }
+                    
+                    var maxBefore = 'تا ', maxAfter = '';
+                    if (maxFmt.indexOf('{max}') !== -1) {
+                        maxBefore = maxFmt.substring(0, maxFmt.indexOf('{max}'));
+                        maxAfter = maxFmt.substring(maxFmt.indexOf('{max}') + 5);
+                    } else {
+                        var $row = $input.closest('tr');
+                        var suffix = $row.find('.brz-spec-suffix').val() || '';
+                        maxAfter = suffix;
+                    }
+
+                    $('#brz-rf-both-before').val(bothBefore);
+                    $('#brz-rf-both-between').val(bothBetween);
+                    $('#brz-rf-both-after').val(bothAfter);
+                    
+                    $('#brz-rf-min-before').val(minBefore);
+                    $('#brz-rf-min-after').val(minAfter);
+                    
+                    $('#brz-rf-max-before').val(maxBefore);
+                    $('#brz-rf-max-after').val(maxAfter);
+                    
+                    $('#brz-range-format-modal').css('display', 'flex');
+                }
+
+                $tbody.on('focus click', '.brz-spec-options', function(e) {
+                    var $row = $(this).closest('tr');
+                    var val = $row.find('.brz-spec-type').val();
+                    if (val === 'range') {
+                        e.preventDefault();
+                        $(this).blur();
+                        openRangeFormatModal($(this));
+                    }
+                });
+
+                $('#brz-rf-save').on('click', function() {
+                    if (!$activeOptionsInput) return;
+                    
+                    var bothBefore = $('#brz-rf-both-before').val();
+                    var bothBetween = $('#brz-rf-both-between').val();
+                    var bothAfter = $('#brz-rf-both-after').val();
+                    
+                    var minBefore = $('#brz-rf-min-before').val();
+                    var minAfter = $('#brz-rf-min-after').val();
+                    
+                    var maxBefore = $('#brz-rf-max-before').val();
+                    var maxAfter = $('#brz-rf-max-after').val();
+                    
+                    var bothFmt = bothBefore + '{min}' + bothBetween + '{max}' + bothAfter;
+                    var minFmt = minBefore + '{min}' + minAfter;
+                    var maxFmt = maxBefore + '{max}' + maxAfter;
+                    
+                    var finalVal = bothFmt + '; ' + minFmt + '; ' + maxFmt;
+                    $activeOptionsInput.val(finalVal);
+                    
+                    $('#brz-range-format-modal').hide();
+                    $activeOptionsInput = null;
+                });
+
+                $('#brz-rf-cancel').on('click', function() {
+                    $('#brz-range-format-modal').hide();
+                    $activeOptionsInput = null;
                 });
 
                 $('#brz-spec-add-btn').on('click', function() {
@@ -1962,9 +2059,14 @@ class BRZ_Product_Specs {
                 // Parse user-defined templates from the options column
                 // Default: {min} تا {max}; بالای {min}; زیر {max}
                 $formats = array_map( 'trim', explode( ';', (string) $field['options'] ) );
-                $fmt_both = isset( $formats[0] ) && '' !== $formats[0] ? $formats[0] : '{min} تا {max}';
-                $fmt_min  = isset( $formats[1] ) && '' !== $formats[1] ? $formats[1] : 'بالای {min}';
-                $fmt_max  = isset( $formats[2] ) && '' !== $formats[2] ? $formats[2] : 'زیر {max}';
+                
+                $def_both = '{min} تا {max}' . ( $suffix ? ' ' . $suffix : '' );
+                $def_min  = ( $prefix ? $prefix . ' ' : '' ) . '{min}' . ( $suffix ? ' ' . $suffix : '' );
+                $def_max  = 'تا {max}' . ( $suffix ? ' ' . $suffix : '' );
+                
+                $fmt_both = isset( $formats[0] ) && '' !== $formats[0] ? $formats[0] : $def_both;
+                $fmt_min  = isset( $formats[1] ) && '' !== $formats[1] ? $formats[1] : $def_min;
+                $fmt_max  = isset( $formats[2] ) && '' !== $formats[2] ? $formats[2] : $def_max;
 
                 if ( $min !== '' && $max !== '' ) {
                     if ( $min === $max ) {
@@ -1982,7 +2084,7 @@ class BRZ_Product_Specs {
                     $range_str = str_replace( '{max}', self::to_persian_digits( $max ), $fmt_max );
                 }
 
-                $value_html = $prefix . $range_str . $suffix;
+                $value_html = $range_str;
             } elseif ( 'array' === $type ) {
                 $val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
                 if ( empty( $val ) ) {
@@ -2145,6 +2247,59 @@ class BRZ_Product_Specs {
         
         return null;
     }
+
+    /**
+     * Render a beautiful visual range formatting modal helper.
+     */
+    public static function render_range_format_modal(): void {
+        ?>
+        <div id="brz-range-format-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.55); z-index:999999; justify-content:center; align-items:center; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);">
+            <div style="background:#fff; border-radius:14px; width:480px; padding:24px; box-shadow:0 20px 40px rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.2); position:relative; box-sizing: border-box; text-align: right;">
+                <h4 style="margin:0 0 18px 0; font-size:15px; font-weight:600; color:#1e293b; border-bottom:1px solid #e2e8f0; padding-bottom:12px; display:flex; align-items:center; gap:8px;">⚙️ تنظیمات نمایش بازه عددی (کمینه/بیشینه)</h4>
+                
+                <!-- State 1: Both values -->
+                <div style="margin-bottom:18px;">
+                    <div style="font-weight:600; font-size:12.5px; color:#475569; margin-bottom:8px;">۱. قالب نمایش وقتی هر دو مقدار وارد شده‌اند:</div>
+                    <div style="display:flex; gap:8px; align-items:center; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; direction: ltr;">
+                        <input type="text" id="brz-rf-both-before" placeholder="پیشوند (قبل)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; text-align:center;" />
+                        <span style="font-size:11px; color:#64748b; font-weight:600; background:#e2e8f0; padding:2px 6px; border-radius:4px;">min</span>
+                        <input type="text" id="brz-rf-both-between" placeholder="بین" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; text-align:center;" />
+                        <span style="font-size:11px; color:#64748b; font-weight:600; background:#e2e8f0; padding:2px 6px; border-radius:4px;">max</span>
+                        <input type="text" id="brz-rf-both-after" placeholder="پسوند (بعد)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; text-align:center;" />
+                    </div>
+                </div>
+
+                <!-- State 2: Min value only -->
+                <div style="margin-bottom:18px;">
+                    <div style="font-weight:600; font-size:12.5px; color:#475569; margin-bottom:8px;">۲. قالب نمایش وقتی فقط مقدار حداقل وارد شده:</div>
+                    <div style="display:flex; gap:8px; align-items:center; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; direction: ltr;">
+                        <input type="text" id="brz-rf-min-before" placeholder="پیشوند (قبل)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; text-align:center;" />
+                        <span style="font-size:11px; color:#64748b; font-weight:600; background:#e2e8f0; padding:2px 6px; border-radius:4px;">min</span>
+                        <input type="text" id="brz-rf-min-after" placeholder="پسوند (بعد)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; text-align:center;" />
+                    </div>
+                </div>
+
+                <!-- State 3: Max value only -->
+                <div style="margin-bottom:20px;">
+                    <div style="font-weight:600; font-size:12.5px; color:#475569; margin-bottom:8px;">۳. قالب نمایش وقتی فقط مقدار حداکثر وارد شده:</div>
+                    <div style="display:flex; gap:8px; align-items:center; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; direction: ltr;">
+                        <input type="text" id="brz-rf-max-before" placeholder="پیشوند (قبل)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; text-align:center;" />
+                        <span style="font-size:11px; color:#64748b; font-weight:600; background:#e2e8f0; padding:2px 6px; border-radius:4px;">max</span>
+                        <input type="text" id="brz-rf-max-after" placeholder="پسوند (بعد)" style="width:100%; padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; text-align:center;" />
+                    </div>
+                </div>
+
+                <!-- Footer Actions -->
+                <div style="display:flex; justify-content:flex-end; gap:10px; border-top:1px solid #e2e8f0; padding-top:15px;">
+                    <button type="button" id="brz-rf-cancel" style="padding:8px 16px; border:1px solid #cbd5e1; background:#fff; border-radius:8px; cursor:pointer; font-size:12.5px; color:#64748b; font-weight:500;">انصراف</button>
+                    <button type="button" id="brz-rf-save" style="padding:8px 16px; border:none; background:#1a73e8; color:#fff; border-radius:8px; cursor:pointer; font-size:12.5px; font-weight:600; box-shadow:0 2px 6px rgba(26,115,232,0.2);">تایید و ثبت</button>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+
+
 
 
 
@@ -2362,9 +2517,14 @@ class BRZ_Product_Specs {
                     }
 
                     $formats = array_map( 'trim', explode( ';', (string) $field['options'] ) );
-                    $fmt_both = isset( $formats[0] ) && '' !== $formats[0] ? $formats[0] : '{min} تا {max}';
-                    $fmt_min  = isset( $formats[1] ) && '' !== $formats[1] ? $formats[1] : 'بالای {min}';
-                    $fmt_max  = isset( $formats[2] ) && '' !== $formats[2] ? $formats[2] : 'زیر {max}';
+                    
+                    $def_both = '{min} تا {max}' . ( $suffix ? ' ' . $suffix : '' );
+                    $def_min  = ( $prefix ? $prefix . ' ' : '' ) . '{min}' . ( $suffix ? ' ' . $suffix : '' );
+                    $def_max  = 'تا {max}' . ( $suffix ? ' ' . $suffix : '' );
+                    
+                    $fmt_both = isset( $formats[0] ) && '' !== $formats[0] ? $formats[0] : $def_both;
+                    $fmt_min  = isset( $formats[1] ) && '' !== $formats[1] ? $formats[1] : $def_min;
+                    $fmt_max  = isset( $formats[2] ) && '' !== $formats[2] ? $formats[2] : $def_max;
 
                     if ( $min !== '' && $max !== '' ) {
                         if ( $min === $max ) {
@@ -2382,7 +2542,7 @@ class BRZ_Product_Specs {
                         $range_str = str_replace( '{max}', self::to_persian_digits( $max ), $fmt_max );
                     }
 
-                    $value_html = $prefix . $range_str . $suffix;
+                    $value_html = $range_str;
                 } elseif ( 'array' === $type ) {
                     $val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
                     if ( empty( $val ) ) {
