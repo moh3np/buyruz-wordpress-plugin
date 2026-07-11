@@ -5,7 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 /**
  * Buyruz Attributes Analyzer module.
  *
- * Analyzes global WooCommerce taxonomies and custom local product attributes,
+ * Analyzes global WooCommerce taxonomies, custom local product attributes, and Buyruz product specifications,
  * calculating usage stats per option to assist in database cleanup and AI-driven decision making.
  */
 class BRZ_Attributes_Analyzer {
@@ -112,6 +112,23 @@ class BRZ_Attributes_Analyzer {
         $attribute_taxonomies = class_exists( 'WooCommerce' ) ? wc_get_attribute_taxonomies() : array();
         
         $stats = array(
+            'metadata' => array(
+                'woocommerce_global_attributes' => array(
+                    'description'    => 'ویژگی‌های سراسری استاندارد ووکامرس که به عنوان تاکسونومی اختصاصی در سیستم وردپرس (با پیشوند pa_) تعریف شده‌اند.',
+                    'storage_type'   => 'WordPress Taxonomies & Terms. Products linked via wp_term_relationships table.',
+                    'cleanup_action' => 'حذف از بخش محصولات > ویژگی‌ها در پیشخوان مدیریت وردپرس.',
+                ),
+                'woocommerce_custom_local_attributes' => array(
+                    'description'    => 'ویژگی‌های محلی تعریف شده مستقیم روی خود محصول. این ویژگی‌ها سراسری نیستند و در بخش ویژگی‌های ووکامرس ثبت نشده‌اند.',
+                    'storage_type'   => 'Serialized array stored inside _product_attributes meta field on each product.',
+                    'cleanup_action' => 'ویرایش متای محصول یا حذف دستی از تب ویژگی‌ها در صفحه ویرایش محصول.',
+                ),
+                'buyruz_product_specs' => array(
+                    'description'    => 'مشخصات فنی اختصاصی بایروز که به صورت فیلدهای مستقل و داینامیک در سازنده مشخصات بایروز تعریف شده‌اند.',
+                    'storage_type'   => 'Direct postmeta fields in wp_postmeta table. Boolean/Numeric values stored as plain values; Arrays stored as JSON/serialized arrays; Ranges stored as twin min/max fields.',
+                    'cleanup_action' => 'حذف فیلد از بخش تنظیمات بایروز > سازنده مشخصات فنی محصول و پاکسازی متای پست‌ها.',
+                ),
+            ),
             'summary' => array(
                 'generated_at'                 => current_time( 'mysql' ),
                 'site_url'                     => site_url(),
@@ -119,9 +136,13 @@ class BRZ_Attributes_Analyzer {
                 'active_global_attributes'     => 0,
                 'unused_global_attributes'     => 0,
                 'total_custom_local_attributes'=> 0,
+                'total_buyruz_product_specs'   => 0,
+                'active_buyruz_product_specs'   => 0,
+                'unused_buyruz_product_specs'   => 0,
             ),
-            'global_attributes'      => array(),
-            'custom_local_attributes' => array(),
+            'global_attributes'       => array(),
+            'custom_local_attributes'  => array(),
+            'buyruz_product_specs'     => array(),
         );
 
         // 1. Process Global WooCommerce Attributes
@@ -344,6 +365,194 @@ class BRZ_Attributes_Analyzer {
         $stats['custom_local_attributes']                 = $formatted_custom;
         $stats['summary']['total_custom_local_attributes'] = count( $formatted_custom );
 
+        // 3. Process Buyruz Custom Product Specs (Dynamic Meta fields)
+        if ( class_exists( 'BRZ_Product_Specs' ) ) {
+            $spec_fields = BRZ_Product_Specs::get_fields();
+            $stats['summary']['total_buyruz_product_specs'] = count( $spec_fields );
+
+            foreach ( $spec_fields as $field ) {
+                $key   = $field['key'];
+                $label = $field['label'];
+                $type  = $field['type'];
+
+                $spec_info = array(
+                    'key'                  => $key,
+                    'label'                => $label,
+                    'type'                 => $type,
+                    'total_products_count' => 0,
+                    'sample_products'      => array(),
+                );
+
+                $product_ids = array();
+
+                if ( 'range' === $type ) {
+                    $keys = BRZ_Product_Specs::get_range_meta_keys( $key );
+                    $product_ids = $wpdb->get_col( $wpdb->prepare(
+                        "SELECT DISTINCT pm.post_id 
+                         FROM {$wpdb->postmeta} pm 
+                         INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID 
+                         WHERE pm.meta_key IN (%s, %s) 
+                           AND pm.meta_value != '' 
+                           AND p.post_type = 'product' 
+                           AND p.post_status NOT IN ('trash', 'auto-draft')",
+                        $keys[0],
+                        $keys[1]
+                    ) );
+
+                    $spec_info['total_products_count'] = count( $product_ids );
+
+                    // Get min/max range statistics
+                    $min_vals = $wpdb->get_col( $wpdb->prepare(
+                        "SELECT CAST(pm.meta_value AS SIGNED) FROM {$wpdb->postmeta} pm
+                         INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                         WHERE pm.meta_key = %s AND pm.meta_value != '' AND p.post_type = 'product' AND p.post_status NOT IN ('trash', 'auto-draft')",
+                        $keys[0]
+                    ) );
+                    $max_vals = $wpdb->get_col( $wpdb->prepare(
+                        "SELECT CAST(pm.meta_value AS SIGNED) FROM {$wpdb->postmeta} pm
+                         INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                         WHERE pm.meta_key = %s AND pm.meta_value != '' AND p.post_type = 'product' AND p.post_status NOT IN ('trash', 'auto-draft')",
+                        $keys[1]
+                    ) );
+
+                    $spec_info['min_stats'] = array(
+                        'min' => ! empty( $min_vals ) ? min( $min_vals ) : null,
+                        'max' => ! empty( $min_vals ) ? max( $min_vals ) : null,
+                        'avg' => ! empty( $min_vals ) ? round( array_sum( $min_vals ) / count( $min_vals ), 2 ) : null,
+                    );
+                    $spec_info['max_stats'] = array(
+                        'min' => ! empty( $max_vals ) ? min( $max_vals ) : null,
+                        'max' => ! empty( $max_vals ) ? max( $max_vals ) : null,
+                        'avg' => ! empty( $max_vals ) ? round( array_sum( $max_vals ) / count( $max_vals ), 2 ) : null,
+                    );
+
+                } elseif ( 'array' === $type ) {
+                    $meta_key = '_brz_spec_' . $key;
+                    $rows = $wpdb->get_results( $wpdb->prepare(
+                        "SELECT pm.post_id, pm.meta_value 
+                         FROM {$wpdb->postmeta} pm 
+                         INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID 
+                         WHERE pm.meta_key = %s 
+                           AND pm.meta_value != '' 
+                           AND p.post_type = 'product' 
+                           AND p.post_status NOT IN ('trash', 'auto-draft')",
+                        $meta_key
+                    ) );
+
+                    $options_usage   = array();
+                    $defined_options = array_map( 'trim', explode( ',', isset( $field['options'] ) ? $field['options'] : '' ) );
+                    $defined_options = array_filter( $defined_options );
+
+                    foreach ( $rows as $row ) {
+                        $val = $row->meta_value;
+                        $decoded = json_decode( $val, true );
+                        if ( ! is_array( $decoded ) ) {
+                            $decoded = maybe_unserialize( $val );
+                        }
+
+                        if ( is_array( $decoded ) && ! empty( $decoded ) ) {
+                            $product_ids[] = (int) $row->post_id;
+                            foreach ( $decoded as $item ) {
+                                $item = trim( $item );
+                                if ( '' !== $item ) {
+                                    if ( ! isset( $options_usage[ $item ] ) ) {
+                                        $options_usage[ $item ] = 0;
+                                    }
+                                    $options_usage[ $item ]++;
+                                }
+                            }
+                        }
+                    }
+
+                    $product_ids = array_values( array_unique( $product_ids ) );
+                    $spec_info['total_products_count'] = count( $product_ids );
+
+                    // Categorize defined vs unregistered options
+                    $unused_defined = array();
+                    foreach ( $defined_options as $opt ) {
+                        if ( ! isset( $options_usage[ $opt ] ) ) {
+                            $unused_defined[] = $opt;
+                        }
+                    }
+
+                    $unregistered_options = array();
+                    foreach ( $options_usage as $opt => $count ) {
+                        if ( ! in_array( $opt, $defined_options, true ) ) {
+                            $unregistered_options[ $opt ] = $count;
+                        }
+                    }
+
+                    $spec_info['array_stats'] = array(
+                        'defined_options'            => $defined_options,
+                        'options_usage'              => $options_usage,
+                        'unused_defined_options'     => $unused_defined,
+                        'unregistered_options_found' => $unregistered_options,
+                    );
+
+                } else {
+                    // boolean, integer, decimal
+                    $meta_key = '_brz_spec_' . $key;
+                    $product_ids = $wpdb->get_col( $wpdb->prepare(
+                        "SELECT DISTINCT pm.post_id 
+                         FROM {$wpdb->postmeta} pm 
+                         INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID 
+                         WHERE pm.meta_key = %s 
+                           AND pm.meta_value != '' 
+                           AND p.post_type = 'product' 
+                           AND p.post_status NOT IN ('trash', 'auto-draft')",
+                        $meta_key
+                    ) );
+
+                    $spec_info['total_products_count'] = count( $product_ids );
+
+                    if ( 'boolean' === $type ) {
+                        $true_count = (int) $wpdb->get_var( $wpdb->prepare(
+                            "SELECT COUNT(DISTINCT pm.post_id) FROM {$wpdb->postmeta} pm
+                             INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                             WHERE pm.meta_key = %s AND pm.meta_value IN ('1', 'true') AND p.post_type = 'product' AND p.post_status NOT IN ('trash', 'auto-draft')",
+                            $meta_key
+                        ) );
+                        $spec_info['boolean_stats'] = array(
+                            'true_count'  => $true_count,
+                            'false_count' => max( 0, count( $product_ids ) - $true_count ),
+                        );
+                    } elseif ( 'integer' === $type || 'decimal' === $type ) {
+                        $vals = $wpdb->get_col( $wpdb->prepare(
+                            "SELECT CAST(pm.meta_value AS DECIMAL(10,2)) FROM {$wpdb->postmeta} pm
+                             INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                             WHERE pm.meta_key = %s AND pm.meta_value != '' AND p.post_type = 'product' AND p.post_status NOT IN ('trash', 'auto-draft')",
+                            $meta_key
+                        ) );
+                        $spec_info['numeric_stats'] = array(
+                            'min' => ! empty( $vals ) ? min( $vals ) : null,
+                            'max' => ! empty( $vals ) ? max( $vals ) : null,
+                            'avg' => ! empty( $vals ) ? round( array_sum( $vals ) / count( $vals ), 2 ) : null,
+                        );
+                    }
+                }
+
+                // Sample products mapping (up to 5)
+                if ( ! empty( $product_ids ) ) {
+                    $sample_ids = array_slice( $product_ids, 0, 5 );
+                    foreach ( $sample_ids as $pid ) {
+                        $spec_info['sample_products'][] = array(
+                            'id'     => (int) $pid,
+                            'title'  => get_the_title( $pid ),
+                            'status' => get_post_status( $pid ),
+                        );
+                    }
+                }
+
+                if ( $spec_info['total_products_count'] > 0 ) {
+                    $stats['summary']['active_buyruz_product_specs']++;
+                } else {
+                    $stats['summary']['unused_buyruz_product_specs']++;
+                }
+
+                $stats['buyruz_product_specs'][] = $spec_info;
+            }
+        }
+
         return $stats;
     }
 
@@ -421,7 +630,7 @@ class BRZ_Attributes_Analyzer {
         <style>
             .brz-analyzer-stat-grid {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
                 gap: 20px;
                 margin-bottom: 25px;
             }
@@ -487,6 +696,10 @@ class BRZ_Attributes_Analyzer {
                 background: #fce8e6;
                 color: #c5221f;
             }
+            .brz-status-badge--info {
+                background: #e8f0fe;
+                color: #1a73e8;
+            }
             .brz-code-block {
                 background: #f7f7f9;
                 border: 1px solid #e1e1e8;
@@ -508,8 +721,8 @@ class BRZ_Attributes_Analyzer {
 
         <div class="brz-single-column" dir="rtl">
             <div class="brz-analyzer-box">
-                <h3>آنالیز و پاکسازی ویژگی‌های محصولات</h3>
-                <p>این ابزار آمار کاملی از ویژگی‌های تعریف شده در ووکامرس و گزینه‌های آن‌ها استخراج می‌کند تا متوجه شوید کدام ویژگی‌ها بی‌استفاده بوده و قابل حذف هستند.</p>
+                <h3>آنالیز و پاکسازی ویژگی‌ها و مشخصات محصولات</h3>
+                <p>این ابزار آمار کاملی از ویژگی‌های ووکامرس (سراسری و محلی) و مشخصات فنی اختصاصی بایروز استخراج می‌کند تا متوجه شوید کدام مشخصات بی‌استفاده بوده و قابل حذف هستند.</p>
                 
                 <div class="brz-action-bar">
                     <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=' . self::DOWNLOAD_ACTION ), self::DOWNLOAD_ACTION ) ); ?>" class="button button-primary button-large">
@@ -520,20 +733,19 @@ class BRZ_Attributes_Analyzer {
 
             <div class="brz-analyzer-stat-grid">
                 <div class="brz-analyzer-stat-card">
-                    <div class="brz-analyzer-stat-title">کل ویژگی‌های سراسری</div>
+                    <div class="brz-analyzer-stat-title">ویژگی‌های سراسری ووکامرس</div>
                     <div class="brz-analyzer-stat-value"><?php echo esc_html( $summary['total_global_attributes'] ); ?></div>
+                    <div class="description"><?php echo esc_html( $summary['active_global_attributes'] ); ?> فعال / <?php echo esc_html( $summary['unused_global_attributes'] ); ?> بدون استفاده</div>
                 </div>
                 <div class="brz-analyzer-stat-card">
-                    <div class="brz-analyzer-stat-title">ویژگی‌های در حال استفاده</div>
-                    <div class="brz-analyzer-stat-value" style="color: #137333;"><?php echo esc_html( $summary['active_global_attributes'] ); ?></div>
-                </div>
-                <div class="brz-analyzer-stat-card">
-                    <div class="brz-analyzer-stat-title">ویژگی‌های بدون استفاده</div>
-                    <div class="brz-analyzer-stat-value" style="color: #c5221f;"><?php echo esc_html( $summary['unused_global_attributes'] ); ?></div>
+                    <div class="brz-analyzer-stat-title">مشخصات فنی اختصاصی بایروز</div>
+                    <div class="brz-analyzer-stat-value" style="color: #1a73e8;"><?php echo esc_html( $summary['total_buyruz_product_specs'] ); ?></div>
+                    <div class="description"><?php echo esc_html( $summary['active_buyruz_product_specs'] ); ?> فعال / <?php echo esc_html( $summary['unused_buyruz_product_specs'] ); ?> بدون استفاده</div>
                 </div>
                 <div class="brz-analyzer-stat-card">
                     <div class="brz-analyzer-stat-title">ویژگی‌های محلی محصول</div>
                     <div class="brz-analyzer-stat-value" style="color: #e37400;"><?php echo esc_html( $summary['total_custom_local_attributes'] ); ?></div>
+                    <div class="description">تعریف شده مستقیم درون محصولات</div>
                 </div>
             </div>
 
@@ -547,7 +759,67 @@ class BRZ_Attributes_Analyzer {
             </div>
 
             <div class="brz-analyzer-box">
-                <h3>خلاصه ویژگی‌های سراسری و وضعیت استفاده</h3>
+                <h3>خلاصه مشخصات فنی بایروز (Buyruz Product Specs)</h3>
+                <p>مشخصاتی که در ماژول مشخصات فنی بایروز ساخته شده‌اند و به صورت فیلدهای مستقیم متادیتای محصول ذخیره می‌شوند:</p>
+                <table class="brz-analyzer-table">
+                    <thead>
+                        <tr>
+                            <th>نام مشخصه (برچسب)</th>
+                            <th>کلید متادیتا (Meta Key)</th>
+                            <th>نوع فیلد</th>
+                            <th>تعداد محصولات دارای مقدار</th>
+                            <th>وضعیت استفاده</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if ( empty( $stats['buyruz_product_specs'] ) ) : ?>
+                            <tr>
+                                <td colspan="5" style="text-align: center;">هیچ مشخصه فنی در بایروز ساخته نشده است.</td>
+                            </tr>
+                        <?php else : ?>
+                            <?php foreach ( $stats['buyruz_product_specs'] as $spec ) : ?>
+                                <tr>
+                                    <td><strong><?php echo esc_html( $spec['label'] ); ?></strong></td>
+                                    <td dir="ltr" style="text-align: right;">
+                                        <?php 
+                                        if ( 'range' === $spec['type'] ) {
+                                            $keys = BRZ_Product_Specs::get_range_meta_keys( $spec['key'] );
+                                            echo esc_html( $keys[0] . ' / ' . $keys[1] );
+                                        } else {
+                                            echo esc_html( '_brz_spec_' . $spec['key'] );
+                                        }
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <?php
+                                        switch ( $spec['type'] ) {
+                                            case 'boolean': echo 'ساده (بله/خیر)'; break;
+                                            case 'integer': echo 'عدد صحیح'; break;
+                                            case 'decimal': echo 'عدد اعشاری'; break;
+                                            case 'range': echo 'بازه عددی'; break;
+                                            case 'array': echo 'آرایه انتخابی (چند گزینه‌ای)'; break;
+                                            default: echo esc_html( $spec['type'] );
+                                        }
+                                        ?>
+                                    </td>
+                                    <td><?php echo esc_html( $spec['total_products_count'] ); ?> محصول</td>
+                                    <td>
+                                        <?php if ( $spec['total_products_count'] > 0 ) : ?>
+                                            <span class="brz-status-badge brz-status-badge--success">فعال</span>
+                                        <?php else : ?>
+                                            <span class="brz-status-badge brz-status-badge--warning">بدون استفاده</span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="brz-analyzer-box">
+                <h3>خلاصه ویژگی‌های سراسری ووکامرس (WooCommerce Global Attributes)</h3>
+                <p>ویژگی‌های سراسری ووکامرس که به عنوان تاکسونومی مجزا ذخیره شده و گزینه‌های آن‌ها ترم‌های دیتابیس هستند:</p>
                 <table class="brz-analyzer-table">
                     <thead>
                         <tr>
