@@ -236,14 +236,14 @@ class BRZ_Offline_Bridge {
             'brz-offline-bridge',
             BRZ_URL . 'assets/admin/offline-bridge.css',
             array( 'brz-settings-admin' ),
-            BRZ_VERSION
+            file_exists( BRZ_PATH . 'assets/admin/offline-bridge.css' ) ? filemtime( BRZ_PATH . 'assets/admin/offline-bridge.css' ) : BRZ_VERSION
         );
 
         wp_enqueue_script(
             'brz-offline-bridge',
             BRZ_URL . 'assets/admin/offline-bridge.js',
             array(),
-            BRZ_VERSION,
+            file_exists( BRZ_PATH . 'assets/admin/offline-bridge.js' ) ? filemtime( BRZ_PATH . 'assets/admin/offline-bridge.js' ) : BRZ_VERSION,
             true
         );
 
