@@ -1103,7 +1103,7 @@ class BRZ_Product_Specs {
             .brz-spec-options-input {
                 font-size: 11px !important;
             }
-            .brz-sp            /* Tab Navigation */
+            /* Tab Navigation */
             .brz-tab-nav {
                 display: flex;
                 gap: 5px;
@@ -1310,13 +1310,13 @@ class BRZ_Product_Specs {
                                                 </td>
                                                 <?php $is_range = ( $f['type'] === 'range' ); ?>
                                                 <td>
-                                                    <input type="text" class="brz-spec-prefix" value="<?php echo esc_attr( $is_range ? '' : $f['prefix'] ); ?>" placeholder="<?php echo $is_range ? 'تنظیم در بازه' : 'پیشوند'; ?>" maxlength="100" <?php disabled( $is_range ); ?> style="<?php echo $is_range ? 'background:#f2f2f2;' : ''; ?>" />
+                                                    <input type="text" class="brz-spec-prefix" value="<?php echo esc_attr( $is_range ? '' : $f['prefix'] ); ?>" placeholder="<?php echo $is_range ? 'تنظیم در بازه' : 'پیشوند'; ?>" maxlength="100" <?php echo $is_range ? 'disabled style="background:#f2f2f2;"' : ''; ?> />
                                                 </td>
                                                 <td>
-                                                    <input type="text" class="brz-spec-suffix" value="<?php echo esc_attr( $is_range ? '' : $f['suffix'] ); ?>" placeholder="<?php echo $is_range ? 'تنظیم در بازه' : 'پسوند'; ?>" maxlength="100" <?php disabled( $is_range ); ?> style="<?php echo $is_range ? 'background:#f2f2f2;' : ''; ?>" />
+                                                    <input type="text" class="brz-spec-suffix" value="<?php echo esc_attr( $is_range ? '' : $f['suffix'] ); ?>" placeholder="<?php echo $is_range ? 'تنظیم در بازه' : 'پسوند'; ?>" maxlength="100" <?php echo $is_range ? 'disabled style="background:#f2f2f2;"' : ''; ?> />
                                                 </td>
                                                 <td>
-                                                    <input type="text" class="brz-spec-options" value="<?php echo esc_attr( $f['options'] ); ?>" placeholder="<?php echo $is_range ? '⚙️ تنظیم فرمت نمایش' : 'فرمت بازه یا گزینه‌ها'; ?>" <?php readonly( $is_range ); ?> style="<?php echo $is_range ? 'cursor:pointer; background:#f8fafc; border-color:#1a73e8; color:#1a73e8; font-weight:600; text-align:center;' : ''; ?>" />
+                                                    <input type="text" class="brz-spec-options" value="<?php echo esc_attr( $f['options'] ); ?>" placeholder="<?php echo $is_range ? 'تنظیم فرمت نمایش' : 'فرمت بازه یا گزینه‌ها'; ?>" <?php echo $is_range ? 'readonly style="cursor:pointer; background:#f8fafc; border-color:#1a73e8; color:#1a73e8; font-weight:600; text-align:center;"' : ''; ?> />
                                                 </td>
                                                 <td style="text-align: center;">
                                                     <button type="button" class="brz-spec-delete-btn" title="حذف فیلد">✕</button>
