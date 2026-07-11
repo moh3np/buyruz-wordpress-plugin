@@ -2075,9 +2075,8 @@ class BRZ_Product_Specs {
                     continue;
                 }
 
-                // Parse user-defined templates from the options column
-                // Default: {min} تا {max}; بالای {min}; زیر {max}
-                $formats = array_map( 'trim', explode( ';', (string) $field['options'] ) );
+                $raw_options = str_replace( '؛', ';', (string) $field['options'] );
+                $formats     = array_map( 'trim', explode( ';', $raw_options ) );
                 
                 $def_both = '{min} تا {max}' . ( $suffix ? ' ' . $suffix : '' );
                 $def_min  = ( $prefix ? $prefix . ' ' : '' ) . '{min}' . ( $suffix ? ' ' . $suffix : '' );
@@ -2535,7 +2534,8 @@ class BRZ_Product_Specs {
                         continue;
                     }
 
-                    $formats = array_map( 'trim', explode( ';', (string) $field['options'] ) );
+                    $raw_options = str_replace( '؛', ';', (string) $field['options'] );
+                    $formats     = array_map( 'trim', explode( ';', $raw_options ) );
                     
                     $def_both = '{min} تا {max}' . ( $suffix ? ' ' . $suffix : '' );
                     $def_min  = ( $prefix ? $prefix . ' ' : '' ) . '{min}' . ( $suffix ? ' ' . $suffix : '' );
