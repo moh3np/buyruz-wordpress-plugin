@@ -25,12 +25,23 @@ class BRZ_AI_Schema {
             return;
         }
 
-        // Frontend: register filter directly to avoid race conditions with wp hook.
-        // The is_product() check is performed dynamically inside the callback.
+        // Primary: WooCommerce generates the Product JSON-LD on this site.
+        // This filter fires with ($markup, $product) when WC builds its
+        // structured data for a product page.
         add_filter(
-            'rank_math/snippet/rich_snippet_product_entity',
-            array( 'BRZ_AI_Schema', 'inject_schema' ),
-            20
+            'woocommerce_structured_data_product',
+            array( __CLASS__, 'inject_into_wc_schema' ),
+            20,
+            2
+        );
+
+        // Secondary: Rank Math's final JSON-LD filter, in case Rank Math
+        // takes over Product schema generation in the future.
+        add_filter(
+            'rank_math/json_ld',
+            array( __CLASS__, 'inject_into_rankmath_jsonld' ),
+            99,
+            2
         );
     }
 
@@ -460,57 +471,69 @@ class BRZ_AI_Schema {
     }
 
     /**
-     * Filter callback for rank_math/snippet/rich_snippet_product_entity.
+     * Track whether injection already happened to prevent duplicates
+     * when both WooCommerce and Rank Math output a Product entity.
      *
-     * Appends PropertyValues and optionally sets itemCondition on the entity.
-     *
-     * @param array $entity Product schema entity from Rank Math.
-     * @return array Modified entity.
+     * @var bool
      */
-    public static function inject_schema( $entity ) {
-        $properties     = self::get_properties();
-        $item_condition = self::get_item_condition();
-        $enabled_attrs  = self::get_enabled_attributes();
-        $auto_properties = array();
+    private static $injected = false;
 
-        // Log the call
-        $debug_log = array(
-            'timestamp'      => date( 'Y-m-d H:i:s' ),
-            'is_product'     => function_exists( 'is_product' ) ? ( is_product() ? 1 : 0 ) : -1,
-            'queried_id'     => get_queried_object_id(),
-            'the_id'         => get_the_ID(),
-            'enabled_attrs'  => $enabled_attrs,
-            'properties'     => $properties,
-            'item_condition' => $item_condition,
-        );
+    /**
+     * Build the full list of PropertyValue entries to inject.
+     *
+     * Combines manual (admin-defined) properties with auto-detected
+     * WooCommerce attributes and Buyruz custom specs for the given product.
+     *
+     * @param WC_Product|null $product Optional product to extract auto-properties from.
+     * @return array Array of PropertyValue-ready entries.
+     */
+    private static function build_property_values( $product = null ): array {
+        $properties    = self::get_properties();
+        $enabled_attrs = self::get_enabled_attributes();
+        $all           = array();
 
-        // Dynamically fetch values of WooCommerce attributes and Buyruz specs for the product
-        if ( ! empty( $enabled_attrs ) && function_exists( 'is_product' ) && is_product() ) {
-            $product_id = get_queried_object_id();
-            if ( ! $product_id ) {
-                $product_id = get_the_ID();
+        // Manual properties (admin-defined).
+        foreach ( $properties as $p ) {
+            $all[] = array(
+                '@type' => 'PropertyValue',
+                'name'  => $p['name'],
+                'value' => $p['value'],
+            );
+        }
+
+        // Auto-detected attributes from product data.
+        if ( ! empty( $enabled_attrs ) ) {
+            // Resolve product if not provided.
+            if ( ! $product ) {
+                $product_id = get_queried_object_id();
+                if ( ! $product_id ) {
+                    $product_id = get_the_ID();
+                }
+                if ( $product_id ) {
+                    $product = wc_get_product( $product_id );
+                }
             }
-            $product    = wc_get_product( $product_id );
+
             if ( $product ) {
                 foreach ( $enabled_attrs as $attr_key ) {
                     if ( strpos( $attr_key, 'pa_' ) === 0 ) {
-                        // WooCommerce taxonomy attribute
+                        // WooCommerce taxonomy attribute.
                         $val = $product->get_attribute( $attr_key );
                         if ( $val !== '' ) {
-                            $label = wc_attribute_label( $attr_key );
-                            $auto_properties[] = array(
-                                'name'  => $label,
+                            $all[] = array(
+                                '@type' => 'PropertyValue',
+                                'name'  => wc_attribute_label( $attr_key ),
                                 'value' => $val,
                             );
                         }
                     } elseif ( strpos( $attr_key, 'spec_' ) === 0 ) {
-                        // Buyruz custom spec
-                        $spec_key = substr( $attr_key, 5 ); // remove 'spec_'
-                        $val = self::get_spec_display_value( $product, $spec_key );
+                        // Buyruz custom spec.
+                        $spec_key = substr( $attr_key, 5 );
+                        $val      = self::get_spec_display_value( $product, $spec_key );
                         if ( $val !== '' ) {
-                            $label = self::get_spec_label( $spec_key );
-                            $auto_properties[] = array(
-                                'name'  => $label,
+                            $all[] = array(
+                                '@type' => 'PropertyValue',
+                                'name'  => self::get_spec_label( $spec_key ),
                                 'value' => $val,
                             );
                         }
@@ -519,63 +542,144 @@ class BRZ_AI_Schema {
             }
         }
 
-        $debug_log['auto_properties'] = $auto_properties;
-        $debug_log['entity_keys_before'] = array_keys( $entity );
+        return $all;
+    }
 
-        // If no properties to inject and item_condition is disabled, return unmodified.
-        if ( empty( $properties ) && empty( $auto_properties ) && ! $item_condition ) {
-            $debug_log['status'] = 'empty_return';
-            if ( function_exists( 'wp_upload_dir' ) ) {
-                $upload_dir = wp_upload_dir();
-                file_put_contents( $upload_dir['basedir'] . '/ai-schema-debug.json', json_encode( $debug_log ) );
-            }
-            return $entity;
-        }
+    /**
+     * Apply PropertyValues and itemCondition to a Product entity array.
+     *
+     * @param array           $entity  The Product schema array (associative).
+     * @param WC_Product|null $product Optional WC_Product for auto-properties.
+     * @return array Modified entity.
+     */
+    private static function apply_to_entity( array $entity, $product = null ): array {
+        $all_to_inject  = self::build_property_values( $product );
+        $item_condition = self::get_item_condition();
 
-        // Append PropertyValue entries to additionalProperty.
-        $all_to_inject = array();
-        if ( ! empty( $properties ) ) {
-            foreach ( $properties as $p ) {
-                $all_to_inject[] = array(
-                    '@type' => 'PropertyValue',
-                    'name'  => $p['name'],
-                    'value' => $p['value'],
-                );
-            }
-        }
-        if ( ! empty( $auto_properties ) ) {
-            foreach ( $auto_properties as $ap ) {
-                $all_to_inject[] = array(
-                    '@type' => 'PropertyValue',
-                    'name'  => $ap['name'],
-                    'value' => $ap['value'],
-                );
-            }
-        }
-
+        // Inject additionalProperty.
         if ( ! empty( $all_to_inject ) ) {
-            // If additionalProperty already exists and is an array, merge/append.
             if ( isset( $entity['additionalProperty'] ) && is_array( $entity['additionalProperty'] ) ) {
                 foreach ( $all_to_inject as $prop ) {
                     $entity['additionalProperty'][] = $prop;
                 }
             } else {
-                // Initialize as new array with entries.
                 $entity['additionalProperty'] = $all_to_inject;
             }
         }
 
-        // If item_condition enabled and offers exists, set itemCondition.
+        // Inject itemCondition into offers.
         if ( $item_condition && isset( $entity['offers'] ) ) {
-            $entity['offers']['itemCondition'] = 'https://schema.org/NewCondition';
+            // WooCommerce may output offers as an indexed array of Offer objects.
+            if ( isset( $entity['offers'][0] ) && is_array( $entity['offers'][0] ) ) {
+                foreach ( $entity['offers'] as &$offer ) {
+                    if ( is_array( $offer ) ) {
+                        $offer['itemCondition'] = 'https://schema.org/NewCondition';
+                    }
+                }
+                unset( $offer );
+            } else {
+                // Single Offer object (Rank Math style).
+                if ( is_array( $entity['offers'] ) ) {
+                    $entity['offers']['itemCondition'] = 'https://schema.org/NewCondition';
+                }
+            }
         }
 
-        $debug_log['status'] = 'success';
-        $debug_log['entity_additionalProperty'] = isset($entity['additionalProperty']) ? $entity['additionalProperty'] : 'not_set';
+        // Write log for debugging
         if ( function_exists( 'wp_upload_dir' ) ) {
             $upload_dir = wp_upload_dir();
-            file_put_contents( $upload_dir['basedir'] . '/ai-schema-debug.json', json_encode( $debug_log ) );
+            $log_data = array(
+                'timestamp'          => date( 'Y-m-d H:i:s' ),
+                'injected_count'     => count( $all_to_inject ),
+                'item_condition'     => $item_condition ? 'NewCondition' : 'disabled',
+                'additionalProperty' => isset( $entity['additionalProperty'] ) ? $entity['additionalProperty'] : array(),
+                'offers'             => isset( $entity['offers'] ) ? $entity['offers'] : array(),
+            );
+            file_put_contents( $upload_dir['basedir'] . '/ai-schema-debug.json', json_encode( $log_data ) );
         }
+
+        return $entity;
+    }
+
+    /**
+     * Filter callback for woocommerce_structured_data_product.
+     *
+     * Primary injection point. This fires when WooCommerce builds the
+     * Product JSON-LD for single product pages.
+     *
+     * @param array      $markup  Product schema markup.
+     * @param WC_Product $product WooCommerce product instance.
+     * @return array Modified markup.
+     */
+    public static function inject_into_wc_schema( $markup, $product ) {
+        if ( self::$injected ) {
+            return $markup;
+        }
+
+        $markup           = self::apply_to_entity( $markup, $product );
+        self::$injected   = true;
+
+        return $markup;
+    }
+
+    /**
+     * Filter callback for rank_math/json_ld.
+     *
+     * Secondary injection point. Walks through all entities in Rank Math's
+     * JSON-LD output and injects into any Product entity found.
+     * Skips if WooCommerce injection already ran.
+     *
+     * @param array $data   All JSON-LD entities keyed by type/identifier.
+     * @param mixed $jsonld The Rank Math JsonLD instance.
+     * @return array Modified data.
+     */
+    public static function inject_into_rankmath_jsonld( $data, $jsonld ) {
+        // Skip if WooCommerce already handled injection.
+        if ( self::$injected ) {
+            return $data;
+        }
+
+        // Only on single product pages.
+        if ( ! function_exists( 'is_product' ) || ! is_product() ) {
+            return $data;
+        }
+
+        foreach ( $data as $key => &$entity ) {
+            if ( ! is_array( $entity ) || ! isset( $entity['@type'] ) ) {
+                continue;
+            }
+
+            // Handle both string @type and array @type (e.g. ['Product', 'IndividualProduct']).
+            $types = (array) $entity['@type'];
+            if ( ! in_array( 'Product', $types, true ) ) {
+                continue;
+            }
+
+            $entity         = self::apply_to_entity( $entity );
+            self::$injected = true;
+            break; // Only modify the first Product entity.
+        }
+        unset( $entity );
+
+        return $data;
+    }
+
+    /**
+     * Legacy filter callback for rank_math/snippet/rich_snippet_product_entity.
+     *
+     * Kept for backward compatibility in case Rank Math's auto-detect
+     * schema generation is re-enabled. Not actively registered.
+     *
+     * @param array $entity Product schema entity from Rank Math.
+     * @return array Modified entity.
+     */
+    public static function inject_schema( $entity ) {
+        if ( self::$injected ) {
+            return $entity;
+        }
+
+        $entity         = self::apply_to_entity( $entity );
+        self::$injected = true;
 
         return $entity;
     }
