@@ -416,36 +416,53 @@ class BRZ_WC_Core_Specs {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                padding: 10px 0;
+                padding: 12px 0;
                 border-bottom: 1px dashed #f1f5f9;
                 max-width: 500px;
+                gap: 16px;
             }
             .brz-core-toggle-row:last-child {
                 border-bottom: none;
             }
             .brz-core-toggle-label {
-                font-weight: 500;
+                font-weight: 600;
                 font-size: 13px;
-                color: #475569;
+                color: #334155;
             }
             .brz-core-toggle-desc {
                 font-size: 11px;
                 color: #64748b;
                 display: block;
                 margin-top: 2px;
+                line-height: 1.4;
             }
-            /* Premium iOS style toggles */
+            /* Premium iOS style toggles with complete reset of WordPress user agent styles */
             .brz-toggle-switch {
                 position: relative;
                 display: inline-block;
-                width: 46px;
-                height: 24px;
+                width: 44px;
+                height: 22px;
                 flex-shrink: 0;
+                cursor: pointer;
             }
-            .brz-toggle-switch input {
-                opacity: 0;
-                width: 0;
-                height: 0;
+            .brz-toggle-switch input[type="checkbox"] {
+                position: absolute !important;
+                top: 0;
+                left: 0;
+                width: 100% !important;
+                height: 100% !important;
+                opacity: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                cursor: pointer !important;
+                z-index: 2 !important;
+                appearance: none !important;
+                -webkit-appearance: none !important;
+                border: none !important;
+                background: none !important;
+                box-shadow: none !important;
+                min-width: 0 !important;
+                min-height: 0 !important;
             }
             .brz-toggle-slider {
                 position: absolute;
@@ -455,25 +472,27 @@ class BRZ_WC_Core_Specs {
                 right: 0;
                 bottom: 0;
                 background-color: #cbd5e1;
-                transition: .3s;
-                border-radius: 24px;
+                transition: background-color 0.2s ease;
+                border-radius: 22px;
+                z-index: 1;
             }
             .brz-toggle-slider:before {
                 position: absolute;
                 content: "";
-                height: 18px;
-                width: 18px;
+                height: 16px;
+                width: 16px;
                 left: 3px;
-                bottom: 3px;
-                background-color: white;
-                transition: .3s;
+                top: 3px;
+                background-color: #fff !important;
+                transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
                 border-radius: 50%;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+                box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                z-index: 1;
             }
-            input:checked + .brz-toggle-slider {
+            .brz-toggle-switch input[type="checkbox"]:checked + .brz-toggle-slider {
                 background-color: var(--brz-brand, #1a73e8);
             }
-            input:checked + .brz-toggle-slider:before {
+            .brz-toggle-switch input[type="checkbox"]:checked + .brz-toggle-slider:before {
                 transform: translateX(22px);
             }
         </style>
@@ -554,17 +573,17 @@ class BRZ_WC_Core_Specs {
                                     <span class="brz-toggle-slider"></span>
                                 </label>
                             </div>
+                        </div>
 
-                            <div class="brz-core-field-group" style="margin-top: 15px;">
+                        <div>
+                            <div class="brz-core-field-group">
                                 <label class="brz-field-label">نحوه چیدمان و فرمت در جدول</label>
                                 <select name="dimensions_format" id="brz-dim-format-select">
                                     <option value="unified" <?php selected( $settings['dimensions']['format'], 'unified' ); ?>>یکپارچه در یک ردیف (طول × عرض × ارتفاع)</option>
                                     <option value="separate" <?php selected( $settings['dimensions']['format'], 'separate' ); ?>>مجزا در سه ردیف مختلف (خوانایی و مقایسه بهتر)</option>
                                 </select>
                             </div>
-                        </div>
 
-                        <div>
                             <div class="brz-core-field-group">
                                 <label class="brz-field-label">عنوان نمایشی سفارشی (برای حالت یکپارچه)</label>
                                 <input type="text" name="dimensions_label" value="<?php echo esc_attr( $settings['dimensions']['label'] ); ?>" placeholder="مثال: ابعاد جعبه" />
@@ -615,13 +634,6 @@ class BRZ_WC_Core_Specs {
                                     <span class="brz-toggle-slider"></span>
                                 </label>
                             </div>
-                        </div>
-
-                        <div>
-                            <div class="brz-core-field-group">
-                                <label class="brz-field-label">عنوان نمایشی سفارشی (برچسب جدول)</label>
-                                <input type="text" name="gtin_label" value="<?php echo esc_attr( $settings['gtin']['label'] ); ?>" placeholder="مثال: شناسه بین‌المللی کالا" />
-                            </div>
 
                             <div class="brz-core-toggle-row">
                                 <div>
@@ -643,6 +655,13 @@ class BRZ_WC_Core_Specs {
                                     <input type="checkbox" name="gtin_link_gs1" <?php checked( $settings['gtin']['link_gs1'], 1 ); ?> />
                                     <span class="brz-toggle-slider"></span>
                                 </label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="brz-core-field-group">
+                                <label class="brz-field-label">عنوان نمایشی سفارشی (برچسب جدول)</label>
+                                <input type="text" name="gtin_label" value="<?php echo esc_attr( $settings['gtin']['label'] ); ?>" placeholder="مثال: شناسه بین‌المللی کالا" />
                             </div>
                         </div>
                     </div>
