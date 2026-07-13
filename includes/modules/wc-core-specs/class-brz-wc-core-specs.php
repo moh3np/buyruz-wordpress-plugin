@@ -276,22 +276,25 @@ class BRZ_WC_Core_Specs {
             }
             .brz-toggle-switch input[type="checkbox"] {
                 position: absolute !important;
-                top: 0;
-                left: 0;
-                width: 100% !important;
-                height: 100% !important;
                 opacity: 0 !important;
-                margin: 0 !important;
+                width: 1px !important;
+                height: 1px !important;
+                overflow: hidden !important;
+                clip: rect(0, 0, 0, 0) !important;
+                clip-path: inset(50%) !important;
+                white-space: nowrap !important;
+                border: 0 !important;
                 padding: 0 !important;
-                cursor: pointer !important;
-                z-index: 2 !important;
+                margin: 0 !important;
+                box-shadow: none !important;
+                background: none !important;
                 appearance: none !important;
                 -webkit-appearance: none !important;
-                border: none !important;
-                background: none !important;
-                box-shadow: none !important;
-                min-width: 0 !important;
-                min-height: 0 !important;
+            }
+            .brz-toggle-switch input[type="checkbox"]:before,
+            .brz-toggle-switch input[type="checkbox"]:after {
+                content: none !important;
+                display: none !important;
             }
             .brz-toggle-slider {
                 position: absolute;
