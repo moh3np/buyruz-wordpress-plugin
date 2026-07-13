@@ -473,6 +473,17 @@ class BRZ_AI_Schema {
         $enabled_attrs  = self::get_enabled_attributes();
         $auto_properties = array();
 
+        // Log the call
+        $debug_log = array(
+            'timestamp'      => date( 'Y-m-d H:i:s' ),
+            'is_product'     => function_exists( 'is_product' ) ? ( is_product() ? 1 : 0 ) : -1,
+            'queried_id'     => get_queried_object_id(),
+            'the_id'         => get_the_ID(),
+            'enabled_attrs'  => $enabled_attrs,
+            'properties'     => $properties,
+            'item_condition' => $item_condition,
+        );
+
         // Dynamically fetch values of WooCommerce attributes and Buyruz specs for the product
         if ( ! empty( $enabled_attrs ) && function_exists( 'is_product' ) && is_product() ) {
             $product_id = get_queried_object_id();
@@ -508,8 +519,16 @@ class BRZ_AI_Schema {
             }
         }
 
+        $debug_log['auto_properties'] = $auto_properties;
+        $debug_log['entity_keys_before'] = array_keys( $entity );
+
         // If no properties to inject and item_condition is disabled, return unmodified.
         if ( empty( $properties ) && empty( $auto_properties ) && ! $item_condition ) {
+            $debug_log['status'] = 'empty_return';
+            if ( function_exists( 'wp_upload_dir' ) ) {
+                $upload_dir = wp_upload_dir();
+                file_put_contents( $upload_dir['basedir'] . '/ai-schema-debug.json', json_encode( $debug_log ) );
+            }
             return $entity;
         }
 
@@ -549,6 +568,13 @@ class BRZ_AI_Schema {
         // If item_condition enabled and offers exists, set itemCondition.
         if ( $item_condition && isset( $entity['offers'] ) ) {
             $entity['offers']['itemCondition'] = 'https://schema.org/NewCondition';
+        }
+
+        $debug_log['status'] = 'success';
+        $debug_log['entity_additionalProperty'] = isset($entity['additionalProperty']) ? $entity['additionalProperty'] : 'not_set';
+        if ( function_exists( 'wp_upload_dir' ) ) {
+            $upload_dir = wp_upload_dir();
+            file_put_contents( $upload_dir['basedir'] . '/ai-schema-debug.json', json_encode( $debug_log ) );
         }
 
         return $entity;
