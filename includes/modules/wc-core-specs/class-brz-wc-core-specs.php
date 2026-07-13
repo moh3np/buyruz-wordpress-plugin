@@ -265,84 +265,49 @@ class BRZ_WC_Core_Specs {
                 margin-top: 2px;
                 line-height: 1.4;
             }
-            /* Premium iOS style toggles with complete reset of WordPress user agent styles */
+            /* Premium iOS style toggles using native appearance: none on the input itself */
             .brz-toggle-switch {
-                position: relative;
-                display: inline-block;
-                width: 44px;
-                height: 22px;
-                flex-shrink: 0;
-                cursor: pointer;
-                background: none !important;
+                position: relative !important;
+                display: inline-block !important;
+                width: 44px !important;
+                height: 22px !important;
+                background-color: #cbd5e1 !important;
+                border-radius: 22px !important;
                 border: none !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                box-shadow: none !important;
-            }
-            .brz-toggle-switch input[type="checkbox"] {
-                position: absolute !important;
-                opacity: 0 !important;
-                width: 1px !important;
-                height: 1px !important;
-                overflow: hidden !important;
-                clip: rect(0, 0, 0, 0) !important;
-                clip-path: inset(50%) !important;
-                white-space: nowrap !important;
-                border: 0 !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                box-shadow: none !important;
-                background: none !important;
+                cursor: pointer !important;
                 appearance: none !important;
                 -webkit-appearance: none !important;
-            }
-            .brz-toggle-switch input[type="checkbox"]:before,
-            .brz-toggle-switch input[type="checkbox"]:after {
-                content: none !important;
-                display: none !important;
+                transition: background-color 0.2s ease !important;
                 box-shadow: none !important;
-                background: none !important;
-                border: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                outline: none !important;
+                flex-shrink: 0 !important;
             }
-            .brz-toggle-slider {
-                position: absolute;
-                cursor: pointer;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background-color: #cbd5e1;
-                transition: background-color 0.2s ease;
-                border-radius: 22px;
-                z-index: 1;
-                border: none !important;
-                box-shadow: none !important;
-            }
-            .brz-toggle-slider:before {
-                position: absolute;
-                content: "";
-                height: 16px;
-                width: 16px;
-                left: 3px;
-                top: 3px;
+            .brz-toggle-switch::before {
+                content: "" !important;
+                position: absolute !important;
+                top: 3px !important;
+                left: 3px !important;
+                width: 16px !important;
+                height: 16px !important;
                 background-color: #fff !important;
-                transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                border-radius: 50%;
+                border-radius: 50% !important;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
-                z-index: 1;
+                transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
                 border: none !important;
             }
-            .brz-toggle-slider:after {
+            .brz-toggle-switch::after {
                 content: none !important;
                 display: none !important;
             }
-            .brz-toggle-switch input[type="checkbox"]:checked + .brz-toggle-slider {
-                background-color: var(--brz-brand, #1a73e8);
+            .brz-toggle-switch:checked {
+                background-color: var(--brz-brand, #1a73e8) !important;
                 border: none !important;
                 box-shadow: none !important;
             }
-            .brz-toggle-switch input[type="checkbox"]:checked + .brz-toggle-slider:before {
-                transform: translateX(22px);
+            .brz-toggle-switch:checked::before {
+                transform: translateX(22px) !important;
             }
         </style>
 
@@ -360,10 +325,7 @@ class BRZ_WC_Core_Specs {
                                     <span class="brz-core-toggle-label">نمایش در جدول مشخصات فنی</span>
                                     <span class="brz-core-toggle-desc">نمایش مقدار وزن در بخش مشخصات تکمیلی فرانت‌اند.</span>
                                 </div>
-                                <label class="brz-toggle-switch">
-                                    <input type="checkbox" name="weight_enabled" <?php checked( $settings['weight']['enabled'], 1 ); ?> />
-                                    <span class="brz-toggle-slider"></span>
-                                </label>
+                                <input type="checkbox" class="brz-toggle-switch" name="weight_enabled" <?php checked( $settings['weight']['enabled'], 1 ); ?> />
                             </div>
 
                             <div class="brz-core-toggle-row">
@@ -371,10 +333,7 @@ class BRZ_WC_Core_Specs {
                                     <span class="brz-core-toggle-label">تزریق به کدهای اسکیما (SEO)</span>
                                     <span class="brz-core-toggle-desc">ارائه داده وزنی به موتورهای جستجو در ساختار JSON-LD.</span>
                                 </div>
-                                <label class="brz-toggle-switch">
-                                    <input type="checkbox" name="weight_schema" <?php checked( $settings['weight']['schema'], 1 ); ?> />
-                                    <span class="brz-toggle-slider"></span>
-                                </label>
+                                <input type="checkbox" class="brz-toggle-switch" name="weight_schema" <?php checked( $settings['weight']['schema'], 1 ); ?> />
                             </div>
                         </div>
 
@@ -406,10 +365,7 @@ class BRZ_WC_Core_Specs {
                                     <span class="brz-core-toggle-label">نمایش در جدول مشخصات فنی</span>
                                     <span class="brz-core-toggle-desc">نمایش فیزیکی ابعاد (طول، عرض، ارتفاع) در جدول.</span>
                                 </div>
-                                <label class="brz-toggle-switch">
-                                    <input type="checkbox" name="dimensions_enabled" <?php checked( $settings['dimensions']['enabled'], 1 ); ?> />
-                                    <span class="brz-toggle-slider"></span>
-                                </label>
+                                <input type="checkbox" class="brz-toggle-switch" name="dimensions_enabled" <?php checked( $settings['dimensions']['enabled'], 1 ); ?> />
                             </div>
 
                             <div class="brz-core-toggle-row">
@@ -417,10 +373,7 @@ class BRZ_WC_Core_Specs {
                                     <span class="brz-core-toggle-label">تزریق به کدهای اسکیما (SEO)</span>
                                     <span class="brz-core-toggle-desc">ثبت مشخصات فیزیکی به عنوان ابعاد در ساختار JSON-LD.</span>
                                 </div>
-                                <label class="brz-toggle-switch">
-                                    <input type="checkbox" name="dimensions_schema" <?php checked( $settings['dimensions']['schema'], 1 ); ?> />
-                                    <span class="brz-toggle-slider"></span>
-                                </label>
+                                <input type="checkbox" class="brz-toggle-switch" name="dimensions_schema" <?php checked( $settings['dimensions']['schema'], 1 ); ?> />
                             </div>
                         </div>
 
@@ -467,10 +420,7 @@ class BRZ_WC_Core_Specs {
                                     <span class="brz-core-toggle-label">نمایش در جدول مشخصات فنی</span>
                                     <span class="brz-core-toggle-desc">نمایش مقدار شناسه بارکد در جدول مشخصات.</span>
                                 </div>
-                                <label class="brz-toggle-switch">
-                                    <input type="checkbox" name="gtin_enabled" <?php checked( $settings['gtin']['enabled'], 1 ); ?> />
-                                    <span class="brz-toggle-slider"></span>
-                                </label>
+                                <input type="checkbox" class="brz-toggle-switch" name="gtin_enabled" <?php checked( $settings['gtin']['enabled'], 1 ); ?> />
                             </div>
 
                             <div class="brz-core-toggle-row">
@@ -478,10 +428,7 @@ class BRZ_WC_Core_Specs {
                                     <span class="brz-core-toggle-label">لینک استعلام اصالت GS1</span>
                                     <span class="brz-core-toggle-desc">امکان کلیک روی بارکد برای استعلام آنلاین اصالت کالا از سایت رسمی GS1.</span>
                                 </div>
-                                <label class="brz-toggle-switch">
-                                    <input type="checkbox" name="gtin_link_gs1" <?php checked( $settings['gtin']['link_gs1'], 1 ); ?> />
-                                    <span class="brz-toggle-slider"></span>
-                                </label>
+                                <input type="checkbox" class="brz-toggle-switch" name="gtin_link_gs1" <?php checked( $settings['gtin']['link_gs1'], 1 ); ?> />
                             </div>
                         </div>
 
