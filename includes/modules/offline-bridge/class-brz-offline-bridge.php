@@ -1622,6 +1622,10 @@ class BRZ_Offline_Bridge {
         $attributes_updated = 0;
         $terms_updated      = 0;
 
+        $log = array();
+        $log[] = "Start renaming at " . date('Y-m-d H:i:s');
+        $log[] = "Payload: " . count($attribute_mappings) . " attributes, " . count($term_mappings) . " terms.";
+
         // 1. Process attribute taxonomy renames (e.g. pa_مکانیکهای-بازی -> pa_game-mechanics)
         foreach ( $attribute_mappings as $old_slug => $new_slug ) {
             if ( empty( $old_slug ) || empty( $new_slug ) || $old_slug === $new_slug ) {
@@ -1638,6 +1642,7 @@ class BRZ_Offline_Bridge {
             ) );
 
             if ( ! $old_id ) {
+                $log[] = "Attribute not found: {$old_attr}";
                 continue;
             }
 
@@ -1710,6 +1715,7 @@ class BRZ_Offline_Bridge {
             }
 
             $attributes_updated++;
+            $log[] = "Attribute renamed: {$old_attr} -> {$new_attr}";
         }
 
         // 2. Process term slug renames via direct SQL to bypass WordPress validation issues
@@ -1719,12 +1725,14 @@ class BRZ_Offline_Bridge {
             $new_slug = isset( $term_data['slug'] ) ? trim( $term_data['slug'] ) : '';
 
             if ( empty( $name ) || ! $attr_id || empty( $new_slug ) ) {
+                $log[] = "Skipped term (missing info): Name='{$name}', AttrID='{$attr_id}', Slug='{$new_slug}'";
                 continue;
             }
 
             // Get taxonomy name from attribute_id
             $taxonomy = wc_attribute_taxonomy_name_by_id( $attr_id );
             if ( empty( $taxonomy ) ) {
+                $log[] = "Taxonomy empty for attribute_id {$attr_id} (term '{$name}')";
                 continue;
             }
 
@@ -1737,13 +1745,21 @@ class BRZ_Offline_Bridge {
             ) );
 
             if ( $term_id ) {
+                $sanitized_slug = sanitize_title( $new_slug );
                 // Update slug in wp_terms table directly
-                $wpdb->update(
+                $update_result = $wpdb->update(
                     $wpdb->terms,
-                    array( 'slug' => sanitize_title( $new_slug ) ),
+                    array( 'slug' => $sanitized_slug ),
                     array( 'term_id' => $term_id )
                 );
-                $terms_updated++;
+                if ( false !== $update_result ) {
+                    $terms_updated++;
+                    $log[] = "Term updated: '{$name}' in {$taxonomy} -> slug '{$sanitized_slug}' (term_id: {$term_id})";
+                } else {
+                    $log[] = "DB update failed for '{$name}' in {$taxonomy} (term_id: {$term_id})";
+                }
+            } else {
+                $log[] = "Term not found: '{$name}' in {$taxonomy}";
             }
         }
 
@@ -1751,10 +1767,17 @@ class BRZ_Offline_Bridge {
         delete_transient( 'wc_attribute_taxonomies' );
         wp_cache_flush();
 
+        $log[] = "Finish renaming. Attributes updated: {$attributes_updated}, Terms updated: {$terms_updated}";
+
+        // Write to log file
+        $log_file = BRZ_PATH . 'buyruz-rename-log.txt';
+        file_put_contents( $log_file, implode( "\n", $log ) );
+
         return array(
             'message'            => 'تغییر اسلاگ‌ها در سطح دیتابیس با موفقیت انجام شد.',
             'attributes_updated' => $attributes_updated,
             'terms_updated'      => $terms_updated,
+            'log_file_url'       => BRZ_URL . 'buyruz-rename-log.txt'
         );
     }
 }
