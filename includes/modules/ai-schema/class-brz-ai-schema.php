@@ -654,7 +654,7 @@ class BRZ_AI_Schema {
      *
      * @return array List of enabled keys.
      */
-    private static function get_enabled_attributes(): array {
+    public static function get_enabled_attributes(): array {
         $val = BRZ_Settings::get( 'ai_schema_enabled_attributes', null );
         if ( is_null( $val ) ) {
             return self::get_default_enabled_attributes();

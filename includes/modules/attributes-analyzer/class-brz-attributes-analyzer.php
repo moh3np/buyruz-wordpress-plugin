@@ -109,6 +109,11 @@ class BRZ_Attributes_Analyzer {
     public static function generate_stats() {
         global $wpdb;
 
+        $schema_enabled = array();
+        if ( class_exists( 'BRZ_AI_Schema' ) ) {
+            $schema_enabled = BRZ_AI_Schema::get_enabled_attributes();
+        }
+
         $attribute_taxonomies = class_exists( 'WooCommerce' ) ? wc_get_attribute_taxonomies() : array();
         
         $stats = array(
@@ -294,6 +299,7 @@ class BRZ_Attributes_Analyzer {
                 'total_terms'            => $total_terms,
                 'used_terms_count'       => $used_terms_count,
                 'unused_terms_count'     => $unused_terms_count,
+                'in_schema'              => in_array( $taxonomy_name, $schema_enabled, true ),
                 'terms'                  => $terms_data,
             );
         }
@@ -380,6 +386,7 @@ class BRZ_Attributes_Analyzer {
                     'label'                => $label,
                     'type'                 => $type,
                     'total_products_count' => 0,
+                    'in_schema'            => in_array( 'spec_' . $key, $schema_enabled, true ),
                     'sample_products'      => array(),
                 );
 
@@ -768,6 +775,7 @@ class BRZ_Attributes_Analyzer {
                             <th>کلید متادیتا (Meta Key)</th>
                             <th>نوع فیلد</th>
                             <th>تعداد محصولات دارای مقدار</th>
+                            <th>ارسال به اسکیما</th>
                             <th>وضعیت استفاده</th>
                         </tr>
                     </thead>
@@ -804,6 +812,13 @@ class BRZ_Attributes_Analyzer {
                                     </td>
                                     <td><?php echo esc_html( $spec['total_products_count'] ); ?> محصول</td>
                                     <td>
+                                        <?php if ( ! empty( $spec['in_schema'] ) ) : ?>
+                                            <span class="brz-status-badge brz-status-badge--info">بله</span>
+                                        <?php else : ?>
+                                            <span class="brz-status-badge" style="background:#f0f0f0;color:#666;">خیر</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
                                         <?php if ( $spec['total_products_count'] > 0 ) : ?>
                                             <span class="brz-status-badge brz-status-badge--success">فعال</span>
                                         <?php else : ?>
@@ -828,6 +843,7 @@ class BRZ_Attributes_Analyzer {
                             <th>تعداد گزینه‌ها</th>
                             <th>محصولات مرتبط</th>
                             <th>تنوع‌های مرتبط</th>
+                            <th>ارسال به اسکیما</th>
                             <th>وضعیت استفاده</th>
                         </tr>
                     </thead>
@@ -844,6 +860,13 @@ class BRZ_Attributes_Analyzer {
                                     <td><?php echo esc_html( $attr['total_terms'] ); ?> (<?php echo esc_html( $attr['used_terms_count'] ); ?> استفاده شده)</td>
                                     <td><?php echo esc_html( $attr['total_products_count'] ); ?> محصول</td>
                                     <td><?php echo esc_html( $attr['total_variations_count'] ); ?> تنوع</td>
+                                    <td>
+                                        <?php if ( ! empty( $attr['in_schema'] ) ) : ?>
+                                            <span class="brz-status-badge brz-status-badge--info">بله</span>
+                                        <?php else : ?>
+                                            <span class="brz-status-badge" style="background:#f0f0f0;color:#666;">خیر</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <?php if ( $attr['has_usage'] ) : ?>
                                             <span class="brz-status-badge brz-status-badge--success">فعال</span>
