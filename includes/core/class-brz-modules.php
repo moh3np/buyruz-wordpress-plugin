@@ -80,6 +80,11 @@ class BRZ_Modules {
                 'description' => 'ارائه آمار دقیق استفاده از ویژگی‌ها و گزینه‌های ووکامرس برای هوش مصنوعی.',
                 'class'       => 'BRZ_Attributes_Analyzer',
             ),
+            'specs_exporter' => array(
+                'label'       => 'برون‌بری مشخصات و ویژگی‌ها',
+                'description' => 'خروجی یکباره از ویژگی‌های متایی و اتریبیوت‌های ووکامرس به صورت JSON.',
+                'class'       => 'BRZ_Specs_Exporter',
+            ),
         );
     }
 

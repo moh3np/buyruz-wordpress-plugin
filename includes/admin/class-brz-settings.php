@@ -518,6 +518,10 @@ class BRZ_Settings {
                 'title'       => 'آنالیز ویژگی‌ها',
                 'description' => 'ارائه آمار دقیق استفاده از ویژگی‌ها و گزینه‌های محصولات جهت تصمیم‌گیری و پاکسازی.',
             ),
+            'buyruz-module-specs_exporter' => array(
+                'title'       => 'برون‌بری مشخصات و ویژگی‌ها',
+                'description' => 'صادر کردن تنظیمات ساختار مشخصات محصول و ویژگی‌های ووکامرس.',
+            ),
         );
 
         return isset( $meta[ $active_slug ] ) ? $meta[ $active_slug ] : array(
@@ -771,6 +775,11 @@ class BRZ_Settings {
 
             if ( 'attributes_analyzer' === $module_slug && $active ) {
                 BRZ_Attributes_Analyzer::render_admin_page();
+                return;
+            }
+
+            if ( 'specs_exporter' === $module_slug && $active ) {
+                BRZ_Specs_Exporter::render_admin_page();
                 return;
             }
 
