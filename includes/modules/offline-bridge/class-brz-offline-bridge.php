@@ -534,6 +534,83 @@ class BRZ_Offline_Bridge {
             exit;
         }
 
+        // Support for "add_specs" JSON object structure
+        if ( is_array( $items ) && isset( $items['add_specs'] ) && $items['add_specs'] ) {
+            if ( ! empty( $items['specs'] ) && is_array( $items['specs'] ) && class_exists( 'BRZ_Product_Specs' ) ) {
+                $existing_fields = get_option( 'brz_product_specs_fields', array() );
+                if ( ! is_array( $existing_fields ) ) {
+                    $existing_fields = array();
+                }
+
+                $fields_map = array();
+                foreach ( $existing_fields as $f ) {
+                    if ( isset( $f['key'] ) ) {
+                        $fields_map[ $f['key'] ] = $f;
+                    }
+                }
+
+                foreach ( $items['specs'] as $raw ) {
+                    $key = isset( $raw['key'] ) ? sanitize_key( $raw['key'] ) : '';
+                    if ( empty( $key ) ) {
+                        continue;
+                    }
+                    
+                    $allowed_types = array( 'boolean', 'integer', 'decimal', 'range', 'array', 'string', 'text' );
+                    $type          = isset( $raw['type'] ) ? sanitize_key( $raw['type'] ) : 'boolean';
+                    if ( ! in_array( $type, $allowed_types, true ) ) {
+                        $type = 'boolean';
+                    }
+
+                    $fields_map[ $key ] = array(
+                        'key'     => $key,
+                        'label'   => sanitize_text_field( isset( $raw['label'] ) ? $raw['label'] : '' ),
+                        'type'    => $type,
+                        'prefix'  => sanitize_text_field( isset( $raw['prefix'] ) ? $raw['prefix'] : '' ),
+                        'suffix'  => sanitize_text_field( isset( $raw['suffix'] ) ? $raw['suffix'] : '' ),
+                        'options' => sanitize_text_field( isset( $raw['options'] ) ? $raw['options'] : '' ),
+                    );
+                }
+
+                update_option( 'brz_product_specs_fields', array_values( $fields_map ) );
+            }
+            
+            // Layout addition/update
+            if ( isset( $items['layout'] ) && is_array( $items['layout'] ) ) {
+                $layout = get_option( 'brz_unified_specs_layout', array() );
+                if ( ! is_array( $layout ) ) {
+                    $layout = array();
+                }
+                if ( ! isset( $layout['global'] ) || ! is_array( $layout['global'] ) ) {
+                    $layout['global'] = array();
+                }
+                if ( ! isset( $layout['categories'] ) || ! is_array( $layout['categories'] ) ) {
+                    $layout['categories'] = array();
+                }
+
+                if ( isset( $items['layout']['global'] ) && is_array( $items['layout']['global'] ) ) {
+                    $new_global = array_map( 'sanitize_key', $items['layout']['global'] );
+                    $layout['global'] = array_unique( array_merge( $layout['global'], $new_global ) );
+                }
+
+                if ( isset( $items['layout']['categories'] ) && is_array( $items['layout']['categories'] ) ) {
+                    foreach ( $items['layout']['categories'] as $cat_key => $cat_layout ) {
+                        if ( is_array( $cat_layout ) ) {
+                            $cat_key_sanitized = sanitize_key( $cat_key );
+                            $existing_cat_layout = isset( $layout['categories'][$cat_key_sanitized] ) ? $layout['categories'][$cat_key_sanitized] : array();
+                            $new_cat_layout = array_map( 'sanitize_key', $cat_layout );
+                            $layout['categories'][$cat_key_sanitized] = array_unique( array_merge( $existing_cat_layout, $new_cat_layout ) );
+                        }
+                    }
+                }
+                update_option( 'brz_unified_specs_layout', $layout );
+            }
+            
+            wp_send_json_success( array(
+                'message' => 'مشخصات فنی و چیدمان با موفقیت اضافه و همگام‌سازی شدند.'
+            ) );
+            exit;
+        }
+
         // Support for "create_specs" JSON object structure
         if ( is_array( $items ) && isset( $items['create_specs'] ) && $items['create_specs'] ) {
             if ( ! empty( $items['specs'] ) && is_array( $items['specs'] ) && class_exists( 'BRZ_Product_Specs' ) ) {
