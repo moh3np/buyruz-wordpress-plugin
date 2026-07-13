@@ -522,6 +522,10 @@ class BRZ_Settings {
                 'title'       => 'برون‌بری مشخصات و ویژگی‌ها',
                 'description' => 'صادر کردن تنظیمات ساختار مشخصات محصول و ویژگی‌های ووکامرس.',
             ),
+            'buyruz-module-wc_core_specs' => array(
+                'title'       => 'ویژگی‌های هسته‌ای ووکامرس',
+                'description' => 'تنظیمات نمایش و اسکیما مشخصات فیزیکی (وزن، ابعاد) و شناسه جهانی بارکد محصول.',
+            ),
         );
 
         return isset( $meta[ $active_slug ] ) ? $meta[ $active_slug ] : array(
@@ -765,6 +769,11 @@ class BRZ_Settings {
 
             if ( 'product_specs' === $module_slug && $active ) {
                 BRZ_Product_Specs::render_admin_page();
+                return;
+            }
+
+            if ( 'wc_core_specs' === $module_slug && $active ) {
+                BRZ_WC_Core_Specs::render_admin_page();
                 return;
             }
 

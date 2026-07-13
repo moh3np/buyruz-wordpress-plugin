@@ -2364,12 +2364,53 @@ class BRZ_Product_Specs {
             }
         }
 
+        // Get WC Core Specs configs if available
+        $weight_label = 'وزن محصول';
+        $dim_label = 'ابعاد محصول';
+        $len_label = 'طول محصول';
+        $wid_label = 'عرض محصول';
+        $hei_label = 'ارتفاع محصول';
+        $gtin_label = 'بارکد (GTIN)';
+        $dim_format = 'unified';
+
+        if ( class_exists( 'BRZ_WC_Core_Specs' ) && BRZ_Modules::is_enabled( 'wc_core_specs' ) ) {
+            $core_settings = BRZ_WC_Core_Specs::get_settings();
+            $weight_label = ! empty( $core_settings['weight']['label'] ) ? $core_settings['weight']['label'] : $weight_label;
+            $dim_label = ! empty( $core_settings['dimensions']['label'] ) ? $core_settings['dimensions']['label'] : $dim_label;
+            $len_label = ! empty( $core_settings['dimensions']['label_length'] ) ? $core_settings['dimensions']['label_length'] : $len_label;
+            $wid_label = ! empty( $core_settings['dimensions']['label_width'] ) ? $core_settings['dimensions']['label_width'] : $wid_label;
+            $hei_label = ! empty( $core_settings['dimensions']['label_height'] ) ? $core_settings['dimensions']['label_height'] : $hei_label;
+            $gtin_label = ! empty( $core_settings['gtin']['label'] ) ? $core_settings['gtin']['label'] : $gtin_label;
+            $dim_format = ! empty( $core_settings['dimensions']['format'] ) ? $core_settings['dimensions']['format'] : 'unified';
+        }
+
         $items['weight'] = array(
-            'label' => 'وزن محصول',
+            'label' => $weight_label,
             'type'  => 'ویژگی فیزیکی ووکامرس'
         );
-        $items['dimensions'] = array(
-            'label' => 'ابعاد محصول',
+
+        if ( 'separate' === $dim_format ) {
+            $items['dimensions_length'] = array(
+                'label' => $len_label,
+                'type'  => 'ویژگی فیزیکی ووکامرس'
+            );
+            $items['dimensions_width'] = array(
+                'label' => $wid_label,
+                'type'  => 'ویژگی فیزیکی ووکامرس'
+            );
+            $items['dimensions_height'] = array(
+                'label' => $hei_label,
+                'type'  => 'ویژگی فیزیکی ووکامرس'
+            );
+        } else {
+            $items['dimensions'] = array(
+                'label' => $dim_label,
+                'type'  => 'ویژگی فیزیکی ووکامرس'
+            );
+        }
+
+        $items['gtin'] = array(
+            'label' => $gtin_label,
             'type'  => 'ویژگی فیزیکی ووکامرس'
         );
 
@@ -2412,7 +2453,20 @@ class BRZ_Product_Specs {
         }
 
         $global[] = 'weight';
-        $global[] = 'dimensions';
+
+        $dim_format = 'unified';
+        if ( class_exists( 'BRZ_WC_Core_Specs' ) && BRZ_Modules::is_enabled( 'wc_core_specs' ) ) {
+            $core_settings = BRZ_WC_Core_Specs::get_settings();
+            $dim_format = ! empty( $core_settings['dimensions']['format'] ) ? $core_settings['dimensions']['format'] : 'unified';
+        }
+        if ( 'separate' === $dim_format ) {
+            $global[] = 'dimensions_length';
+            $global[] = 'dimensions_width';
+            $global[] = 'dimensions_height';
+        } else {
+            $global[] = 'dimensions';
+        }
+        $global[] = 'gtin';
 
         if ( function_exists( 'wc_get_attribute_taxonomies' ) ) {
             $taxonomies = wc_get_attribute_taxonomies();
@@ -2690,28 +2744,156 @@ class BRZ_Product_Specs {
             }
         }
 
-        // 3. Weight and dimensions
-        if ( $product->has_weight() ) {
-            $label = 'وزن';
-            $norm  = str_replace( array( ' ', '-', '_', '‌' ), '', $label );
+        // 3. Weight, dimensions, and GTIN
+        $weight_enabled = 1;
+        $weight_label = 'وزن';
+        $weight_unit = 'default';
+        
+        $dim_enabled = 1;
+        $dim_label = 'ابعاد';
+        $dim_format = 'unified';
+        $dim_label_length = 'طول';
+        $dim_label_width = 'عرض';
+        $dim_label_height = 'ارتفاع';
+
+        $gtin_enabled = 1;
+        $gtin_label = 'بارکد (GTIN)';
+        $gtin_render = 0;
+        $gtin_link_gs1 = 0;
+
+        if ( class_exists( 'BRZ_WC_Core_Specs' ) && BRZ_Modules::is_enabled( 'wc_core_specs' ) ) {
+            $core_settings = BRZ_WC_Core_Specs::get_settings();
+            
+            $weight_enabled = isset( $core_settings['weight']['enabled'] ) ? intval( $core_settings['weight']['enabled'] ) : 1;
+            $weight_label = ! empty( $core_settings['weight']['label'] ) ? $core_settings['weight']['label'] : $weight_label;
+            $weight_unit = ! empty( $core_settings['weight']['unit_override'] ) ? $core_settings['weight']['unit_override'] : 'default';
+
+            $dim_enabled = isset( $core_settings['dimensions']['enabled'] ) ? intval( $core_settings['dimensions']['enabled'] ) : 1;
+            $dim_label = ! empty( $core_settings['dimensions']['label'] ) ? $core_settings['dimensions']['label'] : $dim_label;
+            $dim_format = ! empty( $core_settings['dimensions']['format'] ) ? $core_settings['dimensions']['format'] : 'unified';
+            $dim_label_length = ! empty( $core_settings['dimensions']['label_length'] ) ? $core_settings['dimensions']['label_length'] : $dim_label_length;
+            $dim_label_width = ! empty( $core_settings['dimensions']['label_width'] ) ? $core_settings['dimensions']['label_width'] : $dim_label_width;
+            $dim_label_height = ! empty( $core_settings['dimensions']['label_height'] ) ? $core_settings['dimensions']['label_height'] : $dim_label_height;
+
+            $gtin_enabled = isset( $core_settings['gtin']['enabled'] ) ? intval( $core_settings['gtin']['enabled'] ) : 1;
+            $gtin_label = ! empty( $core_settings['gtin']['label'] ) ? $core_settings['gtin']['label'] : $gtin_label;
+            $gtin_render = isset( $core_settings['gtin']['render'] ) ? intval( $core_settings['gtin']['render'] ) : 0;
+            $gtin_link_gs1 = isset( $core_settings['gtin']['link_gs1'] ) ? intval( $core_settings['gtin']['link_gs1'] ) : 0;
+        }
+
+        // 3.1. Gather Weight
+        if ( $weight_enabled && $product->has_weight() ) {
+            $norm = str_replace( array( ' ', '-', '_', '‌' ), '', $weight_label );
             if ( ! isset( $normalized_labels[ $norm ] ) ) {
+                $raw_weight = floatval( $product->get_weight() );
+                $system_unit = get_option( 'woocommerce_weight_unit', 'kg' );
+                $display_value = '';
+
+                if ( 'g' === $weight_unit ) {
+                    if ( 'kg' === $system_unit ) {
+                        $display_value = self::to_persian_digits( $raw_weight * 1000 ) . ' گرم';
+                    } else {
+                        $display_value = self::to_persian_digits( $raw_weight ) . ' گرم';
+                    }
+                } elseif ( 'kg' === $weight_unit ) {
+                    if ( 'g' === $system_unit ) {
+                        $display_value = self::to_persian_digits( $raw_weight / 1000 ) . ' کیلوگرم';
+                    } else {
+                        $display_value = self::to_persian_digits( $raw_weight ) . ' کیلوگرم';
+                    }
+                } else {
+                    $formatted = wc_format_weight( $product->get_weight() );
+                    $formatted = str_replace( array( 'kg', 'g' ), array( 'کیلوگرم', 'گرم' ), $formatted );
+                    $display_value = self::to_persian_digits( $formatted );
+                }
+
                 $specs_values['weight'] = array(
-                    'label' => $label,
-                    'value' => wc_format_weight( $product->get_weight() )
+                    'label' => $weight_label,
+                    'value' => $display_value
                 );
                 $normalized_labels[ $norm ] = 'weight';
             }
         }
 
-        if ( $product->has_dimensions() ) {
-            $label = 'ابعاد';
-            $norm  = str_replace( array( ' ', '-', '_', '‌' ), '', $label );
-            if ( ! isset( $normalized_labels[ $norm ] ) ) {
-                $specs_values['dimensions'] = array(
-                    'label' => $label,
-                    'value' => wc_format_dimensions( $product->get_dimensions( false ) )
-                );
-                $normalized_labels[ $norm ] = 'dimensions';
+        // 3.2. Gather Dimensions
+        if ( $dim_enabled && $product->has_dimensions() ) {
+            $unit = get_option( 'woocommerce_dimension_unit', 'cm' );
+            $unit_translated = ( 'cm' === $unit ) ? 'سانتی‌متر' : ( ( 'm' === $unit ) ? 'متر' : ( ( 'mm' === $unit ) ? 'میلی‌متر' : $unit ) );
+
+            if ( 'separate' === $dim_format ) {
+                // Length
+                if ( $product->get_length() ) {
+                    $norm = str_replace( array( ' ', '-', '_', '‌' ), '', $dim_label_length );
+                    if ( ! isset( $normalized_labels[ $norm ] ) ) {
+                        $specs_values['dimensions_length'] = array(
+                            'label' => $dim_label_length,
+                            'value' => self::to_persian_digits( $product->get_length() ) . ' ' . $unit_translated
+                        );
+                        $normalized_labels[ $norm ] = 'dimensions_length';
+                    }
+                }
+                // Width
+                if ( $product->get_width() ) {
+                    $norm = str_replace( array( ' ', '-', '_', '‌' ), '', $dim_label_width );
+                    if ( ! isset( $normalized_labels[ $norm ] ) ) {
+                        $specs_values['dimensions_width'] = array(
+                            'label' => $dim_label_width,
+                            'value' => self::to_persian_digits( $product->get_width() ) . ' ' . $unit_translated
+                        );
+                        $normalized_labels[ $norm ] = 'dimensions_width';
+                    }
+                }
+                // Height
+                if ( $product->get_height() ) {
+                    $norm = str_replace( array( ' ', '-', '_', '‌' ), '', $dim_label_height );
+                    if ( ! isset( $normalized_labels[ $norm ] ) ) {
+                        $specs_values['dimensions_height'] = array(
+                            'label' => $dim_label_height,
+                            'value' => self::to_persian_digits( $product->get_height() ) . ' ' . $unit_translated
+                        );
+                        $normalized_labels[ $norm ] = 'dimensions_height';
+                    }
+                }
+            } else {
+                $norm = str_replace( array( ' ', '-', '_', '‌' ), '', $dim_label );
+                if ( ! isset( $normalized_labels[ $norm ] ) ) {
+                    $formatted = wc_format_dimensions( $product->get_dimensions( false ) );
+                    $formatted = str_replace( array( 'x', 'cm', 'm', 'mm' ), array( '×', 'سانتی‌متر', 'متر', 'میلی‌متر' ), $formatted );
+                    $specs_values['dimensions'] = array(
+                        'label' => $dim_label,
+                        'value' => self::to_persian_digits( $formatted )
+                    );
+                    $normalized_labels[ $norm ] = 'dimensions';
+                }
+            }
+        }
+
+        // 3.3. Gather GTIN
+        if ( $gtin_enabled && class_exists( 'BRZ_WC_Core_Specs' ) ) {
+            $gtin_val = BRZ_WC_Core_Specs::get_product_gtin( $product );
+            if ( ! empty( $gtin_val ) ) {
+                $norm = str_replace( array( ' ', '-', '_', '‌' ), '', $gtin_label );
+                if ( ! isset( $normalized_labels[ $norm ] ) ) {
+                    $display_html = esc_html( $gtin_val );
+
+                    if ( $gtin_render ) {
+                        $display_html = BRZ_WC_Core_Specs::get_barcode_svg( $gtin_val );
+                    }
+
+                    if ( $gtin_link_gs1 ) {
+                        $display_html = sprintf(
+                            '<a href="https://gepir.gs1.org/index.php/search-by-gtin?gtin=%s" target="_blank" rel="noopener noreferrer" style="text-decoration:none; color:inherit;" title="استعلام اصالت در سایت جهانی GS1">%s</a>',
+                            esc_attr( $gtin_val ),
+                            $display_html
+                        );
+                    }
+
+                    $specs_values['gtin'] = array(
+                        'label' => $gtin_label,
+                        'value' => $display_html
+                    );
+                    $normalized_labels[ $norm ] = 'gtin';
+                }
             }
         }
 

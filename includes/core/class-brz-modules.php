@@ -85,6 +85,11 @@ class BRZ_Modules {
                 'description' => 'خروجی یکباره از ویژگی‌های متایی و اتریبیوت‌های ووکامرس به صورت JSON.',
                 'class'       => 'BRZ_Specs_Exporter',
             ),
+            'wc_core_specs' => array(
+                'label'       => 'ویژگی‌های هسته‌ای ووکامرس',
+                'description' => 'مدیریت نمایش و اسکیما مشخصات فیزیکی (وزن، ابعاد) و شناسه جهانی (GTIN) محصول.',
+                'class'       => 'BRZ_WC_Core_Specs',
+            ),
         );
     }
 

@@ -58,6 +58,7 @@ spl_autoload_register( function( $class ) {
         'BRZ_Sidebar_Filters'            => 'modules/sidebar-filters/class-brz-sidebar-filters.php',
         'BRZ_Attributes_Analyzer'        => 'modules/attributes-analyzer/class-brz-attributes-analyzer.php',
         'BRZ_Specs_Exporter'             => 'modules/specs-exporter/class-brz-specs-exporter.php',
+        'BRZ_WC_Core_Specs'              => 'modules/wc-core-specs/class-brz-wc-core-specs.php',
     );
 
     $map = apply_filters( 'brz/autoload_map', $map );
