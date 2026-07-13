@@ -382,16 +382,16 @@ class BRZ_WC_Core_Specs {
                             </div>
 
                             <div class="brz-core-field-group">
+                                <label class="brz-field-label">عنوان نمایشی ابعاد (حالت یکپارچه)</label>
+                                <input type="text" name="dimensions_label" value="<?php echo esc_attr( $settings['dimensions']['label'] ); ?>" placeholder="مثال: ابعاد جعبه" />
+                            </div>
+
+                            <div class="brz-core-field-group">
                                 <label class="brz-field-label">نحوه چیدمان ابعاد در جدول</label>
                                 <select name="dimensions_format" id="brz-dim-format-select">
                                     <option value="unified" <?php selected( $settings['dimensions']['format'], 'unified' ); ?>>یکپارچه در یک ردیف (طول × عرض × ارتفاع)</option>
                                     <option value="separate" <?php selected( $settings['dimensions']['format'], 'separate' ); ?>>مجزا در سه ردیف مختلف (خوانایی و مقایسه بهتر)</option>
                                 </select>
-                            </div>
-
-                            <div class="brz-core-field-group">
-                                <label class="brz-field-label">عنوان نمایشی ابعاد (حالت یکپارچه)</label>
-                                <input type="text" name="dimensions_label" value="<?php echo esc_attr( $settings['dimensions']['label'] ); ?>" placeholder="مثال: ابعاد جعبه" />
                             </div>
 
                             <!-- Separate Labels Form Section -->
