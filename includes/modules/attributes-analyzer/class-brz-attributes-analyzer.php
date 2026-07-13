@@ -18,10 +18,52 @@ class BRZ_Attributes_Analyzer {
     public static function init() {
         add_action( 'rest_api_init', array( __CLASS__, 'register_rest_routes' ) );
         add_action( 'admin_post_' . self::DOWNLOAD_ACTION, array( __CLASS__, 'handle_download_stats' ) );
+        add_action( 'wp_ajax_brz_save_analyzer_settings', array( __CLASS__, 'ajax_save_analyzer_settings' ) );
 
         if ( defined( 'WP_CLI' ) && WP_CLI ) {
             WP_CLI::add_command( 'buyruz-attributes-stats', array( __CLASS__, 'cli_attributes_stats' ) );
         }
+    }
+
+    /**
+     * Get analyzer settings from stored option.
+     *
+     * @return array
+     */
+    public static function get_analyzer_settings(): array {
+        $opts     = get_option( BRZ_OPTION, array() );
+        $settings = isset( $opts['analyzer_settings'] ) && is_array( $opts['analyzer_settings'] ) ? $opts['analyzer_settings'] : array();
+        return wp_parse_args( $settings, array(
+            'published_only'     => true,
+            'missing_specs_only' => true,
+        ) );
+    }
+
+    /**
+     * Handle wp_ajax_brz_save_analyzer_settings action.
+     */
+    public static function ajax_save_analyzer_settings(): void {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'دسترسی کافی ندارید.' ), 403 );
+        }
+        if ( ! check_ajax_referer( 'brz_analyzer_settings_save', '_wpnonce', false ) ) {
+            wp_send_json_error( array( 'message' => 'نشست امنیتی نامعتبر است.' ), 403 );
+        }
+
+        $published_only     = isset( $_POST['published_only'] ) ? absint( $_POST['published_only'] ) : 0;
+        $missing_specs_only = isset( $_POST['missing_specs_only'] ) ? absint( $_POST['missing_specs_only'] ) : 0;
+
+        $opts = get_option( BRZ_OPTION, array() );
+        if ( ! is_array( $opts ) ) {
+            $opts = array();
+        }
+        $opts['analyzer_settings'] = array(
+            'published_only'     => (bool) $published_only,
+            'missing_specs_only' => (bool) $missing_specs_only,
+        );
+        update_option( BRZ_OPTION, $opts, false );
+
+        wp_send_json_success( array( 'message' => 'تنظیمات آنالیزور ذخیره شد.' ) );
     }
 
     /**
@@ -109,6 +151,15 @@ class BRZ_Attributes_Analyzer {
     public static function generate_stats() {
         global $wpdb;
 
+        $analyzer_settings = self::get_analyzer_settings();
+        $published_only     = ! empty( $analyzer_settings['published_only'] );
+        $missing_specs_only = ! empty( $analyzer_settings['missing_specs_only'] );
+
+        // Build reusable SQL clause for post_status filtering.
+        $status_clause = $published_only
+            ? "p.post_status = 'publish'"
+            : "p.post_status NOT IN ('trash', 'auto-draft')";
+
         $schema_enabled = array();
         if ( class_exists( 'BRZ_AI_Schema' ) ) {
             $schema_enabled = BRZ_AI_Schema::get_enabled_attributes();
@@ -137,6 +188,8 @@ class BRZ_Attributes_Analyzer {
             'summary' => array(
                 'generated_at'                 => current_time( 'mysql' ),
                 'site_url'                     => site_url(),
+                'filter_published_only'        => $published_only,
+                'filter_missing_specs_only'    => $missing_specs_only,
                 'total_global_attributes'      => count( $attribute_taxonomies ),
                 'active_global_attributes'     => 0,
                 'unused_global_attributes'     => 0,
@@ -178,26 +231,28 @@ class BRZ_Attributes_Analyzer {
             
             if ( ! empty( $term_taxonomy_ids ) ) {
                 $placeholders = implode( ',', array_fill( 0, count( $term_taxonomy_ids ), '%d' ) );
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $status_clause is safe internal string.
                 $taxonomy_product_ids = $wpdb->get_col( $wpdb->prepare(
                     "SELECT DISTINCT tr.object_id 
                      FROM {$wpdb->term_relationships} tr 
                      INNER JOIN {$wpdb->posts} p ON tr.object_id = p.ID 
                      WHERE tr.term_taxonomy_id IN ($placeholders) 
                        AND p.post_type = 'product' 
-                       AND p.post_status NOT IN ('trash', 'auto-draft')",
+                       AND {$status_clause}",
                     $term_taxonomy_ids
                 ) );
             }
             $total_products_count = count( $taxonomy_product_ids );
 
             // Gather all product variations explicitly matching terms of this taxonomy
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $status_clause is safe internal string.
             $variation_query_result = $wpdb->get_results( $wpdb->prepare(
                 "SELECT pm.post_id, pm.meta_value 
                  FROM {$wpdb->postmeta} pm 
                  INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID 
                  WHERE pm.meta_key = %s 
                    AND p.post_type = 'product_variation' 
-                   AND p.post_status NOT IN ('trash', 'auto-draft')",
+                   AND {$status_clause}",
                 'attribute_' . $taxonomy_name
             ) );
 
@@ -212,13 +267,14 @@ class BRZ_Attributes_Analyzer {
             // Loop terms to construct detailed statistics per option
             foreach ( $terms as $term ) {
                 // Products direct relations
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $status_clause is safe internal string.
                 $term_product_ids = $wpdb->get_col( $wpdb->prepare(
                     "SELECT tr.object_id 
                      FROM {$wpdb->term_relationships} tr 
                      INNER JOIN {$wpdb->posts} p ON tr.object_id = p.ID 
                      WHERE tr.term_taxonomy_id = %d 
                        AND p.post_type = 'product' 
-                       AND p.post_status NOT IN ('trash', 'auto-draft')",
+                       AND {$status_clause}",
                     $term->term_taxonomy_id
                 ) );
 
@@ -394,6 +450,7 @@ class BRZ_Attributes_Analyzer {
 
                 if ( 'range' === $type ) {
                     $keys = BRZ_Product_Specs::get_range_meta_keys( $key );
+                    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $status_clause is safe internal string.
                     $product_ids = $wpdb->get_col( $wpdb->prepare(
                         "SELECT DISTINCT pm.post_id 
                          FROM {$wpdb->postmeta} pm 
@@ -401,7 +458,7 @@ class BRZ_Attributes_Analyzer {
                          WHERE pm.meta_key IN (%s, %s) 
                            AND pm.meta_value != '' 
                            AND p.post_type = 'product' 
-                           AND p.post_status NOT IN ('trash', 'auto-draft')",
+                           AND {$status_clause}",
                         $keys[0],
                         $keys[1]
                     ) );
@@ -409,16 +466,18 @@ class BRZ_Attributes_Analyzer {
                     $spec_info['total_products_count'] = count( $product_ids );
 
                     // Get min/max range statistics
+                    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $status_clause is safe internal string.
                     $min_vals = $wpdb->get_col( $wpdb->prepare(
                         "SELECT CAST(pm.meta_value AS SIGNED) FROM {$wpdb->postmeta} pm
                          INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
-                         WHERE pm.meta_key = %s AND pm.meta_value != '' AND p.post_type = 'product' AND p.post_status NOT IN ('trash', 'auto-draft')",
+                         WHERE pm.meta_key = %s AND pm.meta_value != '' AND p.post_type = 'product' AND {$status_clause}",
                         $keys[0]
                     ) );
+                    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $status_clause is safe internal string.
                     $max_vals = $wpdb->get_col( $wpdb->prepare(
                         "SELECT CAST(pm.meta_value AS SIGNED) FROM {$wpdb->postmeta} pm
                          INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
-                         WHERE pm.meta_key = %s AND pm.meta_value != '' AND p.post_type = 'product' AND p.post_status NOT IN ('trash', 'auto-draft')",
+                         WHERE pm.meta_key = %s AND pm.meta_value != '' AND p.post_type = 'product' AND {$status_clause}",
                         $keys[1]
                     ) );
 
@@ -435,6 +494,7 @@ class BRZ_Attributes_Analyzer {
 
                 } elseif ( 'array' === $type ) {
                     $meta_key = '_brz_spec_' . $key;
+                    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $status_clause is safe internal string.
                     $rows = $wpdb->get_results( $wpdb->prepare(
                         "SELECT pm.post_id, pm.meta_value 
                          FROM {$wpdb->postmeta} pm 
@@ -442,7 +502,7 @@ class BRZ_Attributes_Analyzer {
                          WHERE pm.meta_key = %s 
                            AND pm.meta_value != '' 
                            AND p.post_type = 'product' 
-                           AND p.post_status NOT IN ('trash', 'auto-draft')",
+                           AND {$status_clause}",
                         $meta_key
                     ) );
 
@@ -499,6 +559,7 @@ class BRZ_Attributes_Analyzer {
                 } else {
                     // boolean, integer, decimal
                     $meta_key = '_brz_spec_' . $key;
+                    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $status_clause is safe internal string.
                     $product_ids = $wpdb->get_col( $wpdb->prepare(
                         "SELECT DISTINCT pm.post_id 
                          FROM {$wpdb->postmeta} pm 
@@ -506,17 +567,18 @@ class BRZ_Attributes_Analyzer {
                          WHERE pm.meta_key = %s 
                            AND pm.meta_value != '' 
                            AND p.post_type = 'product' 
-                           AND p.post_status NOT IN ('trash', 'auto-draft')",
+                           AND {$status_clause}",
                         $meta_key
                     ) );
 
                     $spec_info['total_products_count'] = count( $product_ids );
 
                     if ( 'boolean' === $type ) {
+                        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $status_clause is safe internal string.
                         $true_count = (int) $wpdb->get_var( $wpdb->prepare(
                             "SELECT COUNT(DISTINCT pm.post_id) FROM {$wpdb->postmeta} pm
                              INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
-                             WHERE pm.meta_key = %s AND pm.meta_value IN ('1', 'true') AND p.post_type = 'product' AND p.post_status NOT IN ('trash', 'auto-draft')",
+                             WHERE pm.meta_key = %s AND pm.meta_value IN ('1', 'true') AND p.post_type = 'product' AND {$status_clause}",
                             $meta_key
                         ) );
                         $spec_info['boolean_stats'] = array(
@@ -524,10 +586,11 @@ class BRZ_Attributes_Analyzer {
                             'false_count' => max( 0, count( $product_ids ) - $true_count ),
                         );
                     } elseif ( 'integer' === $type || 'decimal' === $type ) {
+                        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $status_clause is safe internal string.
                         $vals = $wpdb->get_col( $wpdb->prepare(
                             "SELECT CAST(pm.meta_value AS DECIMAL(10,2)) FROM {$wpdb->postmeta} pm
                              INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
-                             WHERE pm.meta_key = %s AND pm.meta_value != '' AND p.post_type = 'product' AND p.post_status NOT IN ('trash', 'auto-draft')",
+                             WHERE pm.meta_key = %s AND pm.meta_value != '' AND p.post_type = 'product' AND {$status_clause}",
                             $meta_key
                         ) );
                         $spec_info['numeric_stats'] = array(
@@ -558,6 +621,115 @@ class BRZ_Attributes_Analyzer {
 
                 $stats['buyruz_product_specs'][] = $spec_info;
             }
+        }
+
+        // 4. Product Coverage Matrix — which products are missing critical specs/attributes.
+        $critical_keys = $schema_enabled; // Critical = whatever is enabled for Schema injection.
+        if ( ! empty( $critical_keys ) ) {
+            // Get all product IDs in scope.
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $status_clause is safe internal string.
+            $all_product_ids = $wpdb->get_col(
+                "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'product' AND {$status_clause}"
+            );
+
+            $total_products       = count( $all_product_ids );
+            $coverage_entries     = array();
+            $products_with_gaps   = 0;
+            $products_complete    = 0;
+
+            // Separate critical keys into taxonomy keys (pa_*) and spec keys (spec_*).
+            $critical_taxonomies = array();
+            $critical_spec_keys  = array();
+            foreach ( $critical_keys as $ck ) {
+                if ( 0 === strpos( $ck, 'spec_' ) ) {
+                    $critical_spec_keys[] = substr( $ck, 5 ); // Remove spec_ prefix to get raw key.
+                } else {
+                    $critical_taxonomies[] = $ck; // e.g. pa_game-style.
+                }
+            }
+
+            foreach ( $all_product_ids as $pid ) {
+                $pid = (int) $pid;
+                $missing = array();
+
+                // Check taxonomy attributes.
+                foreach ( $critical_taxonomies as $tax_name ) {
+                    if ( taxonomy_exists( $tax_name ) ) {
+                        $terms = wp_get_object_terms( $pid, $tax_name, array( 'fields' => 'ids' ) );
+                        if ( empty( $terms ) || is_wp_error( $terms ) ) {
+                            $missing[] = $tax_name;
+                        }
+                    }
+                }
+
+                // Check spec meta fields.
+                if ( class_exists( 'BRZ_Product_Specs' ) ) {
+                    $spec_fields_map = array();
+                    foreach ( BRZ_Product_Specs::get_fields() as $f ) {
+                        $spec_fields_map[ $f['key'] ] = $f['type'];
+                    }
+                    foreach ( $critical_spec_keys as $sk ) {
+                        $ftype = isset( $spec_fields_map[ $sk ] ) ? $spec_fields_map[ $sk ] : '';
+                        if ( 'range' === $ftype ) {
+                            $rkeys = BRZ_Product_Specs::get_range_meta_keys( $sk );
+                            $v1 = get_post_meta( $pid, $rkeys[0], true );
+                            $v2 = get_post_meta( $pid, $rkeys[1], true );
+                            if ( '' === $v1 && '' === $v2 ) {
+                                $missing[] = 'spec_' . $sk;
+                            }
+                        } else {
+                            $val = get_post_meta( $pid, '_brz_spec_' . $sk, true );
+                            if ( '' === $val || null === $val ) {
+                                $missing[] = 'spec_' . $sk;
+                            }
+                        }
+                    }
+                }
+
+                if ( ! empty( $missing ) ) {
+                    $products_with_gaps++;
+                    $coverage_entries[] = array(
+                        'product_id'             => $pid,
+                        'title'                  => get_the_title( $pid ),
+                        'status'                 => get_post_status( $pid ),
+                        'missing_critical_specs'  => $missing,
+                        'missing_count'          => count( $missing ),
+                        'total_critical'         => count( $critical_keys ),
+                        'fill_rate'              => round( 1 - ( count( $missing ) / count( $critical_keys ) ), 2 ),
+                    );
+                } else {
+                    $products_complete++;
+                    if ( ! $missing_specs_only ) {
+                        $coverage_entries[] = array(
+                            'product_id'             => $pid,
+                            'title'                  => get_the_title( $pid ),
+                            'status'                 => get_post_status( $pid ),
+                            'missing_critical_specs'  => array(),
+                            'missing_count'          => 0,
+                            'total_critical'         => count( $critical_keys ),
+                            'fill_rate'              => 1.0,
+                        );
+                    }
+                }
+            }
+
+            // Sort by most missing first.
+            usort( $coverage_entries, function( $a, $b ) {
+                return $b['missing_count'] - $a['missing_count'];
+            } );
+
+            $stats['product_coverage'] = array(
+                'total_products'       => $total_products,
+                'products_complete'    => $products_complete,
+                'products_with_gaps'   => $products_with_gaps,
+                'fill_rate_overall'    => $total_products > 0 ? round( $products_complete / $total_products, 2 ) : 0,
+                'critical_keys'        => $critical_keys,
+                'products'             => $coverage_entries,
+            );
+
+            $stats['summary']['total_products_analyzed']          = $total_products;
+            $stats['summary']['products_complete_coverage']       = $products_complete;
+            $stats['summary']['products_with_missing_specs']      = $products_with_gaps;
         }
 
         return $stats;
@@ -726,6 +898,10 @@ class BRZ_Attributes_Analyzer {
             }
         </style>
 
+        <?php
+        $a_settings = self::get_analyzer_settings();
+        $a_nonce    = wp_create_nonce( 'brz_analyzer_settings_save' );
+        ?>
         <div class="brz-single-column" dir="rtl">
             <div class="brz-analyzer-box">
                 <h3>آنالیز و پاکسازی ویژگی‌ها و مشخصات محصولات</h3>
@@ -737,6 +913,64 @@ class BRZ_Attributes_Analyzer {
                     </a>
                 </div>
             </div>
+
+            <div class="brz-analyzer-box">
+                <h3>تنظیمات آنالیزور</h3>
+                <p>این تنظیمات روی آمار صفحه، خروجی JSON و API ایجنت‌ها تأثیر می‌گذارند.</p>
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row">فیلتر وضعیت انتشار</th>
+                        <td>
+                            <label>
+                                <input type="checkbox" id="brz-analyzer-published-only" <?php checked( $a_settings['published_only'] ); ?> />
+                                فقط محصولات منتشرشده (Published) تحلیل شوند
+                            </label>
+                            <p class="description">در صورت غیرفعال بودن، تمام محصولات به جز حذف‌شده و پیش‌نویس خودکار شامل خواهند شد.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">بهینه‌سازی حجم خروجی</th>
+                        <td>
+                            <label>
+                                <input type="checkbox" id="brz-analyzer-missing-only" <?php checked( $a_settings['missing_specs_only'] ); ?> />
+                                در گزارش پوشش محصولات، فقط محصولات دارای نقص نمایش داده شوند
+                            </label>
+                            <p class="description">با فعال بودن این گزینه، محصولاتی که تمام ویژگی‌های بحرانی آن‌ها تکمیل است از خروجی JSON حذف می‌شوند و حجم فایل بهینه می‌ماند.</p>
+                        </td>
+                    </tr>
+                </table>
+                <p>
+                    <button type="button" id="brz-save-analyzer-settings" class="button button-primary">ذخیره تنظیمات</button>
+                    <span id="brz-analyzer-settings-msg" style="margin-right:10px;"></span>
+                </p>
+            </div>
+            <script>
+            (function(){
+                var btn = document.getElementById('brz-save-analyzer-settings');
+                var msg = document.getElementById('brz-analyzer-settings-msg');
+                if (!btn) return;
+                btn.addEventListener('click', function(){
+                    btn.disabled = true;
+                    msg.textContent = 'در حال ذخیره…';
+                    var data = new FormData();
+                    data.append('action', 'brz_save_analyzer_settings');
+                    data.append('_wpnonce', '<?php echo esc_js( $a_nonce ); ?>');
+                    data.append('published_only', document.getElementById('brz-analyzer-published-only').checked ? 1 : 0);
+                    data.append('missing_specs_only', document.getElementById('brz-analyzer-missing-only').checked ? 1 : 0);
+                    fetch(ajaxurl, {method:'POST', body:data, credentials:'same-origin'})
+                        .then(function(r){return r.json();})
+                        .then(function(r){
+                            msg.textContent = r.success ? '✅ ' + r.data.message : '❌ ' + (r.data && r.data.message ? r.data.message : 'خطا');
+                            btn.disabled = false;
+                            if (r.success) { setTimeout(function(){ location.reload(); }, 800); }
+                        })
+                        .catch(function(){
+                            msg.textContent = '❌ خطای ارتباط.';
+                            btn.disabled = false;
+                        });
+                });
+            })();
+            </script>
 
             <div class="brz-analyzer-stat-grid">
                 <div class="brz-analyzer-stat-card">
