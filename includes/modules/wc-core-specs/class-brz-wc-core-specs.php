@@ -181,6 +181,7 @@ class BRZ_WC_Core_Specs {
      */
     public static function render_admin_page(): void {
         $settings = self::get_settings();
+        $brand_color = class_exists( 'BRZ_Settings' ) ? BRZ_Settings::get( 'brand_color', '#1a73e8' ) : '#1a73e8';
         wp_nonce_field( 'brz_wc_core_specs_save_nonce', '_wpnonce_wc_core_specs' );
         ?>
         <style>
@@ -265,19 +266,19 @@ class BRZ_WC_Core_Specs {
                 margin-top: 2px;
                 line-height: 1.4;
             }
-            /* Premium iOS style toggles using native appearance: none on the input itself */
+            /* Premium dashboard styled toggles proportioned for settings row */
             .brz-toggle-switch {
                 position: relative !important;
                 display: inline-block !important;
-                width: 44px !important;
-                height: 22px !important;
-                background-color: #cbd5e1 !important;
-                border-radius: 22px !important;
-                border: none !important;
+                width: 48px !important;
+                height: 28px !important;
+                background-color: var(--md-surface-container-high, #e8eaed) !important;
+                border: 2px solid var(--md-outline, #dadce0) !important;
+                border-radius: 9999px !important;
                 cursor: pointer !important;
                 appearance: none !important;
                 -webkit-appearance: none !important;
-                transition: background-color 0.2s ease !important;
+                transition: all var(--md-transition-normal, 200ms) ease !important;
                 box-shadow: none !important;
                 margin: 0 !important;
                 padding: 0 !important;
@@ -287,31 +288,38 @@ class BRZ_WC_Core_Specs {
             .brz-toggle-switch::before {
                 content: "" !important;
                 position: absolute !important;
-                top: 3px !important;
-                left: 3px !important;
-                width: 16px !important;
-                height: 16px !important;
-                background-color: #fff !important;
+                top: 2px !important;
+                left: 2px !important;
+                width: 20px !important;
+                height: 20px !important;
+                background-color: var(--md-on-surface-variant, #5f6368) !important;
                 border-radius: 50% !important;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
-                transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+                transition: all var(--md-transition-normal, 200ms) cubic-bezier(0.4, 0, 0.2, 1) !important;
                 border: none !important;
+                box-shadow: var(--md-elevation-1, 0 1px 2px rgba(0,0,0,0.15)) !important;
+            }
+            [dir="rtl"] .brz-toggle-switch::before {
+                left: auto !important;
+                right: 2px !important;
             }
             .brz-toggle-switch::after {
                 content: none !important;
                 display: none !important;
             }
             .brz-toggle-switch:checked {
-                background-color: var(--brz-brand, #1a73e8) !important;
-                border: none !important;
-                box-shadow: none !important;
+                background-color: var(--brz-brand, #ff5a60) !important;
+                border-color: var(--brz-brand, #ff5a60) !important;
             }
             .brz-toggle-switch:checked::before {
-                transform: translateX(22px) !important;
+                background-color: var(--md-on-primary, #ffffff) !important;
+                transform: translateX(20px) !important;
+            }
+            [dir="rtl"] .brz-toggle-switch:checked::before {
+                transform: translateX(-20px) !important;
             }
         </style>
 
-        <div class="brz-settings-container">
+        <div class="brz-settings-container" style="--brz-brand: <?php echo esc_attr( $brand_color ); ?>;">
             <h2 style="font-weight: 800; font-size: 20px; color: #0f172a; margin-bottom: 24px;">مدیریت ویژگی‌های هسته‌ای ووکامرس (WC Core Specs)</h2>
 
             <form id="brz-wc-core-specs-form">
