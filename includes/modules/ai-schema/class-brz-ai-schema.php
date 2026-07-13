@@ -585,19 +585,6 @@ class BRZ_AI_Schema {
             }
         }
 
-        // Write log for debugging
-        if ( function_exists( 'wp_upload_dir' ) ) {
-            $upload_dir = wp_upload_dir();
-            $log_data = array(
-                'timestamp'          => date( 'Y-m-d H:i:s' ),
-                'injected_count'     => count( $all_to_inject ),
-                'item_condition'     => $item_condition ? 'NewCondition' : 'disabled',
-                'additionalProperty' => isset( $entity['additionalProperty'] ) ? $entity['additionalProperty'] : array(),
-                'offers'             => isset( $entity['offers'] ) ? $entity['offers'] : array(),
-            );
-            file_put_contents( $upload_dir['basedir'] . '/ai-schema-debug.json', json_encode( $log_data ) );
-        }
-
         return $entity;
     }
 
