@@ -2758,7 +2758,6 @@ class BRZ_Product_Specs {
 
         $gtin_enabled = 1;
         $gtin_label = 'بارکد (GTIN)';
-        $gtin_render = 0;
         $gtin_link_gs1 = 0;
 
         if ( class_exists( 'BRZ_WC_Core_Specs' ) && BRZ_Modules::is_enabled( 'wc_core_specs' ) ) {
@@ -2777,7 +2776,6 @@ class BRZ_Product_Specs {
 
             $gtin_enabled = isset( $core_settings['gtin']['enabled'] ) ? intval( $core_settings['gtin']['enabled'] ) : 1;
             $gtin_label = ! empty( $core_settings['gtin']['label'] ) ? $core_settings['gtin']['label'] : $gtin_label;
-            $gtin_render = isset( $core_settings['gtin']['render'] ) ? intval( $core_settings['gtin']['render'] ) : 0;
             $gtin_link_gs1 = isset( $core_settings['gtin']['link_gs1'] ) ? intval( $core_settings['gtin']['link_gs1'] ) : 0;
         }
 
@@ -2875,10 +2873,6 @@ class BRZ_Product_Specs {
                 $norm = str_replace( array( ' ', '-', '_', '‌' ), '', $gtin_label );
                 if ( ! isset( $normalized_labels[ $norm ] ) ) {
                     $display_html = esc_html( $gtin_val );
-
-                    if ( $gtin_render ) {
-                        $display_html = BRZ_WC_Core_Specs::get_barcode_svg( $gtin_val );
-                    }
 
                     if ( $gtin_link_gs1 ) {
                         $display_html = sprintf(

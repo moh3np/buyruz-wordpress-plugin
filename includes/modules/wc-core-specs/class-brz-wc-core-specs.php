@@ -21,11 +21,8 @@ class BRZ_WC_Core_Specs {
             return;
         }
 
-        $settings = self::get_settings();
-
-        // Schema injection
-        add_filter( 'woocommerce_structured_data_product', array( __CLASS__, 'inject_into_wc_schema' ), 20, 2 );
-        add_filter( 'rank_math/json_ld', array( __CLASS__, 'inject_into_rankmath_jsonld' ), 99, 2 );
+        // Rank Math Snippet Product Entity enrichment
+        add_filter( 'rank_math/snippet/rich_snippet_product_entity', array( __CLASS__, 'enrich_rankmath_schema' ), 20, 2 );
     }
 
     /**
@@ -51,9 +48,7 @@ class BRZ_WC_Core_Specs {
             'gtin' => array(
                 'enabled'       => 1,
                 'label'         => 'بارکد (GTIN)',
-                'render'        => 0, // 0 = plain text, 1 = SVG barcode
                 'link_gs1'      => 0,
-                'schema'        => 1,
             ),
         );
 
@@ -90,11 +85,9 @@ class BRZ_WC_Core_Specs {
                 'schema'        => isset( $_POST['dimensions_schema'] ) ? 1 : 0,
             ),
             'gtin' => array(
-                'enabled'       => isset( $_POST['gtin_enabled'] ) ? 1 : 0,
-                'label'         => sanitize_text_field( $_POST['gtin_label'] ?? 'بارکد (GTIN)' ),
-                'render'        => isset( $_POST['gtin_render'] ) ? 1 : 0,
-                'link_gs1'      => isset( $_POST['gtin_link_gs1'] ) ? 1 : 0,
-                'schema'        => isset( $_POST['gtin_schema'] ) ? 1 : 0,
+                'enabled'  => isset( $_POST['gtin_enabled'] ) ? 1 : 0,
+                'label'    => sanitize_text_field( $_POST['gtin_label'] ?? 'بارکد (GTIN)' ),
+                'link_gs1' => isset( $_POST['gtin_link_gs1'] ) ? 1 : 0,
             ),
         );
 
@@ -103,138 +96,57 @@ class BRZ_WC_Core_Specs {
     }
 
     /**
-     * Inject weight, dimensions, and GTIN into WooCommerce Product schema.
+     * Inject physical specs (weight & dimensions) to Rank Math rich snippet product entity.
+     * Follows the 6-step technical requirement layout.
+     *
+     * @param array  $entity The rich snippet data array.
+     * @param object $jsonld The JSON-LD provider instance.
+     * @return array Modified entity schema.
      */
-    public static function inject_into_wc_schema( array $markup, WC_Product $product ): array {
-        $settings = self::get_settings();
-        $product_id = $product->get_id();
+    public static function enrich_rankmath_schema( array $entity, $jsonld ): array {
+        global $product;
 
-        // GTIN
-        if ( ! empty( $settings['gtin']['schema'] ) ) {
-            $gtin = self::get_product_gtin( $product );
-            if ( ! empty( $gtin ) ) {
-                $markup['gtin']   = $gtin;
-                $markup['mpn']    = $gtin; // Fallback
-                $markup['isbn']   = $gtin; // Fallback if book
-            }
+        // Step 2: Validate WooCommerce product context & global object
+        if ( ! is_product() || ! is_a( $product, 'WC_Product' ) ) {
+            return $entity;
         }
 
-        // Weight
-        if ( ! empty( $settings['weight']['schema'] ) && $product->has_weight() ) {
-            $weight_val = floatval( $product->get_weight() );
-            $unit = get_option( 'woocommerce_weight_unit', 'kg' );
-            $markup['weight'] = array(
-                '@type'    => 'QuantitativeValue',
-                'value'    => $weight_val,
-                'unitText' => $unit
-            );
-        }
-
-        // Dimensions
-        if ( ! empty( $settings['dimensions']['schema'] ) && $product->has_dimensions() ) {
-            $unit = get_option( 'woocommerce_dimension_unit', 'cm' );
-            if ( $product->get_length() ) {
-                $markup['depth'] = array(
-                    '@type'    => 'QuantitativeValue',
-                    'value'    => floatval( $product->get_length() ),
-                    'unitText' => $unit
-                );
-            }
-            if ( $product->get_width() ) {
-                $markup['width'] = array(
-                    '@type'    => 'QuantitativeValue',
-                    'value'    => floatval( $product->get_width() ),
-                    'unitText' => $unit
-                );
-            }
-            if ( $product->get_height() ) {
-                $markup['height'] = array(
-                    '@type'    => 'QuantitativeValue',
-                    'value'    => floatval( $product->get_height() ),
-                    'unitText' => $unit
-                );
-            }
-        }
-
-        return $markup;
-    }
-
-    /**
-     * Secondary Schema Injection point for Rank Math JSON-LD output.
-     */
-    public static function inject_into_rankmath_jsonld( array $data, $jsonld ): array {
-        if ( ! function_exists( 'is_product' ) || ! is_product() ) {
-            return $data;
-        }
-
-        $product_id = get_queried_object_id();
-        $product = wc_get_product( $product_id );
-        if ( ! $product ) {
-            return $data;
-        }
-
-        foreach ( $data as $key => &$entity ) {
-            if ( ! is_array( $entity ) || ! isset( $entity['@type'] ) ) {
-                continue;
-            }
-            $types = (array) $entity['@type'];
-            if ( in_array( 'Product', $types, true ) ) {
-                $entity = self::apply_schema_data( $entity, $product );
-                break;
-            }
-        }
-        unset( $entity );
-
-        return $data;
-    }
-
-    /**
-     * Apply schema data to Rank Math Product entity.
-     */
-    private static function apply_schema_data( array $entity, WC_Product $product ): array {
         $settings = self::get_settings();
 
-        // GTIN
-        if ( ! empty( $settings['gtin']['schema'] ) ) {
-            $gtin = self::get_product_gtin( $product );
-            if ( ! empty( $gtin ) ) {
-                $entity['gtin'] = $gtin;
-                $entity['mpn']  = $gtin;
-            }
-        }
+        // Step 3: Dynamically fetch units from WooCommerce configuration
+        $weight_unit = get_option( 'woocommerce_weight_unit', 'kg' );
+        $dimension_unit = get_option( 'woocommerce_dimension_unit', 'cm' );
 
-        // Weight
+        // Step 4 & 5 & 6: Extract & format physical weight
         if ( ! empty( $settings['weight']['schema'] ) && $product->has_weight() ) {
-            $unit = get_option( 'woocommerce_weight_unit', 'kg' );
             $entity['weight'] = array(
                 '@type'    => 'QuantitativeValue',
                 'value'    => floatval( $product->get_weight() ),
-                'unitText' => $unit
+                'unitText' => $weight_unit,
             );
         }
 
-        // Dimensions
+        // Step 4 & 5 & 6: Extract & format physical dimensions (depth, width, height)
         if ( ! empty( $settings['dimensions']['schema'] ) && $product->has_dimensions() ) {
-            $unit = get_option( 'woocommerce_dimension_unit', 'cm' );
             if ( $product->get_length() ) {
                 $entity['depth'] = array(
                     '@type'    => 'QuantitativeValue',
                     'value'    => floatval( $product->get_length() ),
-                    'unitText' => $unit
+                    'unitText' => $dimension_unit,
                 );
             }
             if ( $product->get_width() ) {
                 $entity['width'] = array(
                     '@type'    => 'QuantitativeValue',
                     'value'    => floatval( $product->get_width() ),
-                    'unitText' => $unit
+                    'unitText' => $dimension_unit,
                 );
             }
             if ( $product->get_height() ) {
                 $entity['height'] = array(
                     '@type'    => 'QuantitativeValue',
                     'value'    => floatval( $product->get_height() ),
-                    'unitText' => $unit
+                    'unitText' => $dimension_unit,
                 );
             }
         }
@@ -262,90 +174,7 @@ class BRZ_WC_Core_Specs {
         return trim( $gtin );
     }
 
-    /**
-     * Renders the vector SVG barcode of a string using Code128 encoding logic.
-     */
-    public static function get_barcode_svg( string $code ): string {
-        $code = trim( $code );
-        if ( empty( $code ) ) {
-            return '';
-        }
 
-        // Code128 pattern dictionary (107 entries). Bar-space width sequences (index 0-106).
-        $patterns = array(
-            '212222', '222122', '222221', '121223', '121322', '131222', '122213', '122312',
-            '132212', '221213', '221312', '231212', '112232', '122132', '122231', '113222',
-            '123122', '133211', '221231', '223211', '221132', '221231', '213212', '223112',
-            '312113', '311222', '311321', '302212', '312211', '321122', '321211', '332111',
-            '314111', '221411', '431111', '111224', '111422', '121124', '121421', '141122',
-            '141221', '112214', '112412', '122114', '122411', '142112', '142211', '241211',
-            '221114', '413111', '241112', '134111', '111242', '111341', '121142', '121341',
-            '114212', '124112', '134211', '114212', '124211', '411212', '421112', '421211',
-            '212141', '214121', '412121', '111143', '111341', '131141', '114113', '114311',
-            '134111', '111144', '111441', '141141', '114411', '144111', '221411', '221141',
-            '412211', '211141', '211411', '241111', '121241', '121421', '141221', '141211',
-            '224111', '221141', '411211', '411121', '221115', '413111', '111512', '121115',
-            '121511', '151112', '151211', '111215', '111512', '111521', '121151', '121511',
-            '311122', '311221', '321112', '321211', '211212', '211231', '224111', '221141',
-            '2331112' // Stop
-        );
-
-        $len = strlen( $code );
-        $encoded = array();
-        
-        // Use Code128 Code B (Standard characters)
-        // Start Code B is index 104
-        $start_index = 104;
-        $encoded[] = $patterns[ $start_index ];
-        $checksum = $start_index;
-
-        for ( $i = 0; $i < $len; $i++ ) {
-            $char = $code[ $i ];
-            $ascii = ord( $char );
-            $index = $ascii - 32;
-            if ( $index < 0 || $index > 95 ) {
-                $index = 0; // Fallback to space
-            }
-            $encoded[] = $patterns[ $index ];
-            $checksum += $index * ( $i + 1 );
-        }
-
-        // Add Check digit
-        $check_digit = $checksum % 103;
-        $encoded[] = $patterns[ $check_digit ];
-
-        // Add Stop code (index 106)
-        $encoded[] = $patterns[ 106 ];
-
-        // Generate SVG bars representation
-        $bars = implode( '', $encoded );
-        $bars_len = strlen( $bars );
-        $width = 0;
-
-        $svg_paths = '';
-        for ( $j = 0; $j < $bars_len; $j++ ) {
-            $bar_w = intval( $bars[ $j ] );
-            if ( $j % 2 === 0 ) {
-                // Bar (Black)
-                $svg_paths .= sprintf( '<rect x="%d" y="0" width="%d" height="40" fill="#0f172a" />', $width, $bar_w );
-            }
-            $width += $bar_w;
-        }
-
-        // Output SVG element with modern layout styling
-        $svg = sprintf(
-            '<svg viewBox="0 0 %d 56" class="brz-barcode-svg" style="max-width:180px; width:100%%; display:block; margin:2px 0;">' .
-            '%s' .
-            '<text x="%d" y="52" fill="#64748b" font-size="9" font-family="monospace" text-anchor="middle">%s</text>' .
-            '</svg>',
-            $width,
-            $svg_paths,
-            $width / 2,
-            esc_html( $code )
-        );
-
-        return $svg;
-    }
 
     /**
      * Render the admin settings dashboard page.
@@ -620,28 +449,6 @@ class BRZ_WC_Core_Specs {
                                 </div>
                                 <label class="brz-toggle-switch">
                                     <input type="checkbox" name="gtin_enabled" <?php checked( $settings['gtin']['enabled'], 1 ); ?> />
-                                    <span class="brz-toggle-slider"></span>
-                                </label>
-                            </div>
-
-                            <div class="brz-core-toggle-row">
-                                <div>
-                                    <span class="brz-core-toggle-label">تزریق به کدهای اسکیما (SEO/GEO)</span>
-                                    <span class="brz-core-toggle-desc">انتقال GTIN رسمی به فید گوگل شاپینگ و ربات‌های سئو.</span>
-                                </div>
-                                <label class="brz-toggle-switch">
-                                    <input type="checkbox" name="gtin_schema" <?php checked( $settings['gtin']['schema'], 1 ); ?> />
-                                    <span class="brz-toggle-slider"></span>
-                                </label>
-                            </div>
-
-                            <div class="brz-core-toggle-row">
-                                <div>
-                                    <span class="brz-core-toggle-label">تولید بارکد تصویری برداری (SVG)</span>
-                                    <span class="brz-core-toggle-desc">نمایش اتوماتیک تصویر بارکد خوانا در جدول مشخصات.</span>
-                                </div>
-                                <label class="brz-toggle-switch">
-                                    <input type="checkbox" name="gtin_render" <?php checked( $settings['gtin']['render'], 1 ); ?> />
                                     <span class="brz-toggle-slider"></span>
                                 </label>
                             </div>
