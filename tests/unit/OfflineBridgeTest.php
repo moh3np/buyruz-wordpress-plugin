@@ -62,6 +62,10 @@ namespace {
             public function set_gallery_image_ids( $ids ) { $this->gallery_image_ids = $ids; }
             public function set_attributes( $attributes ) { $this->attributes = $attributes; }
 
+            public function set_global_unique_id( $id ) {
+                $this->meta['_global_unique_id'] = $id;
+            }
+
             public function update_meta_data( $key, $value ) {
                 $this->meta[ $key ] = $value;
             }
@@ -253,6 +257,8 @@ namespace Tests\Unit {
             $this->assertEquals( 'دبرنا چوبی سپتا', $product->meta['product_short_name'] );
             $this->assertEquals( 'Wooden Daberna Brain Game Septa', $product->meta['product_english_name'] );
             $this->assertEquals( '1234567890123', $product->meta['gtin'] );
+            $this->assertEquals( '1234567890123', $product->meta['_global_unique_id'] );
+            $this->assertEquals( '1234567890123', $product->meta['_rank_math_gtin_code'] );
             $this->assertEquals( 'هشدار خرید', $product->meta['_bakala_ab_content'] );
         }
     }

@@ -1097,6 +1097,16 @@ class BRZ_Offline_Bridge {
                                 }
                             }
 
+                            if ( 'gtin' === $meta_key ) {
+                                $gtin_val = sanitize_text_field( $meta_val );
+                                if ( method_exists( $product, 'set_global_unique_id' ) ) {
+                                    $product->set_global_unique_id( $gtin_val );
+                                } else {
+                                    $product->update_meta_data( '_global_unique_id', $gtin_val );
+                                }
+                                $product->update_meta_data( '_rank_math_gtin_code', $gtin_val );
+                            }
+
                             $product->update_meta_data( $meta_key, $meta_val );
                         }
                     }
