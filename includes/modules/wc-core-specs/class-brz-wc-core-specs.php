@@ -273,6 +273,11 @@ class BRZ_WC_Core_Specs {
                 height: 22px;
                 flex-shrink: 0;
                 cursor: pointer;
+                background: none !important;
+                border: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                box-shadow: none !important;
             }
             .brz-toggle-switch input[type="checkbox"] {
                 position: absolute !important;
@@ -295,6 +300,9 @@ class BRZ_WC_Core_Specs {
             .brz-toggle-switch input[type="checkbox"]:after {
                 content: none !important;
                 display: none !important;
+                box-shadow: none !important;
+                background: none !important;
+                border: none !important;
             }
             .brz-toggle-slider {
                 position: absolute;
@@ -307,6 +315,8 @@ class BRZ_WC_Core_Specs {
                 transition: background-color 0.2s ease;
                 border-radius: 22px;
                 z-index: 1;
+                border: none !important;
+                box-shadow: none !important;
             }
             .brz-toggle-slider:before {
                 position: absolute;
@@ -318,11 +328,18 @@ class BRZ_WC_Core_Specs {
                 background-color: #fff !important;
                 transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
                 border-radius: 50%;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
                 z-index: 1;
+                border: none !important;
+            }
+            .brz-toggle-slider:after {
+                content: none !important;
+                display: none !important;
             }
             .brz-toggle-switch input[type="checkbox"]:checked + .brz-toggle-slider {
                 background-color: var(--brz-brand, #1a73e8);
+                border: none !important;
+                box-shadow: none !important;
             }
             .brz-toggle-switch input[type="checkbox"]:checked + .brz-toggle-slider:before {
                 transform: translateX(22px);
