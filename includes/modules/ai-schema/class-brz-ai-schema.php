@@ -60,6 +60,31 @@ class BRZ_AI_Schema {
     public static function render_admin_page(): void {
         $properties     = self::get_properties();
         $item_condition = self::get_item_condition();
+
+        // Fetch WooCommerce Global Attributes
+        $wc_attributes = array();
+        if ( function_exists( 'wc_get_attribute_taxonomies' ) ) {
+            $taxonomies = wc_get_attribute_taxonomies();
+            if ( ! empty( $taxonomies ) ) {
+                foreach ( $taxonomies as $tax ) {
+                    $taxonomy_name = wc_attribute_taxonomy_name( $tax->attribute_name );
+                    $wc_attributes[ $taxonomy_name ] = $tax->attribute_label;
+                }
+            }
+        }
+
+        // Fetch Buyruz Product Specs
+        $brz_specs = array();
+        if ( class_exists( 'BRZ_Product_Specs' ) ) {
+            $fields = BRZ_Product_Specs::get_fields();
+            if ( ! empty( $fields ) ) {
+                foreach ( $fields as $field ) {
+                    $brz_specs[ 'spec_' . $field['key'] ] = $field['label'];
+                }
+            }
+        }
+
+        $enabled_attrs = self::get_enabled_attributes();
         ?>
         <style>
             .brz-ai-schema-row {
@@ -131,6 +156,28 @@ class BRZ_AI_Schema {
                 padding: var(--md-space-xl) var(--md-space-md);
                 font-size: 14px;
             }
+            .brz-ai-schema-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                gap: 8px;
+                margin-top: var(--md-space-sm);
+                margin-bottom: var(--md-space-md);
+            }
+            .brz-ai-schema-checkbox-label {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                cursor: pointer;
+                padding: 6px var(--md-space-xs);
+                border-radius: 6px;
+                transition: background 0.15s;
+            }
+            .brz-ai-schema-checkbox-label:hover {
+                background: rgba(0, 0, 0, 0.04);
+            }
+            .brz-ai-schema-checkbox-label input[type="checkbox"] {
+                cursor: pointer;
+            }
         </style>
 
         <div class="brz-single-column" dir="rtl">
@@ -140,7 +187,7 @@ class BRZ_AI_Schema {
                 <!-- PropertyValue Card -->
                 <div class="brz-card">
                     <div class="brz-card__header">
-                        <h3>ویژگی‌های PropertyValue</h3>
+                        <h3>ویژگی‌های دستی PropertyValue</h3>
                     </div>
                     <div class="brz-card__body">
                         <div id="brz-ai-schema-list">
@@ -160,6 +207,46 @@ class BRZ_AI_Schema {
                         <div style="margin-top:var(--md-space-md);">
                             <button type="button" id="brz-ai-schema-add" class="brz-button brz-button--secondary">افزودن ویژگی</button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Auto Attributes Card -->
+                <div class="brz-card" style="margin-top:var(--md-space-lg);">
+                    <div class="brz-card__header">
+                        <h3>ویژگی‌های خودکار محصول (Schema.org PropertyValue)</h3>
+                    </div>
+                    <div class="brz-card__body">
+                        <p class="description" style="margin-bottom:var(--md-space-md);color:var(--md-on-surface-variant,#666);">
+                            ویژگی‌های تیک‌خورده به‌صورت خودکار از اطلاعات محصول استخراج شده و به بخش <code>additionalProperty</code> اسکیمای گوگل ارسال می‌شوند. توصیه می‌شود تنها موارد با ارزش بالا جهت سئو تیک بخورند تا چگالی کدهای ساختاریافته بهینه بماند.
+                        </p>
+
+                        <?php if ( ! empty( $wc_attributes ) ) : ?>
+                            <h4 style="margin-top:0;margin-bottom:var(--md-space-sm);border-bottom:1px solid var(--md-outline-variant,#e0e0e0);padding-bottom:var(--md-space-xs);color:var(--brz-brand,#1a73e8);">ویژگی‌های سراسری ووکامرس</h4>
+                            <div class="brz-ai-schema-grid">
+                                <?php foreach ( $wc_attributes as $tax_name => $label ) : 
+                                    $checked = in_array( $tax_name, $enabled_attrs, true );
+                                    ?>
+                                    <label class="brz-ai-schema-checkbox-label">
+                                        <input type="checkbox" class="brz-ai-schema-attr-checkbox" value="<?php echo esc_attr( $tax_name ); ?>" <?php checked( $checked ); ?> />
+                                        <span><?php echo esc_html( $label . ' (' . $tax_name . ')' ); ?></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ( ! empty( $brz_specs ) ) : ?>
+                            <h4 style="margin-top:var(--md-space-lg);margin-bottom:var(--md-space-sm);border-bottom:1px solid var(--md-outline-variant,#e0e0e0);padding-bottom:var(--md-space-xs);color:var(--brz-brand,#1a73e8);">مشخصات فنی اختصاصی بایروز</h4>
+                            <div class="brz-ai-schema-grid">
+                                <?php foreach ( $brz_specs as $spec_key => $label ) : 
+                                    $checked = in_array( $spec_key, $enabled_attrs, true );
+                                    ?>
+                                    <label class="brz-ai-schema-checkbox-label">
+                                        <input type="checkbox" class="brz-ai-schema-attr-checkbox" value="<?php echo esc_attr( $spec_key ); ?>" <?php checked( $checked ); ?> />
+                                        <span><?php echo esc_html( $label ); ?></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
 
@@ -291,6 +378,12 @@ class BRZ_AI_Schema {
                     });
                 });
 
+                // Collect auto attributes checkboxes
+                var enabled_attributes = [];
+                $('.brz-ai-schema-attr-checkbox:checked').each(function() {
+                    enabled_attributes.push($(this).val());
+                });
+
                 $.ajax({
                     url: ajaxurl,
                     type: 'POST',
@@ -298,7 +391,8 @@ class BRZ_AI_Schema {
                         action: 'brz_save_ai_schema',
                         _wpnonce: $('#_wpnonce').val(),
                         properties: properties,
-                        item_condition: $('#brz-ai-schema-condition').is(':checked') ? 1 : 0
+                        item_condition: $('#brz-ai-schema-condition').is(':checked') ? 1 : 0,
+                        enabled_attributes: enabled_attributes
                     },
                     success: function(res) {
                         if (res.success) {
@@ -347,13 +441,21 @@ class BRZ_AI_Schema {
         $item_condition = isset( $_POST['item_condition'] ) ? absint( $_POST['item_condition'] ) : 0;
         $item_condition = $item_condition ? 1 : 0;
 
+        // Read and sanitize enabled auto-attributes.
+        $raw_attrs     = isset( $_POST['enabled_attributes'] ) && is_array( $_POST['enabled_attributes'] ) ? $_POST['enabled_attributes'] : array();
+        $enabled_attrs = array();
+        foreach ( $raw_attrs as $attr ) {
+            $enabled_attrs[] = sanitize_key( $attr );
+        }
+
         // Get current options and update AI Schema keys.
         $opts = get_option( BRZ_OPTION, array() );
         if ( ! is_array( $opts ) ) {
             $opts = array();
         }
-        $opts['ai_schema_properties']     = $properties;
-        $opts['ai_schema_item_condition'] = $item_condition;
+        $opts['ai_schema_properties']         = $properties;
+        $opts['ai_schema_item_condition']     = $item_condition;
+        $opts['ai_schema_enabled_attributes'] = $enabled_attrs;
 
         // Persist with autoload disabled (consistent with existing plugin pattern).
         update_option( BRZ_OPTION, $opts, false );
@@ -372,33 +474,76 @@ class BRZ_AI_Schema {
     public static function inject_schema( $entity ) {
         $properties     = self::get_properties();
         $item_condition = self::get_item_condition();
+        $enabled_attrs  = self::get_enabled_attributes();
+        $auto_properties = array();
+
+        // Dynamically fetch values of WooCommerce attributes and Buyruz specs for the product
+        if ( ! empty( $enabled_attrs ) && function_exists( 'is_product' ) && is_product() ) {
+            $product_id = get_the_ID();
+            $product    = wc_get_product( $product_id );
+            if ( $product ) {
+                foreach ( $enabled_attrs as $attr_key ) {
+                    if ( strpos( $attr_key, 'pa_' ) === 0 ) {
+                        // WooCommerce taxonomy attribute
+                        $val = $product->get_attribute( $attr_key );
+                        if ( $val !== '' ) {
+                            $label = wc_attribute_label( $attr_key );
+                            $auto_properties[] = array(
+                                'name'  => $label,
+                                'value' => $val,
+                            );
+                        }
+                    } elseif ( strpos( $attr_key, 'spec_' ) === 0 ) {
+                        // Buyruz custom spec
+                        $spec_key = substr( $attr_key, 5 ); // remove 'spec_'
+                        $val = self::get_spec_display_value( $product, $spec_key );
+                        if ( $val !== '' ) {
+                            $label = self::get_spec_label( $spec_key );
+                            $auto_properties[] = array(
+                                'name'  => $label,
+                                'value' => $val,
+                            );
+                        }
+                    }
+                }
+            }
+        }
 
         // If no properties to inject and item_condition is disabled, return unmodified.
-        if ( empty( $properties ) && ! $item_condition ) {
+        if ( empty( $properties ) && empty( $auto_properties ) && ! $item_condition ) {
             return $entity;
         }
 
         // Append PropertyValue entries to additionalProperty.
+        $all_to_inject = array();
         if ( ! empty( $properties ) ) {
+            foreach ( $properties as $p ) {
+                $all_to_inject[] = array(
+                    '@type' => 'PropertyValue',
+                    'name'  => $p['name'],
+                    'value' => $p['value'],
+                );
+            }
+        }
+        if ( ! empty( $auto_properties ) ) {
+            foreach ( $auto_properties as $ap ) {
+                $all_to_inject[] = array(
+                    '@type' => 'PropertyValue',
+                    'name'  => $ap['name'],
+                    'value' => $ap['value'],
+                );
+            }
+        }
+
+        if ( ! empty( $all_to_inject ) ) {
             // If additionalProperty already exists and is an array, merge/append.
             if ( isset( $entity['additionalProperty'] ) && is_array( $entity['additionalProperty'] ) ) {
-                foreach ( $properties as $p ) {
-                    $entity['additionalProperty'][] = array(
-                        '@type' => 'PropertyValue',
-                        'name'  => $p['name'],
-                        'value' => $p['value'],
-                    );
+                foreach ( $all_to_inject as $prop ) {
+                    $entity['additionalProperty'][] = $prop;
                 }
             } else {
-                // Initialize as new array with module's entries.
-                $entity['additionalProperty'] = array();
-                foreach ( $properties as $p ) {
-                    $entity['additionalProperty'][] = array(
-                        '@type' => 'PropertyValue',
-                        'name'  => $p['name'],
-                        'value' => $p['value'],
-                    );
-                }
+                // Initialize as new array with entries.
+                $entity['additionalProperty'] = $all_to_inject;
             }
         }
 
@@ -477,5 +622,187 @@ class BRZ_AI_Schema {
             );
         }
         return array_values( $clean );
+    }
+
+    /**
+     * Get default enabled high-SEO-value WooCommerce attributes and Buyruz specs.
+     *
+     * @return array Whitelist of keys.
+     */
+    private static function get_default_enabled_attributes(): array {
+        return array(
+            'pa_game-style',
+            'pa_game-mechanics',
+            'pa_theme',
+            'pa_game-language',
+            'pa_designer',
+            'pa_target-audience',
+            'spec_manual_age',
+            'spec_players',
+            'spec_time',
+            'spec_best_players',
+            'spec_difficulty',
+            'spec_is_expandable',
+            'spec_is_campaign',
+            'spec_needs_coop',
+            'spec_is_adult',
+        );
+    }
+
+    /**
+     * Get enabled attribute/spec keys from option, falling back to defaults.
+     *
+     * @return array List of enabled keys.
+     */
+    private static function get_enabled_attributes(): array {
+        $val = BRZ_Settings::get( 'ai_schema_enabled_attributes', null );
+        if ( is_null( $val ) ) {
+            return self::get_default_enabled_attributes();
+        }
+        return is_array( $val ) ? $val : array();
+    }
+
+    /**
+     * Simple digit translation helper to convert English digits to Persian.
+     *
+     * @param mixed $str String to convert.
+     * @return string Converted string.
+     */
+    private static function to_persian_digits( $str ): string {
+        $persian = array( '۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹' );
+        $english = array( '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' );
+        return str_replace( $english, $persian, (string) $str );
+    }
+
+    /**
+     * Dynamically retrieve a specification's label from BRZ_Product_Specs config.
+     *
+     * @param string $spec_key The specification key (e.g. 'manual_age').
+     * @return string The resolved label.
+     */
+    private static function get_spec_label( string $spec_key ): string {
+        if ( class_exists( 'BRZ_Product_Specs' ) ) {
+            $fields = BRZ_Product_Specs::get_fields();
+            foreach ( $fields as $field ) {
+                if ( $field['key'] === $spec_key ) {
+                    // Trim prefixes commonly used in WooCommerce specifications view.
+                    $label = trim( str_replace( array( 'حداقل', 'حداکثر' ), '', $field['label'] ) );
+                    return ! empty( $label ) ? $label : $field['label'];
+                }
+            }
+        }
+        return $spec_key;
+    }
+
+    /**
+     * Get the clean text display value of a Buyruz product spec for a product.
+     *
+     * @param WC_Product $product WooCommerce product.
+     * @param string $spec_key Specification key.
+     * @return string Plain text representation.
+     */
+    private static function get_spec_display_value( $product, string $spec_key ): string {
+        if ( ! class_exists( 'BRZ_Product_Specs' ) ) {
+            return '';
+        }
+
+        $fields = BRZ_Product_Specs::get_fields();
+        $target_field = null;
+        foreach ( $fields as $field ) {
+            if ( $field['key'] === $spec_key ) {
+                $target_field = $field;
+                break;
+            }
+        }
+
+        if ( ! $target_field ) {
+            return '';
+        }
+
+        $type       = $target_field['type'];
+        $prefix     = isset( $target_field['prefix'] ) ? $target_field['prefix'] : '';
+        $suffix     = isset( $target_field['suffix'] ) ? $target_field['suffix'] : '';
+        $product_id = $product->get_id();
+
+        if ( 'boolean' === $type ) {
+            $val = get_post_meta( $product_id, '_brz_spec_' . $spec_key, true );
+            if ( $val === '' ) {
+                return '';
+            }
+            return ( $val === '1' ) ? 'بله' : 'خیر';
+        } elseif ( 'range' === $type ) {
+            $keys = BRZ_Product_Specs::get_range_meta_keys( $spec_key );
+            $min  = get_post_meta( $product_id, $keys[0], true );
+            $max  = get_post_meta( $product_id, $keys[1], true );
+
+            if ( $min === '' && $max === '' ) {
+                return '';
+            }
+
+            $raw_options = isset( $target_field['options'] ) ? str_replace( '؛', ';', (string) $target_field['options'] ) : '';
+            $formats     = array_map( 'trim', explode( ';', $raw_options ) );
+
+            $def_both = '{min} تا {max}' . ( $suffix ? ' ' . $suffix : '' );
+            $def_min  = ( $prefix ? $prefix . ' ' : '' ) . '{min}' . ( $suffix ? ' ' . $suffix : '' );
+            $def_max  = 'تا {max}' . ( $suffix ? ' ' . $suffix : '' );
+
+            $fmt_both = isset( $formats[0] ) && '' !== $formats[0] ? $formats[0] : $def_both;
+            $fmt_min  = isset( $formats[1] ) && '' !== $formats[1] ? $formats[1] : $def_min;
+            $fmt_max  = isset( $formats[2] ) && '' !== $formats[2] ? $formats[2] : $def_max;
+
+            if ( $min !== '' && $max !== '' ) {
+                if ( $min === $max ) {
+                    $range_str = str_replace( '{min}', self::to_persian_digits( $min ), $fmt_min );
+                } else {
+                    $range_str = str_replace(
+                        array( '{min}', '{max}' ),
+                        array( self::to_persian_digits( $min ), self::to_persian_digits( $max ) ),
+                        $fmt_both
+                    );
+                }
+            } elseif ( $min !== '' ) {
+                $range_str = str_replace( '{min}', self::to_persian_digits( $min ), $fmt_min );
+            } else {
+                $range_str = str_replace( '{max}', self::to_persian_digits( $max ), $fmt_max );
+            }
+
+            return $range_str;
+        } elseif ( 'array' === $type ) {
+            $val = get_post_meta( $product_id, '_brz_spec_' . $spec_key, true );
+            if ( empty( $val ) ) {
+                return '';
+            }
+            $decoded = json_decode( $val, true );
+            if ( ! is_array( $decoded ) ) {
+                $decoded = maybe_unserialize( $val );
+            }
+            if ( empty( $decoded ) || ! is_array( $decoded ) ) {
+                return '';
+            }
+            $persian_values = array_map( array( __CLASS__, 'to_persian_digits' ), $decoded );
+            $suffix_display = $suffix;
+            if ( ! empty( $suffix_display ) && ! in_array( substr( $suffix_display, 0, 1 ), array( ' ', '؛', ';', '<' ), true ) ) {
+                $suffix_display = ' ' . $suffix_display;
+            }
+            return $prefix . implode( '، ', $persian_values ) . $suffix_display;
+        } elseif ( 'integer' === $type || 'decimal' === $type ) {
+            $val = get_post_meta( $product_id, '_brz_spec_' . $spec_key, true );
+            if ( $val === '' ) {
+                return '';
+            }
+            $suffix_display = $suffix;
+            if ( ! empty( $suffix_display ) && ! in_array( substr( $suffix_display, 0, 1 ), array( ' ', '؛', ';', '<' ), true ) ) {
+                $suffix_display = ' ' . $suffix_display;
+            }
+            return $prefix . self::to_persian_digits( $val ) . $suffix_display;
+        } elseif ( 'string' === $type || 'text' === $type ) {
+            $val = get_post_meta( $product_id, '_brz_spec_' . $spec_key, true );
+            if ( $val === '' ) {
+                return '';
+            }
+            return $prefix . $val . $suffix;
+        }
+
+        return '';
     }
 }
