@@ -385,6 +385,14 @@ class BRZ_Offline_Bridge {
             exit;
         }
 
+        // Support for "rename_slugs_sql" JSON object structure
+        if ( is_array( $items ) && isset( $items['rename_slugs_sql'] ) && $items['rename_slugs_sql'] ) {
+            error_log( '[BRZ_Offline_Bridge] rename_slugs_sql triggered.' );
+            $result = self::rename_slugs_sql( $items );
+            wp_send_json_success( $result );
+            exit;
+        }
+
         // Support for "migrate_attributes" JSON object structure
         if ( is_array( $items ) && isset( $items['migrate_attributes'] ) && $items['migrate_attributes'] ) {
             error_log( '[BRZ_Offline_Bridge] migrate_attributes triggered.' );
@@ -1599,5 +1607,154 @@ class BRZ_Offline_Bridge {
             default:
                 return $val;
         }
+    }
+
+    /**
+     * Dynamic SQL-based renaming of attributes and terms.
+     * Bypasses WordPress cache/validation to directly and safely rename slugs in database.
+     */
+    public static function rename_slugs_sql( array $payload ): array {
+        global $wpdb;
+
+        $attribute_mappings = isset( $payload['attribute_mappings'] ) && is_array( $payload['attribute_mappings'] ) ? $payload['attribute_mappings'] : array();
+        $term_mappings      = isset( $payload['term_mappings'] ) && is_array( $payload['term_mappings'] ) ? $payload['term_mappings'] : array();
+
+        $attributes_updated = 0;
+        $terms_updated      = 0;
+
+        // 1. Process attribute taxonomy renames (e.g. pa_مکانیکهای-بازی -> pa_game-mechanics)
+        foreach ( $attribute_mappings as $old_slug => $new_slug ) {
+            if ( empty( $old_slug ) || empty( $new_slug ) || $old_slug === $new_slug ) {
+                continue;
+            }
+
+            $old_attr = ( strpos( $old_slug, 'pa_' ) === 0 ) ? substr( $old_slug, 3 ) : $old_slug;
+            $new_attr = ( strpos( $new_slug, 'pa_' ) === 0 ) ? substr( $new_slug, 3 ) : $new_slug;
+
+            // Find old attribute ID in WooCommerce
+            $old_id = $wpdb->get_var( $wpdb->prepare(
+                "SELECT attribute_id FROM {$wpdb->prefix}woocommerce_attribute_taxonomies WHERE attribute_name = %s",
+                $old_attr
+            ) );
+
+            if ( ! $old_id ) {
+                continue;
+            }
+
+            // Update woocommerce_attribute_taxonomies record
+            $wpdb->update(
+                "{$wpdb->prefix}woocommerce_attribute_taxonomies",
+                array( 'attribute_name' => $new_attr ),
+                array( 'attribute_id' => $old_id )
+            );
+
+            // Update term_taxonomy table
+            $wpdb->update(
+                $wpdb->term_taxonomy,
+                array( 'taxonomy' => 'pa_' . $new_attr ),
+                array( 'taxonomy' => 'pa_' . $old_attr )
+            );
+
+            // Rename variation postmeta keys
+            $wpdb->query( $wpdb->prepare(
+                "UPDATE {$wpdb->postmeta} SET meta_key = %s WHERE meta_key = %s",
+                'attribute_pa_' . $new_attr,
+                'attribute_pa_' . $old_attr
+            ) );
+
+            // Update _product_attributes meta field for all products
+            $products_meta = $wpdb->get_results( $wpdb->prepare(
+                "SELECT post_id, meta_value FROM {$wpdb->postmeta} 
+                 WHERE meta_key = '_product_attributes' 
+                   AND meta_value LIKE %s",
+                '%' . $wpdb->esc_like( 'pa_' . $old_attr ) . '%'
+            ) );
+
+            foreach ( $products_meta as $row ) {
+                $meta = maybe_unserialize( $row->meta_value );
+                if ( is_array( $meta ) && isset( $meta[ 'pa_' . $old_attr ] ) ) {
+                    $meta[ 'pa_' . $new_attr ] = $meta[ 'pa_' . $old_attr ];
+                    if ( isset( $meta[ 'pa_' . $new_attr ]['name'] ) && $meta[ 'pa_' . $new_attr ]['name'] === 'pa_' . $old_attr ) {
+                        $meta[ 'pa_' . $new_attr ]['name'] = 'pa_' . $new_attr;
+                    }
+                    unset( $meta[ 'pa_' . $old_attr ] );
+                    update_post_meta( $row->post_id, '_product_attributes', $meta );
+                }
+            }
+
+            // Update brz_unified_specs_layout option
+            $layout = get_option( 'brz_unified_specs_layout', null );
+            if ( is_array( $layout ) ) {
+                $layout_changed = false;
+                if ( isset( $layout['global'] ) && is_array( $layout['global'] ) ) {
+                    $g_idx = array_search( 'pa_' . $old_attr, $layout['global'], true );
+                    if ( false !== $g_idx ) {
+                        $layout['global'][ $g_idx ] = 'pa_' . $new_attr;
+                        $layout_changed = true;
+                    }
+                }
+                if ( isset( $layout['categories'] ) && is_array( $layout['categories'] ) ) {
+                    foreach ( $layout['categories'] as $cat_id => $cat_layout ) {
+                        if ( is_array( $cat_layout ) ) {
+                            $c_idx = array_search( 'pa_' . $old_attr, $cat_layout, true );
+                            if ( false !== $c_idx ) {
+                                $layout['categories'][ $cat_id ][ $c_idx ] = 'pa_' . $new_attr;
+                                $layout_changed = true;
+                            }
+                        }
+                    }
+                }
+                if ( $layout_changed ) {
+                    update_option( 'brz_unified_specs_layout', $layout );
+                }
+            }
+
+            $attributes_updated++;
+        }
+
+        // 2. Process term slug renames via direct SQL to bypass WordPress validation issues
+        foreach ( $term_mappings as $term_data ) {
+            $name     = isset( $term_data['name'] ) ? trim( $term_data['name'] ) : '';
+            $attr_id  = isset( $term_data['attribute_id'] ) ? (int) $term_data['attribute_id'] : 0;
+            $new_slug = isset( $term_data['slug'] ) ? trim( $term_data['slug'] ) : '';
+
+            if ( empty( $name ) || ! $attr_id || empty( $new_slug ) ) {
+                continue;
+            }
+
+            // Get taxonomy name from attribute_id
+            $taxonomy = wc_attribute_taxonomy_name_by_id( $attr_id );
+            if ( empty( $taxonomy ) ) {
+                continue;
+            }
+
+            // Find the term_id using $wpdb directly to avoid character encoding/space mismatches
+            $term_id = $wpdb->get_var( $wpdb->prepare(
+                "SELECT t.term_id FROM {$wpdb->terms} t 
+                 INNER JOIN {$wpdb->term_taxonomy} tt ON t.term_id = tt.term_id 
+                 WHERE t.name = %s AND tt.taxonomy = %s",
+                $name, $taxonomy
+            ) );
+
+            if ( $term_id ) {
+                // Update slug in wp_terms table directly
+                $wpdb->update(
+                    $wpdb->terms,
+                    array( 'slug' => sanitize_title( $new_slug ) ),
+                    array( 'term_id' => $term_id )
+                );
+                $terms_updated++;
+            }
+        }
+
+        // Clear WooCommerce attribute taxonomies cache and clear global caches
+        delete_transient( 'wc_attribute_taxonomies' );
+        wp_cache_flush();
+
+        return array(
+            'message'            => 'تغییر اسلاگ‌ها در سطح دیتابیس با موفقیت انجام شد.',
+            'attributes_updated' => $attributes_updated,
+            'terms_updated'      => $terms_updated,
+        );
     }
 }
