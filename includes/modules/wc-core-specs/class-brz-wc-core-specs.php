@@ -7,6 +7,10 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  *
  * Manages configuration, display, and schema injection of core physical
  * specifications (weight, dimensions) and unique identifiers (GTIN/EAN).
+ *
+ * Weight/Dimensions visibility is controlled via the WooCommerce-native filter
+ * `wc_product_enable_dimensions_display`, which Bakala theme template also
+ * respects — so toggling here synchronises with the theme automatically.
  */
 class BRZ_WC_Core_Specs {
 
@@ -21,7 +25,12 @@ class BRZ_WC_Core_Specs {
             return;
         }
 
-        // Rank Math Snippet Product Entity enrichment
+        // Control weight/dimensions visibility via the WooCommerce-native filter.
+        // Bakala theme's product-attributes.php template reads $display_dimensions
+        // which is sourced from this very filter — no extra code needed.
+        add_filter( 'wc_product_enable_dimensions_display', array( __CLASS__, 'filter_dimensions_display' ) );
+
+        // Rank Math Snippet Product Entity enrichment (schema only).
         add_filter( 'rank_math/snippet/rich_snippet_product_entity', array( __CLASS__, 'enrich_rankmath_schema' ), 20, 2 );
     }
 
@@ -30,30 +39,43 @@ class BRZ_WC_Core_Specs {
      */
     public static function get_settings(): array {
         $defaults = array(
-            'weight' => array(
-                'enabled'       => 1,
-                'label'         => 'وزن محصول',
-                'unit_override' => 'default', // 'default', 'g', 'kg'
-                'schema'        => 1,
+            'weight_dimensions' => array(
+                'enabled' => 1,
+                'schema'  => 1,
             ),
             'dimensions' => array(
-                'enabled'       => 1,
-                'label'         => 'ابعاد محصول',
-                'format'        => 'unified', // 'unified', 'separate'
-                'label_length'  => 'طول محصول',
-                'label_width'   => 'عرض محصول',
-                'label_height'  => 'ارتفاع محصول',
-                'schema'        => 1,
+                'label'        => 'ابعاد محصول',
+                'format'       => 'unified',
+                'label_length' => 'طول محصول',
+                'label_width'  => 'عرض محصول',
+                'label_height' => 'ارتفاع محصول',
+            ),
+            'weight' => array(
+                'label' => 'وزن محصول',
             ),
             'gtin' => array(
-                'enabled'       => 1,
-                'label'         => 'بارکد (GTIN)',
-                'link_gs1'      => 0,
+                'enabled' => 1,
+                'label'   => 'بارکد (GTIN)',
             ),
         );
 
         $saved = get_option( self::$option_name, array() );
         return map_deep( wp_parse_args( $saved, $defaults ), 'sanitize_text_field' );
+    }
+
+    /**
+     * Filter: enable or disable weight/dimensions display on the product page.
+     * Returns false when the unified toggle is off, overriding WooCommerce default.
+     *
+     * @param bool $enabled Current value.
+     * @return bool
+     */
+    public static function filter_dimensions_display( bool $enabled ): bool {
+        $settings = self::get_settings();
+        if ( empty( $settings['weight_dimensions']['enabled'] ) ) {
+            return false;
+        }
+        return $enabled;
     }
 
     /**
@@ -69,25 +91,23 @@ class BRZ_WC_Core_Specs {
         }
 
         $settings = array(
-            'weight' => array(
-                'enabled'       => isset( $_POST['weight_enabled'] ) ? 1 : 0,
-                'label'         => sanitize_text_field( $_POST['weight_label'] ?? 'وزن محصول' ),
-                'unit_override' => sanitize_text_field( $_POST['weight_unit'] ?? 'default' ),
-                'schema'        => isset( $_POST['weight_schema'] ) ? 1 : 0,
+            'weight_dimensions' => array(
+                'enabled' => isset( $_POST['weight_dimensions_enabled'] ) ? 1 : 0,
+                'schema'  => isset( $_POST['weight_dimensions_schema'] ) ? 1 : 0,
             ),
             'dimensions' => array(
-                'enabled'       => isset( $_POST['dimensions_enabled'] ) ? 1 : 0,
-                'label'         => sanitize_text_field( $_POST['dimensions_label'] ?? 'ابعاد محصول' ),
-                'format'        => sanitize_text_field( $_POST['dimensions_format'] ?? 'unified' ),
-                'label_length'  => sanitize_text_field( $_POST['dimensions_label_length'] ?? 'طول محصول' ),
-                'label_width'   => sanitize_text_field( $_POST['dimensions_label_width'] ?? 'عرض محصول' ),
-                'label_height'  => sanitize_text_field( $_POST['dimensions_label_height'] ?? 'ارتفاع محصول' ),
-                'schema'        => isset( $_POST['dimensions_schema'] ) ? 1 : 0,
+                'label'        => sanitize_text_field( $_POST['dimensions_label'] ?? 'ابعاد محصول' ),
+                'format'       => sanitize_text_field( $_POST['dimensions_format'] ?? 'unified' ),
+                'label_length' => sanitize_text_field( $_POST['dimensions_label_length'] ?? 'طول محصول' ),
+                'label_width'  => sanitize_text_field( $_POST['dimensions_label_width'] ?? 'عرض محصول' ),
+                'label_height' => sanitize_text_field( $_POST['dimensions_label_height'] ?? 'ارتفاع محصول' ),
+            ),
+            'weight' => array(
+                'label' => sanitize_text_field( $_POST['weight_label'] ?? 'وزن محصول' ),
             ),
             'gtin' => array(
-                'enabled'  => isset( $_POST['gtin_enabled'] ) ? 1 : 0,
-                'label'    => sanitize_text_field( $_POST['gtin_label'] ?? 'بارکد (GTIN)' ),
-                'link_gs1' => isset( $_POST['gtin_link_gs1'] ) ? 1 : 0,
+                'enabled' => isset( $_POST['gtin_enabled'] ) ? 1 : 0,
+                'label'   => sanitize_text_field( $_POST['gtin_label'] ?? 'بارکد (GTIN)' ),
             ),
         );
 
@@ -106,19 +126,27 @@ class BRZ_WC_Core_Specs {
     public static function enrich_rankmath_schema( array $entity, $jsonld ): array {
         global $product;
 
-        // Step 2: Validate WooCommerce product context & global object
         if ( ! is_product() || ! is_a( $product, 'WC_Product' ) ) {
             return $entity;
         }
 
         $settings = self::get_settings();
 
-        // Step 3: Dynamically fetch units from WooCommerce configuration
-        $weight_unit = get_option( 'woocommerce_weight_unit', 'kg' );
+        // Skip entirely when weight/dimensions display is disabled.
+        if ( empty( $settings['weight_dimensions']['enabled'] ) ) {
+            return $entity;
+        }
+
+        // Skip schema injection when schema toggle is off.
+        if ( empty( $settings['weight_dimensions']['schema'] ) ) {
+            return $entity;
+        }
+
+        // Units from WooCommerce configuration (always).
+        $weight_unit    = get_option( 'woocommerce_weight_unit', 'kg' );
         $dimension_unit = get_option( 'woocommerce_dimension_unit', 'cm' );
 
-        // Step 4 & 5 & 6: Extract & format physical weight
-        if ( ! empty( $settings['weight']['schema'] ) && $product->has_weight() ) {
+        if ( $product->has_weight() ) {
             $entity['weight'] = array(
                 '@type'    => 'QuantitativeValue',
                 'value'    => floatval( $product->get_weight() ),
@@ -126,8 +154,7 @@ class BRZ_WC_Core_Specs {
             );
         }
 
-        // Step 4 & 5 & 6: Extract & format physical dimensions (depth, width, height)
-        if ( ! empty( $settings['dimensions']['schema'] ) && $product->has_dimensions() ) {
+        if ( $product->has_dimensions() ) {
             if ( $product->get_length() ) {
                 $entity['depth'] = array(
                     '@type'    => 'QuantitativeValue',
@@ -175,12 +202,11 @@ class BRZ_WC_Core_Specs {
     }
 
 
-
     /**
      * Render the admin settings dashboard page.
      */
     public static function render_admin_page(): void {
-        $settings = self::get_settings();
+        $settings    = self::get_settings();
         $brand_color = class_exists( 'BRZ_Settings' ) ? BRZ_Settings::get( 'brand_color', '#1a73e8' ) : '#1a73e8';
         wp_nonce_field( 'brz_wc_core_specs_save_nonce', '_wpnonce_wc_core_specs' );
         ?>
@@ -323,71 +349,40 @@ class BRZ_WC_Core_Specs {
             <h2 style="font-weight: 800; font-size: 20px; color: #0f172a; margin-bottom: 24px;">مدیریت ویژگی‌های هسته‌ای ووکامرس (WC Core Specs)</h2>
 
             <form id="brz-wc-core-specs-form">
-                <!-- Weight Card -->
+                <!-- Weight & Dimensions Card (unified) -->
                 <div class="brz-core-specs-card">
-                    <h3 class="brz-core-specs-title">⚖️ تنظیمات نمایش وزن محصول</h3>
+                    <h3 class="brz-core-specs-title">⚖️📐 تنظیمات وزن و ابعاد محصول</h3>
+                    <p style="font-size:12px; color:#64748b; margin: -8px 0 16px; line-height:1.6;">
+                        این تاگل هم در قالب باکالا و هم در جدول مشخصات تکمیلی اعمال می‌شود.
+                        واحد نمایش وزن را از <a href="<?php echo esc_url( admin_url( 'admin.php?page=wc-settings&tab=products' ) ); ?>">تنظیمات ووکامرس</a> کنترل کنید.
+                    </p>
                     <div class="brz-core-specs-grid">
                         <div>
                             <div class="brz-core-toggle-row">
                                 <div>
-                                    <span class="brz-core-toggle-label">نمایش در جدول مشخصات فنی</span>
-                                    <span class="brz-core-toggle-desc">نمایش مقدار وزن در بخش مشخصات تکمیلی فرانت‌اند.</span>
+                                    <span class="brz-core-toggle-label">نمایش وزن و ابعاد</span>
+                                    <span class="brz-core-toggle-desc">نمایش همزمان وزن و ابعاد در جدول مشخصات فنی — با قالب باکالا سینک است.</span>
                                 </div>
-                                <input type="checkbox" class="brz-toggle-switch" name="weight_enabled" <?php checked( $settings['weight']['enabled'], 1 ); ?> />
+                                <input type="checkbox" class="brz-toggle-switch" name="weight_dimensions_enabled" <?php checked( $settings['weight_dimensions']['enabled'], 1 ); ?> />
                             </div>
 
                             <div class="brz-core-toggle-row">
                                 <div>
                                     <span class="brz-core-toggle-label">تزریق به کدهای اسکیما (SEO)</span>
-                                    <span class="brz-core-toggle-desc">ارائه داده وزنی به موتورهای جستجو در ساختار JSON-LD.</span>
+                                    <span class="brz-core-toggle-desc">ارائه وزن و ابعاد فیزیکی به Rank Math Pro در ساختار JSON-LD.</span>
                                 </div>
-                                <input type="checkbox" class="brz-toggle-switch" name="weight_schema" <?php checked( $settings['weight']['schema'], 1 ); ?> />
+                                <input type="checkbox" class="brz-toggle-switch" name="weight_dimensions_schema" <?php checked( $settings['weight_dimensions']['schema'], 1 ); ?> />
                             </div>
                         </div>
 
                         <div>
                             <div class="brz-core-field-group">
-                                <label class="brz-field-label">عنوان نمایشی سفارشی (برچسب جدول)</label>
+                                <label class="brz-field-label">عنوان نمایشی سفارشی وزن</label>
                                 <input type="text" name="weight_label" value="<?php echo esc_attr( $settings['weight']['label'] ); ?>" placeholder="مثال: وزن خالص" />
                             </div>
 
                             <div class="brz-core-field-group">
-                                <label class="brz-field-label">واحد نمایشی وزن (تبدیل واحد روانشناختی)</label>
-                                <select name="weight_unit">
-                                    <option value="default" <?php selected( $settings['weight']['unit_override'], 'default' ); ?>>پیش‌فرض سیستم ووکامرس</option>
-                                    <option value="g" <?php selected( $settings['weight']['unit_override'], 'g' ); ?>>گرم (مناسب برای کلاهای سبک و بازی‌های فکری)</option>
-                                    <option value="kg" <?php selected( $settings['weight']['unit_override'], 'kg' ); ?>>کیلوگرم (Kg)</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Dimensions Card -->
-                <div class="brz-core-specs-card">
-                    <h3 class="brz-core-specs-title">📐 تنظیمات نمایش ابعاد محصول</h3>
-                    <div class="brz-core-specs-grid">
-                        <div>
-                            <div class="brz-core-toggle-row">
-                                <div>
-                                    <span class="brz-core-toggle-label">نمایش در جدول مشخصات فنی</span>
-                                    <span class="brz-core-toggle-desc">نمایش فیزیکی ابعاد (طول، عرض، ارتفاع) در جدول.</span>
-                                </div>
-                                <input type="checkbox" class="brz-toggle-switch" name="dimensions_enabled" <?php checked( $settings['dimensions']['enabled'], 1 ); ?> />
-                            </div>
-
-                            <div class="brz-core-toggle-row">
-                                <div>
-                                    <span class="brz-core-toggle-label">تزریق به کدهای اسکیما (SEO)</span>
-                                    <span class="brz-core-toggle-desc">ثبت مشخصات فیزیکی به عنوان ابعاد در ساختار JSON-LD.</span>
-                                </div>
-                                <input type="checkbox" class="brz-toggle-switch" name="dimensions_schema" <?php checked( $settings['dimensions']['schema'], 1 ); ?> />
-                            </div>
-                        </div>
-
-                        <div>
-                            <div class="brz-core-field-group">
-                                <label class="brz-field-label">نحوه چیدمان و فرمت در جدول</label>
+                                <label class="brz-field-label">نحوه چیدمان ابعاد در جدول</label>
                                 <select name="dimensions_format" id="brz-dim-format-select">
                                     <option value="unified" <?php selected( $settings['dimensions']['format'], 'unified' ); ?>>یکپارچه در یک ردیف (طول × عرض × ارتفاع)</option>
                                     <option value="separate" <?php selected( $settings['dimensions']['format'], 'separate' ); ?>>مجزا در سه ردیف مختلف (خوانایی و مقایسه بهتر)</option>
@@ -395,7 +390,7 @@ class BRZ_WC_Core_Specs {
                             </div>
 
                             <div class="brz-core-field-group">
-                                <label class="brz-field-label">عنوان نمایشی سفارشی (برای حالت یکپارچه)</label>
+                                <label class="brz-field-label">عنوان نمایشی ابعاد (حالت یکپارچه)</label>
                                 <input type="text" name="dimensions_label" value="<?php echo esc_attr( $settings['dimensions']['label'] ); ?>" placeholder="مثال: ابعاد جعبه" />
                             </div>
 
@@ -429,14 +424,6 @@ class BRZ_WC_Core_Specs {
                                     <span class="brz-core-toggle-desc">نمایش مقدار شناسه بارکد در جدول مشخصات.</span>
                                 </div>
                                 <input type="checkbox" class="brz-toggle-switch" name="gtin_enabled" <?php checked( $settings['gtin']['enabled'], 1 ); ?> />
-                            </div>
-
-                            <div class="brz-core-toggle-row">
-                                <div>
-                                    <span class="brz-core-toggle-label">لینک استعلام اصالت GS1</span>
-                                    <span class="brz-core-toggle-desc">امکان کلیک روی بارکد برای استعلام آنلاین اصالت کالا از سایت رسمی GS1.</span>
-                                </div>
-                                <input type="checkbox" class="brz-toggle-switch" name="gtin_link_gs1" <?php checked( $settings['gtin']['link_gs1'], 1 ); ?> />
                             </div>
                         </div>
 
