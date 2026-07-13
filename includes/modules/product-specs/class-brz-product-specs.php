@@ -37,6 +37,9 @@ class BRZ_Product_Specs {
         add_action( 'added_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
         add_action( 'updated_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10, 4 );
         add_action( 'deleted_post_meta', array( __CLASS__, 'monitor_meta_deletions' ), 10, 4 );
+
+        // Recalculate filter ages when terms for target-audience change.
+        add_action( 'set_object_terms', array( __CLASS__, 'on_set_object_terms' ), 10, 4 );
     }
 
     /**
@@ -73,10 +76,8 @@ class BRZ_Product_Specs {
      * Intercept postmeta deletions to auto-clean background filter age keys.
      */
     public static function monitor_meta_deletions( $meta_ids, $object_id, $meta_key, $meta_values ): void {
-        if ( '_brz_spec_manual_min_age' === $meta_key ) {
-            delete_post_meta( $object_id, '_brz_spec_filter_min_age' );
-        } elseif ( '_brz_spec_manual_max_age' === $meta_key ) {
-            delete_post_meta( $object_id, '_brz_spec_filter_max_age' );
+        if ( '_brz_spec_manual_min_age' === $meta_key || '_brz_spec_manual_max_age' === $meta_key ) {
+            self::recalculate_product_filter_ages( $object_id );
         }
     }
 
@@ -93,10 +94,8 @@ class BRZ_Product_Specs {
         remove_action( 'updated_post_meta', array( __CLASS__, 'monitor_meta_changes' ), 10 );
 
         // Auto-generate filter age keys in the background
-        if ( '_brz_spec_manual_min_age' === $meta_key ) {
-            update_post_meta( $object_id, '_brz_spec_filter_min_age', intval( $meta_value ) );
-        } elseif ( '_brz_spec_manual_max_age' === $meta_key ) {
-            update_post_meta( $object_id, '_brz_spec_filter_max_age', intval( $meta_value ) );
+        if ( '_brz_spec_manual_min_age' === $meta_key || '_brz_spec_manual_max_age' === $meta_key ) {
+            self::recalculate_product_filter_ages( $object_id );
         }
 
         $key = str_replace( '_brz_spec_', '', $meta_key );
@@ -325,6 +324,9 @@ class BRZ_Product_Specs {
             } elseif ( 'decimal' === $type ) {
                 $val = get_post_meta( $post_id, '_brz_spec_' . $key, true );
                 $data[ $key ] = ( $val !== '' ) ? floatval( $val ) : null;
+            } elseif ( 'string' === $type || 'text' === $type ) {
+                $val = get_post_meta( $post_id, '_brz_spec_' . $key, true );
+                $data[ $key ] = ( $val !== '' ) ? sanitize_text_field( $val ) : null;
             }
         }
         return $data;
@@ -406,8 +408,15 @@ class BRZ_Product_Specs {
                 } else {
                     update_post_meta( $post_id, '_brz_spec_' . $key, floatval( $val ) );
                 }
+            } elseif ( 'string' === $type || 'text' === $type ) {
+                if ( $val === null || $val === '' ) {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key );
+                } else {
+                    update_post_meta( $post_id, '_brz_spec_' . $key, sanitize_text_field( $val ) );
+                }
             }
         }
+        self::recalculate_product_filter_ages( $post_id );
         return true;
     }
 
@@ -831,6 +840,8 @@ class BRZ_Product_Specs {
                                     <input type="number" step="1" class="brz-number-input" name="brz_spec[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $saved_val ); ?>" />
                                 <?php elseif ( 'decimal' === $type ) : ?>
                                     <input type="number" step="any" class="brz-number-input" name="brz_spec[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $saved_val ); ?>" />
+                                <?php elseif ( 'string' === $type || 'text' === $type ) : ?>
+                                    <input type="text" class="regular-text brz-text-input" style="width: 100%; max-width: 500px; padding: 6px 8px !important; border-radius: 6px !important; border: 1px solid #cbd5e1 !important; color: #1e293b;" name="brz_spec[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $saved_val ); ?>" />
                                 <?php endif; ?>
                             </div>
                             
@@ -1060,8 +1071,16 @@ class BRZ_Product_Specs {
                 } else {
                     delete_post_meta( $post_id, '_brz_spec_' . $key );
                 }
+            } elseif ( 'string' === $type || 'text' === $type ) {
+                $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
+                if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
+                    update_post_meta( $post_id, '_brz_spec_' . $key, sanitize_text_field( $raw_specs[ $key ] ) );
+                } else {
+                    delete_post_meta( $post_id, '_brz_spec_' . $key );
+                }
             }
         }
+        self::recalculate_product_filter_ages( $post_id );
     }
 
     /**
@@ -2126,6 +2145,12 @@ class BRZ_Product_Specs {
                     continue;
                 }
                 $value_html = $prefix . self::to_persian_digits( $val ) . $suffix;
+            } elseif ( 'string' === $type || 'text' === $type ) {
+                $val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
+                if ( $val === '' ) {
+                    continue;
+                }
+                $value_html = $prefix . self::to_persian_digits( sanitize_text_field( $val ) ) . $suffix;
             }
 
             if ( ! empty( $value_html ) ) {
@@ -2595,6 +2620,16 @@ class BRZ_Product_Specs {
                         $suffix_display = ' ' . $suffix_display;
                     }
                     $value_html = $prefix . self::to_persian_digits( $val ) . $suffix_display;
+                } elseif ( 'string' === $type || 'text' === $type ) {
+                    $val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
+                    if ( $val === '' ) {
+                        continue;
+                    }
+                    $suffix_display = $suffix;
+                    if ( ! empty( $suffix_display ) && ! in_array( substr( $suffix_display, 0, 1 ), array( ' ', '؛', ';', '<' ), true ) ) {
+                        $suffix_display = ' ' . $suffix_display;
+                    }
+                    $value_html = $prefix . self::to_persian_digits( sanitize_text_field( $val ) ) . $suffix_display;
                 }
 
                 if ( ! empty( $value_html ) ) {
@@ -2769,4 +2804,122 @@ class BRZ_Product_Specs {
             <?php
         }
     }
+
+    /**
+     * Recalculate filter ages when terms for target-audience taxonomy change.
+     */
+    public static function on_set_object_terms( int $object_id, $terms, array $tt_ids, string $taxonomy ): void {
+        if ( 'pa_target-audience' === $taxonomy ) {
+            self::recalculate_product_filter_ages( $object_id );
+        }
+    }
+
+    /**
+     * Recalculates filter min/max ages for a product using target-audience attributes if manual inputs are empty.
+     */
+    public static function recalculate_product_filter_ages( int $post_id ): void {
+        // Avoid infinite loop during recursive saving/updating if hook is triggered multiple times
+        static $running = array();
+        if ( isset( $running[ $post_id ] ) ) {
+            return;
+        }
+        $running[ $post_id ] = true;
+
+        // 1. Get manual values
+        $manual_min = get_post_meta( $post_id, '_brz_spec_manual_min_age', true );
+        $manual_max = get_post_meta( $post_id, '_brz_spec_manual_max_age', true );
+
+        $has_manual_min = ( $manual_min !== '' );
+        $has_manual_max = ( $manual_max !== '' );
+
+        if ( $has_manual_min && $has_manual_max ) {
+            // Both are set manually, so just update filters and return
+            update_post_meta( $post_id, '_brz_spec_filter_min_age', intval( $manual_min ) );
+            update_post_meta( $post_id, '_brz_spec_filter_max_age', intval( $manual_max ) );
+            unset( $running[ $post_id ] );
+            return;
+        }
+
+        // 2. Fetch selected target-audience terms for this product
+        $terms = get_the_terms( $post_id, 'pa_target-audience' );
+
+        $min_candidates = array();
+        $max_candidates = array();
+
+        if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+            foreach ( $terms as $term ) {
+                $slug = $term->slug;
+                
+                // Map slug to age ranges based on matrix
+                $min_val = null;
+                $max_val = null;
+
+                switch ( $slug ) {
+                    case 'toddler-up-to-3':
+                        $min_val = 0;
+                        $max_val = 3;
+                        break;
+                    case 'preschool-3-to-5':
+                        $min_val = 3;
+                        $max_val = 5;
+                        break;
+                    case 'kids-5-to-8':
+                        $min_val = 5;
+                        $max_val = 8;
+                        break;
+                    case 'tweens-8-to-12':
+                        $min_val = 8;
+                        $max_val = 12;
+                        break;
+                    case 'teens-12-to-14':
+                        $min_val = 12;
+                        $max_val = 14;
+                        break;
+                    case 'adults-14-plus':
+                        $min_val = 14;
+                        $max_val = 99;
+                        break;
+                    case 'family-friendly':
+                        $min_val = 8;
+                        $max_val = 99;
+                        break;
+                }
+
+                if ( null !== $min_val ) {
+                    $min_candidates[] = $min_val;
+                }
+                if ( null !== $max_val ) {
+                    $max_candidates[] = $max_val;
+                }
+            }
+        }
+
+        // Apply Multi-select Rule: lowest min and highest max
+        $audience_min = ! empty( $min_candidates ) ? min( $min_candidates ) : null;
+        $audience_max = ! empty( $max_candidates ) ? max( $max_candidates ) : null;
+
+        // Apply fallback rules
+        if ( $has_manual_min ) {
+            update_post_meta( $post_id, '_brz_spec_filter_min_age', intval( $manual_min ) );
+        } else {
+            if ( null !== $audience_min ) {
+                update_post_meta( $post_id, '_brz_spec_filter_min_age', intval( $audience_min ) );
+            } else {
+                delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+            }
+        }
+
+        if ( $has_manual_max ) {
+            update_post_meta( $post_id, '_brz_spec_filter_max_age', intval( $manual_max ) );
+        } else {
+            if ( null !== $audience_max ) {
+                update_post_meta( $post_id, '_brz_spec_filter_max_age', intval( $audience_max ) );
+            } else {
+                delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+            }
+        }
+
+        unset( $running[ $post_id ] );
+    }
 }
+
