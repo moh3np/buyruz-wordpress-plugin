@@ -487,7 +487,11 @@ class BRZ_Offline_Bridge {
                             $term = term_exists( $term_data['name'], $taxonomy );
                             error_log( '[BRZ_Offline_Bridge] term_exists("' . $term_data['name'] . '", "' . $taxonomy . '"): ' . wp_json_encode( $term ) );
                             if ( ! $term ) {
-                                $inserted = wp_insert_term( $term_data['name'], $taxonomy );
+                                $args = array();
+                                if ( ! empty( $term_data['slug'] ) ) {
+                                    $args['slug'] = sanitize_title( $term_data['slug'] );
+                                }
+                                $inserted = wp_insert_term( $term_data['name'], $taxonomy, $args );
                                 if ( ! is_wp_error( $inserted ) ) {
                                     $dependency_ids['new_terms'][] = array(
                                         'name'         => $term_data['name'],
@@ -499,6 +503,11 @@ class BRZ_Offline_Bridge {
                                 }
                             } else {
                                 $term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
+                                if ( ! empty( $term_data['slug'] ) ) {
+                                    wp_update_term( $term_id, $taxonomy, array(
+                                        'slug' => sanitize_title( $term_data['slug'] )
+                                    ) );
+                                }
                                 $dependency_ids['new_terms'][] = array(
                                     'name'         => $term_data['name'],
                                     'attribute_id' => $attr_id,
