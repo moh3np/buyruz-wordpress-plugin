@@ -25,17 +25,13 @@ class BRZ_AI_Schema {
             return;
         }
 
-        // Frontend: only hook on single product pages.
-        // Use wp hook (fires after query is parsed) to safely call is_product().
-        add_action( 'wp', function() {
-            if ( function_exists( 'is_product' ) && is_product() ) {
-                add_filter(
-                    'rank_math/snippet/rich_snippet_product_entity',
-                    array( 'BRZ_AI_Schema', 'inject_schema' ),
-                    20
-                );
-            }
-        } );
+        // Frontend: register filter directly to avoid race conditions with wp hook.
+        // The is_product() check is performed dynamically inside the callback.
+        add_filter(
+            'rank_math/snippet/rich_snippet_product_entity',
+            array( 'BRZ_AI_Schema', 'inject_schema' ),
+            20
+        );
     }
 
     /**
@@ -479,7 +475,10 @@ class BRZ_AI_Schema {
 
         // Dynamically fetch values of WooCommerce attributes and Buyruz specs for the product
         if ( ! empty( $enabled_attrs ) && function_exists( 'is_product' ) && is_product() ) {
-            $product_id = get_the_ID();
+            $product_id = get_queried_object_id();
+            if ( ! $product_id ) {
+                $product_id = get_the_ID();
+            }
             $product    = wc_get_product( $product_id );
             if ( $product ) {
                 foreach ( $enabled_attrs as $attr_key ) {
