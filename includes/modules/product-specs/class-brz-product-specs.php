@@ -2855,8 +2855,8 @@ class BRZ_Product_Specs {
             } else {
                 $norm = str_replace( array( ' ', '-', '_', '‌' ), '', $dim_label );
                 if ( ! isset( $normalized_labels[ $norm ] ) ) {
-                    $formatted = wc_format_dimensions( $product->get_dimensions( false ) );
-                    $formatted = str_replace( array( 'x', 'cm', 'm', 'mm' ), array( '×', 'سانتی‌متر', 'متر', 'میلی‌متر' ), $formatted );
+                    $formatted = html_entity_decode( wc_format_dimensions( $product->get_dimensions( false ) ), ENT_QUOTES, 'UTF-8' );
+                    $formatted = str_replace( array( 'x', 'cm', 'mm', 'm' ), array( '×', 'سانتی‌متر', 'میلی‌متر', 'متر' ), $formatted );
                     $specs_values['dimensions'] = array(
                         'label' => $dim_label,
                         'value' => self::to_persian_digits( $formatted )
