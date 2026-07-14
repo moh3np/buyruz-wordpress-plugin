@@ -122,6 +122,30 @@ class BRZ_Sidebar_Filters {
      * Sync specific product to lookup table.
      */
     public static function update_lookup_table( int $product_id ): void {
+        try {
+            self::update_lookup_table_internal( $product_id );
+        } catch ( \Throwable $e ) {
+            if ( strpos( strtolower( $e->getMessage() ), 'doesn\'t exist' ) !== false ) {
+                try {
+                    self::ensure_table();
+                    self::update_lookup_table_internal( $product_id );
+                } catch ( \Throwable $retry_e ) {
+                    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                        error_log( 'Buyruz Sidebar Filters Table Auto-Creation Retry Failed: ' . $retry_e->getMessage() );
+                    }
+                }
+            } else {
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    error_log( 'Buyruz Sidebar Filters update Exception: ' . $e->getMessage() );
+                }
+            }
+        }
+    }
+
+    /**
+     * Internal lookup table synchronization logic.
+     */
+    private static function update_lookup_table_internal( int $product_id ): void {
         global $wpdb;
         $table = self::table_name();
 
@@ -238,8 +262,12 @@ class BRZ_Sidebar_Filters {
      * Delete product records from lookup table.
      */
     public static function delete_product_filters( $product_id ): void {
-        global $wpdb;
-        $wpdb->delete( self::table_name(), array( 'product_id' => intval( $product_id ) ), array( '%d' ) );
+        try {
+            global $wpdb;
+            $wpdb->delete( self::table_name(), array( 'product_id' => intval( $product_id ) ), array( '%d' ) );
+        } catch ( \Throwable $e ) {
+            // fail silently
+        }
     }
 
     /**
