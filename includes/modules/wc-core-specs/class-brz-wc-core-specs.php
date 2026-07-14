@@ -221,20 +221,28 @@ class BRZ_WC_Core_Specs {
         $dimension_unit = get_option( 'woocommerce_dimension_unit', 'cm' );
 
         if ( $product->has_weight() ) {
+            $weight_code = self::get_weight_unit_code( $weight_unit );
             $entity['weight'] = array(
                 '@type'    => 'QuantitativeValue',
                 'value'    => floatval( $product->get_weight() ),
                 'unitText' => $weight_unit,
             );
+            if ( $weight_code ) {
+                $entity['weight']['unitCode'] = $weight_code;
+            }
         }
 
         if ( $product->has_dimensions() ) {
+            $dim_code = self::get_dimension_unit_code( $dimension_unit );
             if ( $product->get_length() ) {
                 $entity['depth'] = array(
                     '@type'    => 'QuantitativeValue',
                     'value'    => floatval( $product->get_length() ),
                     'unitText' => $dimension_unit,
                 );
+                if ( $dim_code ) {
+                    $entity['depth']['unitCode'] = $dim_code;
+                }
             }
             if ( $product->get_width() ) {
                 $entity['width'] = array(
@@ -242,6 +250,9 @@ class BRZ_WC_Core_Specs {
                     'value'    => floatval( $product->get_width() ),
                     'unitText' => $dimension_unit,
                 );
+                if ( $dim_code ) {
+                    $entity['width']['unitCode'] = $dim_code;
+                }
             }
             if ( $product->get_height() ) {
                 $entity['height'] = array(
@@ -249,10 +260,46 @@ class BRZ_WC_Core_Specs {
                     'value'    => floatval( $product->get_height() ),
                     'unitText' => $dimension_unit,
                 );
+                if ( $dim_code ) {
+                    $entity['height']['unitCode'] = $dim_code;
+                }
             }
         }
 
         return $entity;
+    }
+
+    /**
+     * Map WooCommerce weight unit to UN/CEFACT unit code.
+     *
+     * @param string $unit WooCommerce weight unit string.
+     * @return string UN/CEFACT code or empty if unmapped.
+     */
+    private static function get_weight_unit_code( string $unit ): string {
+        $map = array(
+            'kg'  => 'KGM',
+            'g'   => 'GRM',
+            'lbs' => 'LBR',
+            'oz'  => 'ONZ',
+        );
+        return $map[ strtolower( $unit ) ] ?? '';
+    }
+
+    /**
+     * Map WooCommerce dimension unit to UN/CEFACT unit code.
+     *
+     * @param string $unit WooCommerce dimension unit string.
+     * @return string UN/CEFACT code or empty if unmapped.
+     */
+    private static function get_dimension_unit_code( string $unit ): string {
+        $map = array(
+            'm'  => 'MTR',
+            'cm' => 'CMT',
+            'mm' => 'MMT',
+            'in' => 'INH',
+            'yd' => 'YRD',
+        );
+        return $map[ strtolower( $unit ) ] ?? '';
     }
 
     /**
