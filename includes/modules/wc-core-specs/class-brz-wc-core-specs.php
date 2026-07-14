@@ -17,6 +17,12 @@ class BRZ_WC_Core_Specs {
     private static string $option_name = 'brz_wc_core_specs_settings';
 
     /**
+     * Track whether injection already happened to prevent duplicates.
+     */
+    private static bool $injected = false;
+
+
+    /**
      * Bootstrap the module.
      */
     public static function init(): void {
@@ -30,7 +36,13 @@ class BRZ_WC_Core_Specs {
         // which is sourced from this very filter — no extra code needed.
         add_filter( 'wc_product_enable_dimensions_display', array( __CLASS__, 'filter_dimensions_display' ) );
 
-        // Rank Math Snippet Product Entity enrichment (schema only).
+        // Primary: WooCommerce generates the Product JSON-LD on this site.
+        add_filter( 'woocommerce_structured_data_product', array( __CLASS__, 'inject_into_wc_schema' ), 20, 2 );
+
+        // Secondary: Rank Math's final JSON-LD filter, in case Rank Math outputs it.
+        add_filter( 'rank_math/json_ld', array( __CLASS__, 'inject_into_rankmath_jsonld' ), 99, 2 );
+
+        // Legacy: Rank Math Snippet Product Entity enrichment.
         add_filter( 'rank_math/snippet/rich_snippet_product_entity', array( __CLASS__, 'enrich_rankmath_schema' ), 20, 2 );
     }
 
@@ -116,20 +128,82 @@ class BRZ_WC_Core_Specs {
     }
 
     /**
-     * Inject physical specs (weight & dimensions) to Rank Math rich snippet product entity.
-     * Follows the 6-step technical requirement layout.
+     * Filter callback for woocommerce_structured_data_product.
+     * Primary injection point. Fires when WooCommerce builds its structured data for a product page.
      *
-     * @param array  $entity The rich snippet data array.
-     * @param object $jsonld The JSON-LD provider instance.
-     * @return array Modified entity schema.
+     * @param array      $markup  Product schema markup.
+     * @param WC_Product $product WooCommerce product instance.
+     * @return array Modified markup.
      */
-    public static function enrich_rankmath_schema( array $entity, $jsonld ): array {
-        global $product;
-
-        if ( ! is_product() || ! is_a( $product, 'WC_Product' ) ) {
-            return $entity;
+    public static function inject_into_wc_schema( array $markup, WC_Product $product ): array {
+        if ( self::$injected ) {
+            return $markup;
         }
 
+        $markup           = self::apply_physical_specs( $markup, $product );
+        self::$injected   = true;
+
+        return $markup;
+    }
+
+    /**
+     * Filter callback for rank_math/json_ld.
+     * Secondary injection point. Walks through Rank Math JSON-LD output and injects into Product entity.
+     * Skips if injection already occurred.
+     *
+     * @param array $data   All JSON-LD entities.
+     * @param mixed $jsonld The Rank Math JsonLD instance.
+     * @return array Modified data.
+     */
+    public static function inject_into_rankmath_jsonld( array $data, $jsonld ): array {
+        if ( self::$injected ) {
+            return $data;
+        }
+
+        if ( ! function_exists( 'is_product' ) || ! is_product() ) {
+            return $data;
+        }
+
+        global $product;
+        $wc_product = is_a( $product, 'WC_Product' ) ? $product : null;
+        if ( ! $wc_product ) {
+            $product_id = get_queried_object_id();
+            if ( $product_id ) {
+                $wc_product = wc_get_product( $product_id );
+            }
+        }
+
+        if ( ! $wc_product ) {
+            return $data;
+        }
+
+        foreach ( $data as $key => &$entity ) {
+            if ( ! is_array( $entity ) || ! isset( $entity['@type'] ) ) {
+                continue;
+            }
+
+            $types = (array) $entity['@type'];
+            if ( ! in_array( 'Product', $types, true ) ) {
+                continue;
+            }
+
+            $entity         = self::apply_physical_specs( $entity, $wc_product );
+            self::$injected = true;
+            break;
+        }
+        unset( $entity );
+
+        return $data;
+    }
+
+    /**
+     * Helper to apply physical specifications (weight & dimensions) to a Product schema entity array.
+     *
+     * @param array      $entity  The Product schema array.
+     * @param WC_Product $product WooCommerce product.
+     * @return array Modified entity.
+     */
+    private static function apply_physical_specs( array $entity, WC_Product $product ): array {
         $settings = self::get_settings();
 
         // Skip entirely when weight/dimensions display is disabled.
@@ -177,6 +251,30 @@ class BRZ_WC_Core_Specs {
                 );
             }
         }
+
+        return $entity;
+    }
+
+    /**
+     * Inject physical specs (weight & dimensions) to Rank Math rich snippet product entity.
+     * (Legacy hook, kept for backward compatibility).
+     *
+     * @param array  $entity The rich snippet data array.
+     * @param object $jsonld The JSON-LD provider instance.
+     * @return array Modified entity schema.
+     */
+    public static function enrich_rankmath_schema( array $entity, $jsonld ): array {
+        if ( self::$injected ) {
+            return $entity;
+        }
+
+        global $product;
+        if ( ! is_product() || ! is_a( $product, 'WC_Product' ) ) {
+            return $entity;
+        }
+
+        $entity         = self::apply_physical_specs( $entity, $product );
+        self::$injected = true;
 
         return $entity;
     }
