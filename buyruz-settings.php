@@ -3,7 +3,7 @@
  * Plugin Name: تنظیمات بایروز
  * Plugin URI: https://github.com/Codruz/buyruz-plugin.git
  * Description: تنظیمات بایروز، مرکز مدیریت و هماهنگ‌سازی قابلیت‌ها و تنظیمات اختصاصی بایروز در سایت شماست. از این صفحه می‌توانید رفتار افزونه‌های بایروز را یکپارچه کنترل کنید.
- * Version: 5.16.15
+ * Version: 5.16.16
  * Author: کُدروز
  * Author URI: https://codruz.ir
  * License: Proprietary
@@ -82,6 +82,7 @@ add_action( 'init', function() {
         header( 'Cache-Control: no-cache, no-store, must-revalidate' );
         header( 'Pragma: no-cache' );
         header( 'Expires: 0' );
+        echo "Active Version: " . BRZ_VERSION . "\n-------------------------\n";
         $log_file = WP_CONTENT_DIR . '/uploads/buyruz-debug.log';
         if ( file_exists( $log_file ) ) {
             echo file_get_contents( $log_file );
