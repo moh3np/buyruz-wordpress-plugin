@@ -3,7 +3,7 @@
  * Plugin Name: تنظیمات بایروز
  * Plugin URI: https://github.com/Codruz/buyruz-plugin.git
  * Description: تنظیمات بایروز، مرکز مدیریت و هماهنگ‌سازی قابلیت‌ها و تنظیمات اختصاصی بایروز در سایت شماست. از این صفحه می‌توانید رفتار افزونه‌های بایروز را یکپارچه کنترل کنید.
- * Version: 5.16.13
+ * Version: 5.16.14
  * Author: کُدروز
  * Author URI: https://codruz.ir
  * License: Proprietary
@@ -45,12 +45,13 @@ register_shutdown_function( function() {
 add_filter( 'wp_redirect', function( $location, $status ) {
     $log_file = WP_CONTENT_DIR . '/uploads/buyruz-debug.log';
     $backtrace = wp_debug_backtrace_summary( null, 0, false );
+    $backtrace_str = is_array( $backtrace ) ? implode( ' -> ', $backtrace ) : (string) $backtrace;
     $message = sprintf(
         "[%s] WP_REDIRECT: To '%s' (Status: %d). Call stack: %s\n",
         date( 'Y-m-d H:i:s' ),
         $location,
         $status,
-        $backtrace
+        $backtrace_str
     );
     @file_put_contents( $log_file, $message, FILE_APPEND );
     return $location;
