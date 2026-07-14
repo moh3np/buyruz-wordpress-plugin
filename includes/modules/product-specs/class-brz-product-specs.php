@@ -968,119 +968,131 @@ class BRZ_Product_Specs {
      * Save product metadata values.
      */
     public static function save_metabox( int $post_id ): void {
-        if ( ! isset( $_POST['brz_product_specs_nonce'] ) || ! wp_verify_nonce( $_POST['brz_product_specs_nonce'], 'brz_product_specs_save' ) ) {
-            return;
-        }
-
-        if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-            return;
-        }
-
-        if ( ! current_user_can( 'edit_post', $post_id ) ) {
-            return;
-        }
-
-        $fields       = self::get_fields();
-        $active_flags = isset( $_POST['brz_spec_active'] ) && is_array( $_POST['brz_spec_active'] ) ? $_POST['brz_spec_active'] : array();
-
-        foreach ( $fields as $field ) {
-            $key       = $field['key'];
-            $type      = $field['type'];
-            $is_active = isset( $active_flags[ $key ] ) && $active_flags[ $key ] === '1';
-
-            if ( ! $is_active ) {
-                // Delete all meta associated with this field to keep database clean.
-                if ( 'range' === $type ) {
-                    $keys = self::get_range_meta_keys( $key );
-                    delete_post_meta( $post_id, $keys[0] );
-                    delete_post_meta( $post_id, $keys[1] );
-                    if ( 'manual_age' === $key ) {
-                        delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
-                        delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
-                    }
-                } else {
-                    delete_post_meta( $post_id, '_brz_spec_' . $key );
-                }
-                continue;
+        try {
+            if ( ! isset( $_POST['brz_product_specs_nonce'] ) || ! wp_verify_nonce( $_POST['brz_product_specs_nonce'], 'brz_product_specs_save' ) ) {
+                return;
             }
 
-            // Save active field values.
-            if ( 'boolean' === $type ) {
-                $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
-                $val       = isset( $raw_specs[ $key ] ) && $raw_specs[ $key ] === '1' ? '1' : '0';
-                update_post_meta( $post_id, '_brz_spec_' . $key, $val );
-            } elseif ( 'integer' === $type ) {
-                $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
-                if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
-                    update_post_meta( $post_id, '_brz_spec_' . $key, intval( $raw_specs[ $key ] ) );
-                } else {
-                    delete_post_meta( $post_id, '_brz_spec_' . $key );
-                }
-            } elseif ( 'decimal' === $type ) {
-                $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
-                if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
-                    update_post_meta( $post_id, '_brz_spec_' . $key, floatval( $raw_specs[ $key ] ) );
-                } else {
-                    delete_post_meta( $post_id, '_brz_spec_' . $key );
-                }
-            } elseif ( 'range' === $type ) {
-                $keys = self::get_range_meta_keys( $key );
-                $raw_ranges = isset( $_POST['brz_spec_range'] ) && is_array( $_POST['brz_spec_range'] ) ? $_POST['brz_spec_range'] : array();
-                if ( isset( $raw_ranges[ $key ] ) ) {
-                    $min = $raw_ranges[ $key ]['min'];
-                    $max = $raw_ranges[ $key ]['max'];
+            if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+                return;
+            }
 
-                    if ( '' !== $min ) {
-                        $int_min = intval( $min );
-                        update_post_meta( $post_id, $keys[0], $int_min );
+            if ( ! current_user_can( 'edit_post', $post_id ) ) {
+                return;
+            }
+
+            $fields       = self::get_fields();
+            $active_flags = isset( $_POST['brz_spec_active'] ) && is_array( $_POST['brz_spec_active'] ) ? $_POST['brz_spec_active'] : array();
+
+            foreach ( $fields as $field ) {
+                $key       = $field['key'];
+                $type      = $field['type'];
+                $is_active = isset( $active_flags[ $key ] ) && $active_flags[ $key ] === '1';
+
+                if ( ! $is_active ) {
+                    // Delete all meta associated with this field to keep database clean.
+                    if ( 'range' === $type ) {
+                        $keys = self::get_range_meta_keys( $key );
+                        delete_post_meta( $post_id, $keys[0] );
+                        delete_post_meta( $post_id, $keys[1] );
                         if ( 'manual_age' === $key ) {
-                            update_post_meta( $post_id, '_brz_spec_filter_min_age', $int_min );
+                            delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+                            delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                        }
+                    } else {
+                        delete_post_meta( $post_id, '_brz_spec_' . $key );
+                    }
+                    continue;
+                }
+
+                // Save active field values.
+                if ( 'boolean' === $type ) {
+                    $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
+                    $val       = isset( $raw_specs[ $key ] ) && $raw_specs[ $key ] === '1' ? '1' : '0';
+                    update_post_meta( $post_id, '_brz_spec_' . $key, $val );
+                } elseif ( 'integer' === $type ) {
+                    $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
+                    if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
+                        update_post_meta( $post_id, '_brz_spec_' . $key, intval( $raw_specs[ $key ] ) );
+                    } else {
+                        delete_post_meta( $post_id, '_brz_spec_' . $key );
+                    }
+                } elseif ( 'decimal' === $type ) {
+                    $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
+                    if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
+                        update_post_meta( $post_id, '_brz_spec_' . $key, floatval( $raw_specs[ $key ] ) );
+                    } else {
+                        delete_post_meta( $post_id, '_brz_spec_' . $key );
+                    }
+                } elseif ( 'range' === $type ) {
+                    $keys = self::get_range_meta_keys( $key );
+                    $raw_ranges = isset( $_POST['brz_spec_range'] ) && is_array( $_POST['brz_spec_range'] ) ? $_POST['brz_spec_range'] : array();
+                    if ( isset( $raw_ranges[ $key ] ) ) {
+                        $min = $raw_ranges[ $key ]['min'];
+                        $max = $raw_ranges[ $key ]['max'];
+
+                        if ( '' !== $min ) {
+                            $int_min = intval( $min );
+                            update_post_meta( $post_id, $keys[0], $int_min );
+                            if ( 'manual_age' === $key ) {
+                                update_post_meta( $post_id, '_brz_spec_filter_min_age', $int_min );
+                            }
+                        } else {
+                            delete_post_meta( $post_id, $keys[0] );
+                            if ( 'manual_age' === $key ) {
+                                delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+                            }
+                        }
+
+                        if ( '' !== $max ) {
+                            $int_max = intval( $max );
+                            update_post_meta( $post_id, $keys[1], $int_max );
+                            if ( 'manual_age' === $key ) {
+                                update_post_meta( $post_id, '_brz_spec_filter_max_age', $int_max );
+                            }
+                        } else {
+                            delete_post_meta( $post_id, $keys[1] );
+                            if ( 'manual_age' === $key ) {
+                                delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                            }
                         }
                     } else {
                         delete_post_meta( $post_id, $keys[0] );
-                        if ( 'manual_age' === $key ) {
-                            delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
-                        }
-                    }
-
-                    if ( '' !== $max ) {
-                        $int_max = intval( $max );
-                        update_post_meta( $post_id, $keys[1], $int_max );
-                        if ( 'manual_age' === $key ) {
-                            update_post_meta( $post_id, '_brz_spec_filter_max_age', $int_max );
-                        }
-                    } else {
                         delete_post_meta( $post_id, $keys[1] );
                         if ( 'manual_age' === $key ) {
+                            delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
                             delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
                         }
                     }
-                } else {
-                    delete_post_meta( $post_id, $keys[0] );
-                    delete_post_meta( $post_id, $keys[1] );
-                    if ( 'manual_age' === $key ) {
-                        delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
-                        delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                } elseif ( 'array' === $type ) {
+                    $raw_arrays = isset( $_POST['brz_spec_array'] ) && is_array( $_POST['brz_spec_array'] ) ? $_POST['brz_spec_array'] : array();
+                    $val        = isset( $raw_arrays[ $key ] ) && is_array( $raw_arrays[ $key ] ) ? $raw_arrays[ $key ] : array();
+                    if ( ! empty( $val ) ) {
+                        update_post_meta( $post_id, '_brz_spec_' . $key, wp_json_encode( array_map( 'sanitize_text_field', $val ) ) );
+                    } else {
+                        delete_post_meta( $post_id, '_brz_spec_' . $key );
+                    }
+                } elseif ( 'string' === $type || 'text' === $type ) {
+                    $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
+                    if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
+                        update_post_meta( $post_id, '_brz_spec_' . $key, sanitize_text_field( $raw_specs[ $key ] ) );
+                    } else {
+                        delete_post_meta( $post_id, '_brz_spec_' . $key );
                     }
                 }
-            } elseif ( 'array' === $type ) {
-                $raw_arrays = isset( $_POST['brz_spec_array'] ) && is_array( $_POST['brz_spec_array'] ) ? $_POST['brz_spec_array'] : array();
-                $val        = isset( $raw_arrays[ $key ] ) && is_array( $raw_arrays[ $key ] ) ? $raw_arrays[ $key ] : array();
-                if ( ! empty( $val ) ) {
-                    update_post_meta( $post_id, '_brz_spec_' . $key, wp_json_encode( array_map( 'sanitize_text_field', $val ) ) );
-                } else {
-                    delete_post_meta( $post_id, '_brz_spec_' . $key );
-                }
-            } elseif ( 'string' === $type || 'text' === $type ) {
-                $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
-                if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
-                    update_post_meta( $post_id, '_brz_spec_' . $key, sanitize_text_field( $raw_specs[ $key ] ) );
-                } else {
-                    delete_post_meta( $post_id, '_brz_spec_' . $key );
-                }
             }
+            self::recalculate_product_filter_ages( $post_id );
+        } catch ( \Throwable $e ) {
+            $log_file = WP_CONTENT_DIR . '/uploads/buyruz-debug.log';
+            $message = sprintf(
+                "[%s] PRODUCT SPECS SAVE EXCEPTION: %s in %s on line %d\n",
+                date( 'Y-m-d H:i:s' ),
+                $e->getMessage(),
+                $e->getFile(),
+                $e->getLine()
+            );
+            @file_put_contents( $log_file, $message, FILE_APPEND );
         }
-        self::recalculate_product_filter_ages( $post_id );
     }
 
     /**

@@ -162,20 +162,32 @@ class BRZ_Compare_Table_Admin {
     }
 
     public static function save( $post_id, $post = null ) {
-        if ( isset( self::$processed[ $post_id ] ) ) {
-            return;
-        }
-        if ( ! self::should_process_request( $post_id ) ) {
-            return;
-        }
+        try {
+            if ( isset( self::$processed[ $post_id ] ) ) {
+                return;
+            }
+            if ( ! self::should_process_request( $post_id ) ) {
+                return;
+            }
 
-        self::$processed[ $post_id ] = true;
-        $payload = self::sanitize_payload( self::collect_from_request() );
-        $table_id = self::get_table_id( $post_id );
-        if ( ! empty( $payload ) ) {
-            $payload['id'] = $table_id;
+            self::$processed[ $post_id ] = true;
+            $payload = self::sanitize_payload( self::collect_from_request() );
+            $table_id = self::get_table_id( $post_id );
+            if ( ! empty( $payload ) ) {
+                $payload['id'] = $table_id;
+            }
+            self::persist_payload( $post_id, $payload, $table_id );
+        } catch ( \Throwable $e ) {
+            $log_file = WP_CONTENT_DIR . '/uploads/buyruz-debug.log';
+            $message = sprintf(
+                "[%s] COMPARE TABLE SAVE EXCEPTION: %s in %s on line %d\n",
+                date( 'Y-m-d H:i:s' ),
+                $e->getMessage(),
+                $e->getFile(),
+                $e->getLine()
+            );
+            @file_put_contents( $log_file, $message, FILE_APPEND );
         }
-        self::persist_payload( $post_id, $payload, $table_id );
     }
 
     public static function get_meta( $post_id ) {
