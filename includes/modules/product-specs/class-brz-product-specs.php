@@ -993,14 +993,29 @@ class BRZ_Product_Specs {
                     // Delete all meta associated with this field to keep database clean.
                     if ( 'range' === $type ) {
                         $keys = self::get_range_meta_keys( $key );
-                        delete_post_meta( $post_id, $keys[0] );
-                        delete_post_meta( $post_id, $keys[1] );
+                        $old_min = get_post_meta( $post_id, $keys[0], true );
+                        $old_max = get_post_meta( $post_id, $keys[1], true );
+                        if ( '' !== $old_min && false !== $old_min ) {
+                            delete_post_meta( $post_id, $keys[0] );
+                        }
+                        if ( '' !== $old_max && false !== $old_max ) {
+                            delete_post_meta( $post_id, $keys[1] );
+                        }
                         if ( 'manual_age' === $key ) {
-                            delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
-                            delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                            $old_filter_min = get_post_meta( $post_id, '_brz_spec_filter_min_age', true );
+                            $old_filter_max = get_post_meta( $post_id, '_brz_spec_filter_max_age', true );
+                            if ( '' !== $old_filter_min && false !== $old_filter_min ) {
+                                delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+                            }
+                            if ( '' !== $old_filter_max && false !== $old_filter_max ) {
+                                delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                            }
                         }
                     } else {
-                        delete_post_meta( $post_id, '_brz_spec_' . $key );
+                        $old_val = get_post_meta( $post_id, '_brz_spec_' . $key, true );
+                        if ( '' !== $old_val && false !== $old_val ) {
+                            delete_post_meta( $post_id, '_brz_spec_' . $key );
+                        }
                     }
                     continue;
                 }
@@ -1009,23 +1024,40 @@ class BRZ_Product_Specs {
                 if ( 'boolean' === $type ) {
                     $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
                     $val       = isset( $raw_specs[ $key ] ) && $raw_specs[ $key ] === '1' ? '1' : '0';
-                    update_post_meta( $post_id, '_brz_spec_' . $key, $val );
+                    $old_val   = get_post_meta( $post_id, '_brz_spec_' . $key, true );
+                    if ( (string)$old_val !== (string)$val ) {
+                        update_post_meta( $post_id, '_brz_spec_' . $key, $val );
+                    }
                 } elseif ( 'integer' === $type ) {
                     $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
+                    $old_val   = get_post_meta( $post_id, '_brz_spec_' . $key, true );
                     if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
-                        update_post_meta( $post_id, '_brz_spec_' . $key, intval( $raw_specs[ $key ] ) );
+                        $new_val = intval( $raw_specs[ $key ] );
+                        if ( (string)$old_val !== (string)$new_val ) {
+                            update_post_meta( $post_id, '_brz_spec_' . $key, $new_val );
+                        }
                     } else {
-                        delete_post_meta( $post_id, '_brz_spec_' . $key );
+                        if ( '' !== $old_val && false !== $old_val ) {
+                            delete_post_meta( $post_id, '_brz_spec_' . $key );
+                        }
                     }
                 } elseif ( 'decimal' === $type ) {
                     $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
+                    $old_val   = get_post_meta( $post_id, '_brz_spec_' . $key, true );
                     if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
-                        update_post_meta( $post_id, '_brz_spec_' . $key, floatval( $raw_specs[ $key ] ) );
+                        $new_val = floatval( $raw_specs[ $key ] );
+                        if ( (string)$old_val !== (string)$new_val ) {
+                            update_post_meta( $post_id, '_brz_spec_' . $key, $new_val );
+                        }
                     } else {
-                        delete_post_meta( $post_id, '_brz_spec_' . $key );
+                        if ( '' !== $old_val && false !== $old_val ) {
+                            delete_post_meta( $post_id, '_brz_spec_' . $key );
+                        }
                     }
                 } elseif ( 'range' === $type ) {
                     $keys = self::get_range_meta_keys( $key );
+                    $old_min = get_post_meta( $post_id, $keys[0], true );
+                    $old_max = get_post_meta( $post_id, $keys[1], true );
                     $raw_ranges = isset( $_POST['brz_spec_range'] ) && is_array( $_POST['brz_spec_range'] ) ? $_POST['brz_spec_range'] : array();
                     if ( isset( $raw_ranges[ $key ] ) ) {
                         $min = $raw_ranges[ $key ]['min'];
@@ -1033,51 +1065,81 @@ class BRZ_Product_Specs {
 
                         if ( '' !== $min ) {
                             $int_min = intval( $min );
-                            update_post_meta( $post_id, $keys[0], $int_min );
-                            if ( 'manual_age' === $key ) {
-                                update_post_meta( $post_id, '_brz_spec_filter_min_age', $int_min );
+                            if ( (string)$old_min !== (string)$int_min ) {
+                                update_post_meta( $post_id, $keys[0], $int_min );
+                                if ( 'manual_age' === $key ) {
+                                    update_post_meta( $post_id, '_brz_spec_filter_min_age', $int_min );
+                                }
                             }
                         } else {
-                            delete_post_meta( $post_id, $keys[0] );
-                            if ( 'manual_age' === $key ) {
-                                delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+                            if ( '' !== $old_min && false !== $old_min ) {
+                                delete_post_meta( $post_id, $keys[0] );
+                                if ( 'manual_age' === $key ) {
+                                    delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+                                }
                             }
                         }
 
                         if ( '' !== $max ) {
                             $int_max = intval( $max );
-                            update_post_meta( $post_id, $keys[1], $int_max );
-                            if ( 'manual_age' === $key ) {
-                                update_post_meta( $post_id, '_brz_spec_filter_max_age', $int_max );
+                            if ( (string)$old_max !== (string)$int_max ) {
+                                update_post_meta( $post_id, $keys[1], $int_max );
+                                if ( 'manual_age' === $key ) {
+                                    update_post_meta( $post_id, '_brz_spec_filter_max_age', $int_max );
+                                }
                             }
                         } else {
-                            delete_post_meta( $post_id, $keys[1] );
-                            if ( 'manual_age' === $key ) {
-                                delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                            if ( '' !== $old_max && false !== $old_max ) {
+                                delete_post_meta( $post_id, $keys[1] );
+                                if ( 'manual_age' === $key ) {
+                                    delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                                }
                             }
                         }
                     } else {
-                        delete_post_meta( $post_id, $keys[0] );
-                        delete_post_meta( $post_id, $keys[1] );
+                        if ( '' !== $old_min && false !== $old_min ) {
+                            delete_post_meta( $post_id, $keys[0] );
+                        }
+                        if ( '' !== $old_max && false !== $old_max ) {
+                            delete_post_meta( $post_id, $keys[1] );
+                        }
                         if ( 'manual_age' === $key ) {
-                            delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
-                            delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                            $old_filter_min = get_post_meta( $post_id, '_brz_spec_filter_min_age', true );
+                            $old_filter_max = get_post_meta( $post_id, '_brz_spec_filter_max_age', true );
+                            if ( '' !== $old_filter_min && false !== $old_filter_min ) {
+                                delete_post_meta( $post_id, '_brz_spec_filter_min_age' );
+                            }
+                            if ( '' !== $old_filter_max && false !== $old_filter_max ) {
+                                delete_post_meta( $post_id, '_brz_spec_filter_max_age' );
+                            }
                         }
                     }
                 } elseif ( 'array' === $type ) {
                     $raw_arrays = isset( $_POST['brz_spec_array'] ) && is_array( $_POST['brz_spec_array'] ) ? $_POST['brz_spec_array'] : array();
                     $val        = isset( $raw_arrays[ $key ] ) && is_array( $raw_arrays[ $key ] ) ? $raw_arrays[ $key ] : array();
+                    $old_val    = get_post_meta( $post_id, '_brz_spec_' . $key, true );
                     if ( ! empty( $val ) ) {
-                        update_post_meta( $post_id, '_brz_spec_' . $key, wp_json_encode( array_map( 'sanitize_text_field', $val ) ) );
+                        $new_val = wp_json_encode( array_map( 'sanitize_text_field', $val ) );
+                        if ( $old_val !== $new_val ) {
+                            update_post_meta( $post_id, '_brz_spec_' . $key, $new_val );
+                        }
                     } else {
-                        delete_post_meta( $post_id, '_brz_spec_' . $key );
+                        if ( '' !== $old_val && false !== $old_val ) {
+                            delete_post_meta( $post_id, '_brz_spec_' . $key );
+                        }
                     }
                 } elseif ( 'string' === $type || 'text' === $type ) {
                     $raw_specs = isset( $_POST['brz_spec'] ) && is_array( $_POST['brz_spec'] ) ? $_POST['brz_spec'] : array();
+                    $old_val   = get_post_meta( $post_id, '_brz_spec_' . $key, true );
                     if ( isset( $raw_specs[ $key ] ) && '' !== $raw_specs[ $key ] ) {
-                        update_post_meta( $post_id, '_brz_spec_' . $key, sanitize_text_field( $raw_specs[ $key ] ) );
+                        $new_val = sanitize_text_field( $raw_specs[ $key ] );
+                        if ( $old_val !== $new_val ) {
+                            update_post_meta( $post_id, '_brz_spec_' . $key, $new_val );
+                        }
                     } else {
-                        delete_post_meta( $post_id, '_brz_spec_' . $key );
+                        if ( '' !== $old_val && false !== $old_val ) {
+                            delete_post_meta( $post_id, '_brz_spec_' . $key );
+                        }
                     }
                 }
             }
