@@ -1145,15 +1145,9 @@ class BRZ_Product_Specs {
             }
             self::recalculate_product_filter_ages( $post_id );
         } catch ( \Throwable $e ) {
-            $log_file = WP_CONTENT_DIR . '/uploads/buyruz-debug.log';
-            $message = sprintf(
-                "[%s] PRODUCT SPECS SAVE EXCEPTION: %s in %s on line %d\n",
-                date( 'Y-m-d H:i:s' ),
-                $e->getMessage(),
-                $e->getFile(),
-                $e->getLine()
-            );
-            @file_put_contents( $log_file, $message, FILE_APPEND );
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( 'Buyruz Product Specs Save Exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ' on line ' . $e->getLine() );
+            }
         }
     }
 

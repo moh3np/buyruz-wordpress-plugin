@@ -3,7 +3,7 @@
  * Plugin Name: تنظیمات بایروز
  * Plugin URI: https://github.com/Codruz/buyruz-plugin.git
  * Description: تنظیمات بایروز، مرکز مدیریت و هماهنگ‌سازی قابلیت‌ها و تنظیمات اختصاصی بایروز در سایت شماست. از این صفحه می‌توانید رفتار افزونه‌های بایروز را یکپارچه کنترل کنید.
- * Version: 5.16.18
+ * Version: 5.16.19
  * Author: کُدروز
  * Author URI: https://codruz.ir
  * License: Proprietary
@@ -25,73 +25,6 @@ define( 'BRZ_VERSION', isset( $plugin_header['Version'] ) ? $plugin_header['Vers
 define( 'BRZ_PATH', plugin_dir_path( __FILE__ ) );
 define( 'BRZ_URL', plugin_dir_url( __FILE__ ) );
 define( 'BRZ_OPTION', 'brz_options' );
-
-// عیب‌یابی تشخیصی موقت برای شناسایی منبع خطاهای ذخیره‌سازی محصول در سرور اصلی
-register_shutdown_function( function() {
-    $log_file = WP_CONTENT_DIR . '/uploads/buyruz-debug.log';
-    
-    // ۱. بررسی خطاهای کشنده PHP
-    $error = error_get_last();
-    if ( $error && in_array( $error['type'], array( E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR ) ) ) {
-        $message = sprintf(
-            "[%s] FATAL ERROR: %s in %s on line %d\n",
-            date( 'Y-m-d H:i:s' ),
-            $error['message'],
-            $error['file'],
-            $error['line']
-        );
-        @file_put_contents( $log_file, $message, FILE_APPEND );
-    }
-
-    // ۲. بررسی هدرهای Location ارسال شده به مرورگر در زمان پایان اجرای اسکریپت
-    if ( function_exists( 'headers_list' ) ) {
-        $headers = headers_list();
-        foreach ( $headers as $header ) {
-            if ( stripos( $header, 'Location:' ) === 0 ) {
-                $message = sprintf(
-                    "[%s] SHUTDOWN LOCATION HEADER DETECTED: '%s'\n",
-                    date( 'Y-m-d H:i:s' ),
-                    $header
-                );
-                @file_put_contents( $log_file, $message, FILE_APPEND );
-                break;
-            }
-        }
-    }
-} );
-
-add_filter( 'wp_redirect', function( $location, $status ) {
-    $log_file = WP_CONTENT_DIR . '/uploads/buyruz-debug.log';
-    $backtrace = wp_debug_backtrace_summary( null, 0, false );
-    $backtrace_str = is_array( $backtrace ) ? implode( ' -> ', $backtrace ) : (string) $backtrace;
-    $message = sprintf(
-        "[%s] WP_REDIRECT: To '%s' (Status: %d). Call stack: %s\n",
-        date( 'Y-m-d H:i:s' ),
-        $location,
-        $status,
-        $backtrace_str
-    );
-    @file_put_contents( $log_file, $message, FILE_APPEND );
-    return $location;
-}, 999, 2 );
-
-// هوک عمومی برای دور زدن کامل انواع سیستم‌های کش (کلودفلر، لایت‌اسپید، کش مرورگر و غیره)
-add_action( 'init', function() {
-    if ( isset( $_GET['show_brz_debug'] ) ) {
-        header( 'Content-Type: text/plain; charset=utf-8' );
-        header( 'Cache-Control: no-cache, no-store, must-revalidate' );
-        header( 'Pragma: no-cache' );
-        header( 'Expires: 0' );
-        echo "Active Version: " . BRZ_VERSION . "\n-------------------------\n";
-        $log_file = WP_CONTENT_DIR . '/uploads/buyruz-debug.log';
-        if ( file_exists( $log_file ) ) {
-            echo file_get_contents( $log_file );
-        } else {
-            echo "فایل لاگ وجود ندارد یا هنوز خطایی ثبت نشده است.";
-        }
-        exit;
-    }
-} );
 
 require_once BRZ_PATH . 'includes/autoload.php';
 BRZ_Plugin::init();

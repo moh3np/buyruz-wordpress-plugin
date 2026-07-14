@@ -178,15 +178,9 @@ class BRZ_Compare_Table_Admin {
             }
             self::persist_payload( $post_id, $payload, $table_id );
         } catch ( \Throwable $e ) {
-            $log_file = WP_CONTENT_DIR . '/uploads/buyruz-debug.log';
-            $message = sprintf(
-                "[%s] COMPARE TABLE SAVE EXCEPTION: %s in %s on line %d\n",
-                date( 'Y-m-d H:i:s' ),
-                $e->getMessage(),
-                $e->getFile(),
-                $e->getLine()
-            );
-            @file_put_contents( $log_file, $message, FILE_APPEND );
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( 'Buyruz Compare Table Save Exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ' on line ' . $e->getLine() );
+            }
         }
     }
 
