@@ -100,17 +100,61 @@ class BRZ_Change_Log {
         // Ensure complex types (like arrays for meta_data or attributes) are serialized to JSON
         $db_value = is_scalar( $new_value ) ? (string) $new_value : wp_json_encode( $new_value, JSON_UNESCAPED_UNICODE );
 
-        $wpdb->insert(
-            self::table_name(),
-            array(
-                'product_id' => $product_id,
-                'field_name' => $field_name,
-                'new_value'  => $db_value,
-                'source'     => $source,
-                'created_at' => current_time( 'mysql', true ),
-            ),
-            array( '%d', '%s', '%s', '%s', '%s' )
-        );
+        try {
+            $table = self::table_name();
+            $inserted = $wpdb->insert(
+                $table,
+                array(
+                    'product_id' => $product_id,
+                    'field_name' => $field_name,
+                    'new_value'  => $db_value,
+                    'source'     => $source,
+                    'created_at' => current_time( 'mysql', true ),
+                ),
+                array( '%d', '%s', '%s', '%s', '%s' )
+            );
+            if ( false === $inserted && ! empty( $wpdb->last_error ) ) {
+                if ( strpos( strtolower( $wpdb->last_error ), 'doesn\'t exist' ) !== false ) {
+                    self::ensure_table();
+                    $wpdb->insert(
+                        $table,
+                        array(
+                            'product_id' => $product_id,
+                            'field_name' => $field_name,
+                            'new_value'  => $db_value,
+                            'source'     => $source,
+                            'created_at' => current_time( 'mysql', true ),
+                        ),
+                        array( '%d', '%s', '%s', '%s', '%s' )
+                    );
+                }
+            }
+        } catch ( \Throwable $e ) {
+            if ( strpos( strtolower( $e->getMessage() ), 'doesn\'t exist' ) !== false ) {
+                try {
+                    self::ensure_table();
+                    $wpdb->insert(
+                        self::table_name(),
+                        array(
+                            'product_id' => $product_id,
+                            'field_name' => $field_name,
+                            'new_value'  => $db_value,
+                            'source'     => $source,
+                            'created_at' => current_time( 'mysql', true ),
+                        ),
+                        array( '%d', '%s', '%s', '%s', '%s' )
+                    );
+                } catch ( \Throwable $retry_e ) {
+                    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                        error_log( 'Buyruz Change Log Table Auto-Creation Retry Failed: ' . $retry_e->getMessage() );
+                    }
+                }
+            } else {
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    error_log( 'Buyruz Change Log Insert Exception: ' . $e->getMessage() );
+                }
+            }
+        }
     }
 
     /**

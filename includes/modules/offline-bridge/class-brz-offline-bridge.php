@@ -1240,36 +1240,42 @@ class BRZ_Offline_Bridge {
      * @param \WC_Product $product The product being saved.
      */
     public static function capture_old_values( $product ) {
-        if ( self::$skip_hook_logging ) {
-            return;
-        }
-        if ( ! $product instanceof \WC_Product ) {
-            return;
-        }
-        $id = $product->get_id();
-        if ( ! $id ) {
-            return;
-        }
-        $date_from = $product->get_date_on_sale_from( 'edit' );
-        $date_to   = $product->get_date_on_sale_to( 'edit' );
+        try {
+            if ( self::$skip_hook_logging ) {
+                return;
+            }
+            if ( ! $product instanceof \WC_Product ) {
+                return;
+            }
+            $id = $product->get_id();
+            if ( ! $id ) {
+                return;
+            }
+            $date_from = $product->get_date_on_sale_from( 'edit' );
+            $date_to   = $product->get_date_on_sale_to( 'edit' );
 
-        self::$old_values[ $id ] = array(
-            'name'              => $product->get_name( 'edit' ),
-            'slug'              => $product->get_slug( 'edit' ),
-            'status'            => $product->get_status( 'edit' ),
-            'regular_price'     => $product->get_regular_price( 'edit' ),
-            'sale_price'        => $product->get_sale_price( 'edit' ),
-            'date_on_sale_from' => $date_from ? $date_from->date( 'Y-m-d H:i:s' ) : '',
-            'date_on_sale_to'   => $date_to ? $date_to->date( 'Y-m-d H:i:s' ) : '',
-            'manage_stock'      => $product->get_manage_stock( 'edit' ) ? 'yes' : 'no',
-            'stock_quantity'    => $product->get_stock_quantity( 'edit' ),
-            'stock_status'      => $product->get_stock_status( 'edit' ),
-            'sku'               => $product->get_sku( 'edit' ),
-            'weight'            => $product->get_weight( 'edit' ),
-            'length'            => $product->get_length( 'edit' ),
-            'width'             => $product->get_width( 'edit' ),
-            'height'            => $product->get_height( 'edit' ),
-        );
+            self::$old_values[ $id ] = array(
+                'name'              => $product->get_name( 'edit' ),
+                'slug'              => $product->get_slug( 'edit' ),
+                'status'            => $product->get_status( 'edit' ),
+                'regular_price'     => $product->get_regular_price( 'edit' ),
+                'sale_price'        => $product->get_sale_price( 'edit' ),
+                'date_on_sale_from' => $date_from ? $date_from->date( 'Y-m-d H:i:s' ) : '',
+                'date_on_sale_to'   => $date_to ? $date_to->date( 'Y-m-d H:i:s' ) : '',
+                'manage_stock'      => $product->get_manage_stock( 'edit' ) ? 'yes' : 'no',
+                'stock_quantity'    => $product->get_stock_quantity( 'edit' ),
+                'stock_status'      => $product->get_stock_status( 'edit' ),
+                'sku'               => $product->get_sku( 'edit' ),
+                'weight'            => $product->get_weight( 'edit' ),
+                'length'            => $product->get_length( 'edit' ),
+                'width'             => $product->get_width( 'edit' ),
+                'height'            => $product->get_height( 'edit' ),
+            );
+        } catch ( \Throwable $e ) {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( 'Buyruz capture_old_values exception: ' . $e->getMessage() );
+            }
+        }
     }
 
     /**
@@ -1278,54 +1284,60 @@ class BRZ_Offline_Bridge {
      * @param \WC_Product $product The product that was saved.
      */
     public static function on_product_save( $product ) {
-        if ( self::$skip_hook_logging ) {
-            return;
-        }
-        if ( ! $product instanceof \WC_Product ) {
-            return;
-        }
-        $id = $product->get_id();
-        if ( ! $id || ! isset( self::$old_values[ $id ] ) ) {
-            return;
-        }
+        try {
+            if ( self::$skip_hook_logging ) {
+                return;
+            }
+            if ( ! $product instanceof \WC_Product ) {
+                return;
+            }
+            $id = $product->get_id();
+            if ( ! $id || ! isset( self::$old_values[ $id ] ) ) {
+                return;
+            }
 
-        // Detect source
-        if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
-            $source = BRZ_Change_Log::SOURCE_API;
-        } else {
-            $source = BRZ_Change_Log::SOURCE_ADMIN;
-        }
+            // Detect source
+            if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+                $source = BRZ_Change_Log::SOURCE_API;
+            } else {
+                $source = BRZ_Change_Log::SOURCE_ADMIN;
+            }
 
-        $old = self::$old_values[ $id ];
-        $date_from = $product->get_date_on_sale_from( 'edit' );
-        $date_to   = $product->get_date_on_sale_to( 'edit' );
+            $old = self::$old_values[ $id ];
+            $date_from = $product->get_date_on_sale_from( 'edit' );
+            $date_to   = $product->get_date_on_sale_to( 'edit' );
 
-        $new_values = array(
-            'name'              => $product->get_name( 'edit' ),
-            'slug'              => $product->get_slug( 'edit' ),
-            'status'            => $product->get_status( 'edit' ),
-            'regular_price'     => $product->get_regular_price( 'edit' ),
-            'sale_price'        => $product->get_sale_price( 'edit' ),
-            'date_on_sale_from' => $date_from ? $date_from->date( 'Y-m-d H:i:s' ) : '',
-            'date_on_sale_to'   => $date_to ? $date_to->date( 'Y-m-d H:i:s' ) : '',
-            'manage_stock'      => $product->get_manage_stock( 'edit' ) ? 'yes' : 'no',
-            'stock_quantity'    => $product->get_stock_quantity( 'edit' ),
-            'stock_status'      => $product->get_stock_status( 'edit' ),
-            'sku'               => $product->get_sku( 'edit' ),
-            'weight'            => $product->get_weight( 'edit' ),
-            'length'            => $product->get_length( 'edit' ),
-            'width'             => $product->get_width( 'edit' ),
-            'height'             => $product->get_height( 'edit' ),
-        );
+            $new_values = array(
+                'name'              => $product->get_name( 'edit' ),
+                'slug'              => $product->get_slug( 'edit' ),
+                'status'            => $product->get_status( 'edit' ),
+                'regular_price'     => $product->get_regular_price( 'edit' ),
+                'sale_price'        => $product->get_sale_price( 'edit' ),
+                'date_on_sale_from' => $date_from ? $date_from->date( 'Y-m-d H:i:s' ) : '',
+                'date_on_sale_to'   => $date_to ? $date_to->date( 'Y-m-d H:i:s' ) : '',
+                'manage_stock'      => $product->get_manage_stock( 'edit' ) ? 'yes' : 'no',
+                'stock_quantity'    => $product->get_stock_quantity( 'edit' ),
+                'stock_status'      => $product->get_stock_status( 'edit' ),
+                'sku'               => $product->get_sku( 'edit' ),
+                'weight'            => $product->get_weight( 'edit' ),
+                'length'            => $product->get_length( 'edit' ),
+                'width'             => $product->get_width( 'edit' ),
+                'height'            => $product->get_height( 'edit' ),
+            );
 
-        foreach ( $new_values as $field => $new_val ) {
-            $old_val = isset( $old[ $field ] ) ? $old[ $field ] : null;
-            if ( (string) $old_val !== (string) $new_val ) {
-                BRZ_Change_Log::insert( $id, $field, $new_val, $source );
+            foreach ( $new_values as $field => $new_val ) {
+                $old_val = isset( $old[ $field ] ) ? $old[ $field ] : null;
+                if ( (string) $old_val !== (string) $new_val ) {
+                    BRZ_Change_Log::insert( $id, $field, $new_val, $source );
+                }
+            }
+
+            unset( self::$old_values[ $id ] );
+        } catch ( \Throwable $e ) {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( 'Buyruz on_product_save exception: ' . $e->getMessage() );
             }
         }
-
-        unset( self::$old_values[ $id ] );
     }
 
     /**
