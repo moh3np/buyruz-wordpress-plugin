@@ -3,7 +3,7 @@
  * Plugin Name: تنظیمات بایروز
  * Plugin URI: https://github.com/Codruz/buyruz-plugin.git
  * Description: تنظیمات بایروز، مرکز مدیریت و هماهنگ‌سازی قابلیت‌ها و تنظیمات اختصاصی بایروز در سایت شماست. از این صفحه می‌توانید رفتار افزونه‌های بایروز را یکپارچه کنترل کنید.
- * Version: 5.16.12
+ * Version: 5.16.13
  * Author: کُدروز
  * Author URI: https://codruz.ir
  * License: Proprietary
@@ -13,7 +13,7 @@
  */
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
-// هشدار: پیش از هر تغییر، حتماً فایل CONTRIBUTING.md را با دقت کامل بخوانید و بی‌قید و شرط اجرا کنید و پس از اتمام کار تطابق را دوباره چک کنید.
+// هشدار: پیش از هر تغییر، حتماً فایل CONTRIBUTING.md را با دقت کامل بخوانید و بی‌قید و شرط اجرا کنید و پس از اتمام کار تطابق را دوباره چک کنید؛ این جمله باید در تمام فایل‌ها (جدید و موجود) بدون استثنا افزوده و حفظ شود.
 
 $plugin_header = get_file_data(
     __FILE__,
@@ -25,6 +25,36 @@ define( 'BRZ_VERSION', isset( $plugin_header['Version'] ) ? $plugin_header['Vers
 define( 'BRZ_PATH', plugin_dir_path( __FILE__ ) );
 define( 'BRZ_URL', plugin_dir_url( __FILE__ ) );
 define( 'BRZ_OPTION', 'brz_options' );
+
+// عیب‌یابی تشخیصی موقت برای شناسایی منبع خطاهای ذخیره‌سازی محصول در سرور اصلی
+register_shutdown_function( function() {
+    $error = error_get_last();
+    if ( $error && in_array( $error['type'], array( E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR ) ) ) {
+        $log_file = WP_CONTENT_DIR . '/uploads/buyruz-debug.log';
+        $message = sprintf(
+            "[%s] FATAL ERROR: %s in %s on line %d\n",
+            date( 'Y-m-d H:i:s' ),
+            $error['message'],
+            $error['file'],
+            $error['line']
+        );
+        @file_put_contents( $log_file, $message, FILE_APPEND );
+    }
+} );
+
+add_filter( 'wp_redirect', function( $location, $status ) {
+    $log_file = WP_CONTENT_DIR . '/uploads/buyruz-debug.log';
+    $backtrace = wp_debug_backtrace_summary( null, 0, false );
+    $message = sprintf(
+        "[%s] WP_REDIRECT: To '%s' (Status: %d). Call stack: %s\n",
+        date( 'Y-m-d H:i:s' ),
+        $location,
+        $status,
+        $backtrace
+    );
+    @file_put_contents( $log_file, $message, FILE_APPEND );
+    return $location;
+}, 999, 2 );
 
 require_once BRZ_PATH . 'includes/autoload.php';
 BRZ_Plugin::init();
