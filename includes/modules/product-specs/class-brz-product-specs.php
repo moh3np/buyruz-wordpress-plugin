@@ -1395,6 +1395,7 @@ class BRZ_Product_Specs {
                                                         <option value="decimal" <?php selected( $f['type'], 'decimal' ); ?>>عدد اعشاری (Decimal)</option>
                                                         <option value="range" <?php selected( $f['type'], 'range' ); ?>>بازه عددی (کمینه/بیشینه)</option>
                                                         <option value="array" <?php selected( $f['type'], 'array' ); ?>>آرایه انتخابی (چند گزینه‌ای)</option>
+                                                        <option value="text" <?php selected( $f['type'], 'text' ); ?>>متن ساده (Text)</option>
                                                     </select>
                                                 </td>
                                                 <?php $is_range = ( $f['type'] === 'range' ); ?>
@@ -1891,6 +1892,7 @@ class BRZ_Product_Specs {
                             '<option value="decimal">عدد اعشاری (Decimal)</option>' +
                             '<option value="range">بازه عددی (کمینه/بیشینه)</option>' +
                             '<option value="array">آرایه انتخابی (چند گزینه‌ای)</option>' +
+                            '<option value="text">متن ساده (Text)</option>' +
                         '</select></td>' +
                         '<td><input type="text" class="brz-spec-prefix" placeholder="پیشوند" /></td>' +
                         '<td><input type="text" class="brz-spec-suffix" placeholder="پسوند" /></td>' +
@@ -2018,7 +2020,7 @@ class BRZ_Product_Specs {
             }
             $existing_keys[] = $key;
 
-            $allowed_types = array( 'boolean', 'integer', 'decimal', 'range', 'array' );
+            $allowed_types = array( 'boolean', 'integer', 'decimal', 'range', 'array', 'string', 'text' );
             $type          = isset( $raw['type'] ) ? sanitize_key( $raw['type'] ) : 'boolean';
             if ( ! in_array( $type, $allowed_types, true ) ) {
                 $type = 'boolean';
