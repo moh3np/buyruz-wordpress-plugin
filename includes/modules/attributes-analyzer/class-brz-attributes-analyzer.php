@@ -37,7 +37,7 @@ class BRZ_Attributes_Analyzer {
             'published_only'     => true,
             'missing_specs_only' => true,
             'include_products'   => true,
-            'originality_filter' => 'all',
+            'include_attributes' => true,
         ) );
     }
 
@@ -55,11 +55,7 @@ class BRZ_Attributes_Analyzer {
         $published_only     = isset( $_POST['published_only'] ) ? absint( $_POST['published_only'] ) : 0;
         $missing_specs_only = isset( $_POST['missing_specs_only'] ) ? absint( $_POST['missing_specs_only'] ) : 0;
         $include_products   = isset( $_POST['include_products'] ) ? absint( $_POST['include_products'] ) : 0;
-        $originality_filter = isset( $_POST['originality_filter'] ) ? sanitize_text_field( $_POST['originality_filter'] ) : 'all';
-
-        if ( ! in_array( $originality_filter, array( 'all', 'original', 'non_original' ), true ) ) {
-            $originality_filter = 'all';
-        }
+        $include_attributes = isset( $_POST['include_attributes'] ) ? absint( $_POST['include_attributes'] ) : 0;
 
         $opts = get_option( BRZ_OPTION, array() );
         if ( ! is_array( $opts ) ) {
@@ -69,7 +65,7 @@ class BRZ_Attributes_Analyzer {
             'published_only'     => (bool) $published_only,
             'missing_specs_only' => (bool) $missing_specs_only,
             'include_products'   => (bool) $include_products,
-            'originality_filter' => $originality_filter,
+            'include_attributes' => (bool) $include_attributes,
         );
         update_option( BRZ_OPTION, $opts, false );
 
@@ -141,84 +137,6 @@ class BRZ_Attributes_Analyzer {
         );
     }
 
-    /**
-     * Get the detected taxonomy for product originality.
-     *
-     * @return string
-     */
-    public static function get_detected_originality_taxonomy(): string {
-        $taxonomies = get_taxonomies();
-        foreach ( $taxonomies as $tax ) {
-            if ( false !== strpos( $tax, 'originality' ) || false !== strpos( $tax, 'اصالت' ) ) {
-                return $tax;
-            }
-        }
-        return 'pa_originality';
-    }
-
-    /**
-     * Get the detected meta key for product originality.
-     *
-     * @return string
-     */
-    public static function get_detected_originality_meta_key(): string {
-        return '_originality';
-    }
-
-    /**
-     * Get taxonomy term taxonomy IDs for original and non-original products.
-     *
-     * @return array
-     */
-    public static function get_originality_term_taxonomy_ids(): array {
-        global $wpdb;
-        $taxonomy = self::get_detected_originality_taxonomy();
-        if ( ! taxonomy_exists( $taxonomy ) ) {
-            return array( 'original' => array(), 'non_original' => array() );
-        }
-
-        $terms = get_terms( array(
-            'taxonomy'   => $taxonomy,
-            'hide_empty' => false,
-        ) );
-
-        if ( is_wp_error( $terms ) || empty( $terms ) ) {
-            return array( 'original' => array(), 'non_original' => array() );
-        }
-
-        $original_ids = array();
-        $non_original_ids = array();
-
-        foreach ( $terms as $term ) {
-            $slug = strtolower( $term->slug );
-            $name = strtolower( $term->name );
-
-            $is_non = (
-                false !== strpos( $slug, 'fake' ) ||
-                false !== strpos( $slug, 'copy' ) ||
-                false !== strpos( $slug, 'non-original' ) ||
-                false !== strpos( $slug, 'clone' ) ||
-                false !== strpos( $slug, 'high-copy' ) ||
-                false !== strpos( $slug, 'طرح' ) ||
-                false !== strpos( $name, 'کپی' ) ||
-                false !== strpos( $name, 'غیر اصل' ) ||
-                false !== strpos( $name, 'غیراصل' ) ||
-                false !== strpos( $name, 'های کپی' ) ||
-                false !== strpos( $name, 'های‌کپی' )
-            );
-
-            if ( $is_non ) {
-                $non_original_ids[] = (int) $term->term_taxonomy_id;
-            } else {
-                $original_ids[] = (int) $term->term_taxonomy_id;
-            }
-        }
-
-        return array(
-            'original'     => $original_ids,
-            'non_original' => $non_original_ids,
-        );
-    }
 
     /**
      * REST endpoint callback.
@@ -244,56 +162,19 @@ class BRZ_Attributes_Analyzer {
         $published_only     = ! empty( $analyzer_settings['published_only'] );
         $missing_specs_only = ! empty( $analyzer_settings['missing_specs_only'] );
         $include_products   = ! empty( $analyzer_settings['include_products'] );
-        $originality_filter = isset( $analyzer_settings['originality_filter'] ) ? $analyzer_settings['originality_filter'] : 'all';
+        $include_attributes = ! empty( $analyzer_settings['include_attributes'] );
 
         // Build reusable SQL clause for post_status filtering.
         $status_clause = $published_only
             ? "p.post_status = 'publish'"
             : "p.post_status NOT IN ('trash', 'auto-draft')";
 
-        // Append originality filtering to status_clause
-        if ( 'all' !== $originality_filter ) {
-            $term_ids = self::get_originality_term_taxonomy_ids();
-            $non_orig_term_ids = $term_ids['non_original'];
-            $meta_key = self::get_detected_originality_meta_key();
-
-            if ( 'original' === $originality_filter ) {
-                // Exclude non-original terms and meta values
-                $non_orig_term_clause = '';
-                if ( ! empty( $non_orig_term_ids ) ) {
-                    $ids_str = implode( ',', $non_orig_term_ids );
-                    $non_orig_term_clause = "p.ID NOT IN (SELECT object_id FROM {$wpdb->term_relationships} WHERE term_taxonomy_id IN ($ids_str))";
-                }
-                $non_orig_meta_clause = "p.ID NOT IN (SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '$meta_key' AND meta_value IN ('no', '0', 'false', 'fake', 'copy', 'غیر اصل', 'غیراصل', 'طرح', 'کپی', 'high-copy', 'high_copy', 'هاي كپي', 'هاي‌كپي'))";
-
-                if ( $non_orig_term_clause ) {
-                    $status_clause .= " AND $non_orig_term_clause AND $non_orig_meta_clause";
-                } else {
-                    $status_clause .= " AND $non_orig_meta_clause";
-                }
-            } elseif ( 'non_original' === $originality_filter ) {
-                // Include only non-original terms or meta values
-                $non_orig_term_clause = '';
-                if ( ! empty( $non_orig_term_ids ) ) {
-                    $ids_str = implode( ',', $non_orig_term_ids );
-                    $non_orig_term_clause = "p.ID IN (SELECT object_id FROM {$wpdb->term_relationships} WHERE term_taxonomy_id IN ($ids_str))";
-                }
-                $non_orig_meta_clause = "p.ID IN (SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '$meta_key' AND meta_value IN ('no', '0', 'false', 'fake', 'copy', 'غیر اصل', 'غیراصل', 'طرح', 'کپی', 'high-copy', 'high_copy', 'هاي كپي', 'هاي‌كپي'))";
-
-                if ( $non_orig_term_clause ) {
-                    $status_clause .= " AND ($non_orig_term_clause OR $non_orig_meta_clause)";
-                } else {
-                    $status_clause .= " AND $non_orig_meta_clause";
-                }
-            }
-        }
-
         $schema_enabled = array();
         if ( class_exists( 'BRZ_AI_Schema' ) ) {
             $schema_enabled = BRZ_AI_Schema::get_enabled_attributes();
         }
 
-        $attribute_taxonomies = class_exists( 'WooCommerce' ) ? wc_get_attribute_taxonomies() : array();
+        $attribute_taxonomies = ( $include_attributes && class_exists( 'WooCommerce' ) ) ? wc_get_attribute_taxonomies() : array();
         
         $stats = array(
             'metadata' => array(
@@ -319,7 +200,7 @@ class BRZ_Attributes_Analyzer {
                 'filter_published_only'        => $published_only,
                 'filter_missing_specs_only'    => $missing_specs_only,
                 'filter_include_products'      => $include_products,
-                'filter_originality_filter'    => $originality_filter,
+                'filter_include_attributes'    => $include_attributes,
                 'total_global_attributes'      => count( $attribute_taxonomies ),
                 'active_global_attributes'     => 0,
                 'unused_global_attributes'     => 0,
@@ -491,74 +372,75 @@ class BRZ_Attributes_Analyzer {
         }
 
         // 2. Process Custom Local Attributes (defined directly on products metadata)
-        $custom_attrs_query = $wpdb->get_results(
-            "SELECT post_id, meta_value FROM {$wpdb->postmeta} 
-             WHERE meta_key = '_product_attributes' 
-               AND meta_value != '' 
-               AND meta_value != 'a:0:{}'"
-        );
+        $formatted_custom = array();
+        if ( $include_attributes ) {
+            $custom_attrs_query = $wpdb->get_results(
+                "SELECT post_id, meta_value FROM {$wpdb->postmeta} 
+                 WHERE meta_key = '_product_attributes' 
+                   AND meta_value != '' 
+                   AND meta_value != 'a:0:{}'"
+            );
 
-        $custom_attributes_stats = array();
-        foreach ( $custom_attrs_query as $row ) {
-            $meta = maybe_unserialize( $row->meta_value );
-            if ( is_array( $meta ) ) {
-                foreach ( $meta as $key => $attr_data ) {
-                    $is_taxonomy = isset( $attr_data['is_taxonomy'] ) ? $attr_data['is_taxonomy'] : 0;
-                    if ( ! $is_taxonomy ) {
-                        $name  = isset( $attr_data['name'] ) ? $attr_data['name'] : $key;
-                        $value = isset( $attr_data['value'] ) ? $attr_data['value'] : '';
-                        
-                        if ( ! isset( $custom_attributes_stats[ $name ] ) ) {
-                            $custom_attributes_stats[ $name ] = array(
-                                'name'            => $name,
-                                'usage_count'     => 0,
-                                'values'          => array(),
-                                'sample_products' => array(),
-                            );
-                        }
-
-                        $custom_attributes_stats[ $name ]['usage_count']++;
-                        
-                        $val_parts = array_map( 'trim', explode( '|', $value ) );
-                        foreach ( $val_parts as $part ) {
-                            if ( ! empty( $part ) ) {
-                                if ( ! isset( $custom_attributes_stats[ $name ]['values'][ $part ] ) ) {
-                                    $custom_attributes_stats[ $name ]['values'][ $part ] = 0;
-                                }
-                                $custom_attributes_stats[ $name ]['values'][ $part ]++;
+            $custom_attributes_stats = array();
+            foreach ( $custom_attrs_query as $row ) {
+                $meta = maybe_unserialize( $row->meta_value );
+                if ( is_array( $meta ) ) {
+                    foreach ( $meta as $key => $attr_data ) {
+                        $is_taxonomy = isset( $attr_data['is_taxonomy'] ) ? $attr_data['is_taxonomy'] : 0;
+                        if ( ! $is_taxonomy ) {
+                            $name  = isset( $attr_data['name'] ) ? $attr_data['name'] : $key;
+                            $value = isset( $attr_data['value'] ) ? $attr_data['value'] : '';
+                            
+                            if ( ! isset( $custom_attributes_stats[ $name ] ) ) {
+                                $custom_attributes_stats[ $name ] = array(
+                                    'name'            => $name,
+                                    'usage_count'     => 0,
+                                    'values'          => array(),
+                                    'sample_products' => array(),
+                                );
                             }
-                        }
 
-                        if ( $include_products && count( $custom_attributes_stats[ $name ]['sample_products'] ) < 5 ) {
-                            $custom_attributes_stats[ $name ]['sample_products'][] = array(
-                                'id'    => (int) $row->post_id,
-                                'title' => get_the_title( $row->post_id ),
-                            );
+                            $custom_attributes_stats[ $name ]['usage_count']++;
+                            
+                            $val_parts = array_map( 'trim', explode( '|', $value ) );
+                            foreach ( $val_parts as $part ) {
+                                if ( ! empty( $part ) ) {
+                                    if ( ! isset( $custom_attributes_stats[ $name ]['values'][ $part ] ) ) {
+                                        $custom_attributes_stats[ $name ]['values'][ $part ] = 0;
+                                    }
+                                    $custom_attributes_stats[ $name ]['values'][ $part ]++;
+                                }
+                            }
+
+                            if ( $include_products && count( $custom_attributes_stats[ $name ]['sample_products'] ) < 5 ) {
+                                $custom_attributes_stats[ $name ]['sample_products'][] = array(
+                                    'id'    => (int) $row->post_id,
+                                    'title' => get_the_title( $row->post_id ),
+                                );
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Format custom attributes stats into list
-        $formatted_custom = array();
-        foreach ( $custom_attributes_stats as $name => $data ) {
-            arsort( $data['values'] );
-            
-            $formatted_custom[] = array(
-                'name'                => $data['name'],
-                'usage_count'         => $data['usage_count'],
-                'unique_values_count' => count( $data['values'] ),
-                'top_values'          => array_slice( $data['values'], 0, 10, true ),
-                'sample_products'     => $data['sample_products'],
-            );
+            foreach ( $custom_attributes_stats as $name => $data ) {
+                arsort( $data['values'] );
+                
+                $formatted_custom[] = array(
+                    'name'                => $data['name'],
+                    'usage_count'         => $data['usage_count'],
+                    'unique_values_count' => count( $data['values'] ),
+                    'top_values'          => array_slice( $data['values'], 0, 10, true ),
+                    'sample_products'     => $data['sample_products'],
+                );
+            }
         }
 
         $stats['custom_local_attributes']                 = $formatted_custom;
         $stats['summary']['total_custom_local_attributes'] = count( $formatted_custom );
 
         // 3. Process Buyruz Custom Product Specs (Dynamic Meta fields)
-        if ( class_exists( 'BRZ_Product_Specs' ) ) {
+        if ( $include_attributes && class_exists( 'BRZ_Product_Specs' ) ) {
             $spec_fields = BRZ_Product_Specs::get_fields();
             $stats['summary']['total_buyruz_product_specs'] = count( $spec_fields );
 
@@ -1067,14 +949,13 @@ class BRZ_Attributes_Analyzer {
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row">فیلتر اصالت محصولات</th>
+                        <th scope="row">شامل شدن ویژگی‌های محصولات</th>
                         <td>
-                            <select id="brz-analyzer-originality-filter" style="min-width: 250px;">
-                                <option value="all" <?php selected( $a_settings['originality_filter'], 'all' ); ?>>همه محصولات (بدون فیلتر اصالت)</option>
-                                <option value="original" <?php selected( $a_settings['originality_filter'], 'original' ); ?>>فقط محصولات اصل (اورجینال)</option>
-                                <option value="non_original" <?php selected( $a_settings['originality_filter'], 'non_original' ); ?>>فقط محصولات غیر اصل (طرح/کپی/فیک)</option>
-                            </select>
-                            <p class="description">بر اساس فیلدهای اصالت ثبت شده در متادیتا یا تاکسونومی‌های ووکامرس.</p>
+                            <label>
+                                <input type="checkbox" id="brz-analyzer-include-attributes" <?php checked( $a_settings['include_attributes'] ); ?> />
+                                آنالیز ویژگی‌ها و مشخصات محصولات در گزارش گنجانده شود
+                            </label>
+                            <p class="description">در صورت غیرفعال بودن، آنالیز تفصیلی ویژگی‌های سراسری، ویژگی‌های محلی و مشخصات فنی بایروز از گزارش حذف گردیده و حجم گزارش بهینه می‌شود.</p>
                         </td>
                     </tr>
                 </table>
@@ -1086,7 +967,7 @@ class BRZ_Attributes_Analyzer {
                     </div>
                     <div>
                         <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=' . self::DOWNLOAD_ACTION ), self::DOWNLOAD_ACTION ) ); ?>" class="button button-secondary button-large" style="background: #1a73e8; color: #fff; border-color: #1a73e8; font-weight: bold; padding: 0 20px; height: 40px; line-height: 38px;">
-                            📥 دانلود گزارش JSON (با فیلترهای فوق)
+                            📥 دانلود گزارش JSON (با تنظیمات فوق)
                         </a>
                     </div>
                 </div>
@@ -1105,7 +986,7 @@ class BRZ_Attributes_Analyzer {
                     data.append('published_only', document.getElementById('brz-analyzer-published-only').checked ? 1 : 0);
                     data.append('missing_specs_only', document.getElementById('brz-analyzer-missing-only').checked ? 1 : 0);
                     data.append('include_products', document.getElementById('brz-analyzer-include-products').checked ? 1 : 0);
-                    data.append('originality_filter', document.getElementById('brz-analyzer-originality-filter').value);
+                    data.append('include_attributes', document.getElementById('brz-analyzer-include-attributes').checked ? 1 : 0);
                     fetch(ajaxurl, {method:'POST', body:data, credentials:'same-origin'})
                         .then(function(r){return r.json();})
                         .then(function(r){
