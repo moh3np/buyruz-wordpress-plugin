@@ -1092,7 +1092,87 @@ class BRZ_Offline_Bridge {
                     }
                     return null;
                 }
-                return "فرمت فیلد meta_data باید آرایه باشد";
+            case 'buyruz_product_specs':
+                if ( is_array( $value ) && class_exists( '\BRZ_Product_Specs' ) ) {
+                    $fields = \BRZ_Product_Specs::get_fields();
+                    foreach ( $fields as $field ) {
+                        $key = $field['key'];
+                        $type = $field['type'];
+                        if ( ! isset( $value[ $key ] ) ) {
+                            continue;
+                        }
+                        $val = $value[ $key ];
+                        
+                        if ( 'range' === $type ) {
+                            $keys = \BRZ_Product_Specs::get_range_meta_keys( $key );
+                            if ( is_array( $val ) ) {
+                                if ( isset( $val['min'] ) ) {
+                                    if ( $val['min'] === null || $val['min'] === '' ) {
+                                        $product->delete_meta_data( $keys[0] );
+                                        if ( 'manual_age' === $key ) {
+                                            $product->delete_meta_data( '_brz_spec_filter_min_age' );
+                                        }
+                                    } else {
+                                        $int_min = intval( $val['min'] );
+                                        $product->update_meta_data( $keys[0], $int_min );
+                                        if ( 'manual_age' === $key ) {
+                                            $product->update_meta_data( '_brz_spec_filter_min_age', $int_min );
+                                        }
+                                    }
+                                }
+                                if ( isset( $val['max'] ) ) {
+                                    if ( $val['max'] === null || $val['max'] === '' ) {
+                                        $product->delete_meta_data( $keys[1] );
+                                        if ( 'manual_age' === $key ) {
+                                            $product->delete_meta_data( '_brz_spec_filter_max_age' );
+                                        }
+                                    } else {
+                                        $int_max = intval( $val['max'] );
+                                        $product->update_meta_data( $keys[1], $int_max );
+                                        if ( 'manual_age' === $key ) {
+                                            $product->update_meta_data( '_brz_spec_filter_max_age', $int_max );
+                                        }
+                                    }
+                                }
+                            }
+                        } elseif ( 'array' === $type ) {
+                            if ( is_array( $val ) && ! empty( $val ) ) {
+                                $product->update_meta_data( '_brz_spec_' . $key, wp_json_encode( array_map( 'sanitize_text_field', $val ) ) );
+                            } else {
+                                $product->delete_meta_data( '_brz_spec_' . $key );
+                            }
+                        } elseif ( 'boolean' === $type ) {
+                            if ( $val === null || $val === '' ) {
+                                $product->delete_meta_data( '_brz_spec_' . $key );
+                            } else {
+                                $product->update_meta_data( '_brz_spec_' . $key, $val ? '1' : '0' );
+                            }
+                        } elseif ( 'integer' === $type ) {
+                            if ( $val === null || $val === '' ) {
+                                $product->delete_meta_data( '_brz_spec_' . $key );
+                            } else {
+                                $product->update_meta_data( '_brz_spec_' . $key, intval( $val ) );
+                            }
+                        } elseif ( 'decimal' === $type ) {
+                            if ( $val === null || $val === '' ) {
+                                $product->delete_meta_data( '_brz_spec_' . $key );
+                            } else {
+                                $product->update_meta_data( '_brz_spec_' . $key, floatval( $val ) );
+                            }
+                        } elseif ( 'string' === $type || 'text' === $type ) {
+                            if ( $val === null || $val === '' ) {
+                                $product->delete_meta_data( '_brz_spec_' . $key );
+                            } else {
+                                $product->update_meta_data( '_brz_spec_' . $key, sanitize_text_field( $val ) );
+                            }
+                        }
+                    }
+                    if ( isset( $value['manual_age'] ) ) {
+                        \BRZ_Product_Specs::recalculate_product_filter_ages( $product->get_id() );
+                    }
+                    return null;
+                }
+                return "فرمت فیلد buyruz_product_specs باید آرایه باشد";
 
             case 'short_name':
                 $product->update_meta_data( 'product_short_name', sanitize_text_field( $value ) );
