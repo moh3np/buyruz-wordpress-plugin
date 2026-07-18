@@ -2979,7 +2979,7 @@ class BRZ_Product_Specs {
         // 4.5. Gather custom taxonomies specified in the layout order but not in standard attributes (e.g. pwb-brand, yith_product_brand)
         if ( ! empty( $layout_order ) ) {
             foreach ( $layout_order as $slug ) {
-                if ( ! isset( $specs_values[ $slug ] ) && taxonomy_exists( $slug ) ) {
+                if ( ! isset( $specs_values[ $slug ] ) && ! isset( $attributes[ $slug ] ) && taxonomy_exists( $slug ) ) {
                     $tax_obj = get_taxonomy( $slug );
                     $label = $tax_obj ? $tax_obj->labels->singular_name : $slug;
                     $norm  = str_replace( array( ' ', '-', '_', '‌' ), '', $label );
