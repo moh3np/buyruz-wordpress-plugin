@@ -39,6 +39,7 @@ class BRZ_Offline_Bridge {
         'images',
         'attributes',
         'meta_data',
+        'buyruz_product_specs',
         'short_name',
         'english_name',
         'description',
@@ -1099,6 +1100,17 @@ class BRZ_Offline_Bridge {
                         $key = $field['key'];
                         $type = $field['type'];
                         if ( ! isset( $value[ $key ] ) ) {
+                            if ( 'range' === $type ) {
+                                $keys = \BRZ_Product_Specs::get_range_meta_keys( $key );
+                                $product->delete_meta_data( $keys[0] );
+                                $product->delete_meta_data( $keys[1] );
+                                if ( 'manual_age' === $key ) {
+                                    $product->delete_meta_data( '_brz_spec_filter_min_age' );
+                                    $product->delete_meta_data( '_brz_spec_filter_max_age' );
+                                }
+                            } else {
+                                $product->delete_meta_data( '_brz_spec_' . $key );
+                            }
                             continue;
                         }
                         $val = $value[ $key ];
