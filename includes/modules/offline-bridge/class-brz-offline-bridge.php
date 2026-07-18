@@ -1099,7 +1099,46 @@ class BRZ_Offline_Bridge {
                     foreach ( $fields as $field ) {
                         $key = $field['key'];
                         $type = $field['type'];
-                        if ( ! isset( $value[ $key ] ) ) {
+
+                        // Resolve parent and sub-keys for combined ranges in JSON
+                        $parent_key = $key;
+                        $sub_key = null;
+                        if ( strpos( $key, 'manual_min_' ) === 0 ) {
+                            $parent_key = 'manual_age';
+                            $sub_key = 'min';
+                        } elseif ( strpos( $key, 'manual_max_' ) === 0 ) {
+                            $parent_key = 'manual_age';
+                            $sub_key = 'max';
+                        } elseif ( strpos( $key, 'min_' ) === 0 ) {
+                            $parent_key = substr( $key, 4 );
+                            $sub_key = 'min';
+                        } elseif ( strpos( $key, 'max_' ) === 0 ) {
+                            $parent_key = substr( $key, 4 );
+                            $sub_key = 'max';
+                        } elseif ( substr( $key, -4 ) === '_min' ) {
+                            $parent_key = substr( $key, 0, -4 );
+                            $sub_key = 'min';
+                        } elseif ( substr( $key, -4 ) === '_max' ) {
+                            $parent_key = substr( $key, 0, -4 );
+                            $sub_key = 'max';
+                        }
+
+                        $has_val = false;
+                        $val = null;
+
+                        if ( $sub_key !== null ) {
+                            if ( isset( $value[ $parent_key ] ) && is_array( $value[ $parent_key ] ) && isset( $value[ $parent_key ][ $sub_key ] ) ) {
+                                $val = $value[ $parent_key ][ $sub_key ];
+                                $has_val = true;
+                            }
+                        } else {
+                            if ( isset( $value[ $parent_key ] ) ) {
+                                $val = $value[ $parent_key ];
+                                $has_val = true;
+                            }
+                        }
+
+                        if ( ! $has_val ) {
                             if ( 'range' === $type ) {
                                 $keys = \BRZ_Product_Specs::get_range_meta_keys( $key );
                                 $product->delete_meta_data( $keys[0] );
@@ -1113,8 +1152,7 @@ class BRZ_Offline_Bridge {
                             }
                             continue;
                         }
-                        $val = $value[ $key ];
-                        
+
                         if ( 'range' === $type ) {
                             $keys = \BRZ_Product_Specs::get_range_meta_keys( $key );
                             if ( is_array( $val ) ) {
@@ -1179,7 +1217,7 @@ class BRZ_Offline_Bridge {
                             }
                         }
                     }
-                    if ( isset( $value['manual_age'] ) ) {
+                    if ( isset( $value['manual_age'] ) || isset( $value['manual_min_age'] ) ) {
                         \BRZ_Product_Specs::recalculate_product_filter_ages( $product->get_id() );
                     }
                     return null;
