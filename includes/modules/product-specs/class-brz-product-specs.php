@@ -2220,7 +2220,14 @@ class BRZ_Product_Specs {
                 if ( $val === '' ) {
                     continue;
                 }
-                $value_html = $prefix . self::to_persian_digits( sanitize_text_field( $val ) ) . $suffix;
+                $val_clean = sanitize_text_field( $val );
+                if ( strpos( $val_clean, '،' ) !== false || strpos( $val_clean, ',' ) !== false ) {
+                    $parts = preg_split( '/[،,]+/u', $val_clean );
+                    $parts = array_map( 'trim', $parts );
+                    $parts = array_filter( $parts );
+                    $val_clean = implode( '<br>', $parts );
+                }
+                $value_html = $prefix . self::to_persian_digits( $val_clean ) . $suffix;
             }
 
             if ( ! empty( $value_html ) ) {
@@ -2753,7 +2760,14 @@ class BRZ_Product_Specs {
                     if ( ! empty( $suffix_display ) && ! in_array( substr( $suffix_display, 0, 1 ), array( ' ', '؛', ';', '<' ), true ) ) {
                         $suffix_display = ' ' . $suffix_display;
                     }
-                    $value_html = $prefix . self::to_persian_digits( sanitize_text_field( $val ) ) . $suffix_display;
+                    $val_clean = sanitize_text_field( $val );
+                    if ( strpos( $val_clean, '،' ) !== false || strpos( $val_clean, ',' ) !== false ) {
+                        $parts = preg_split( '/[،,]+/u', $val_clean );
+                        $parts = array_map( 'trim', $parts );
+                        $parts = array_filter( $parts );
+                        $val_clean = implode( '<br>', $parts );
+                    }
+                    $value_html = $prefix . self::to_persian_digits( $val_clean ) . $suffix_display;
                 }
 
                 if ( ! empty( $value_html ) ) {
