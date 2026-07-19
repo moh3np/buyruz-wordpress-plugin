@@ -2208,7 +2208,7 @@ class BRZ_Product_Specs {
                 }
                 
                 $persian_values = array_map( array( __CLASS__, 'to_persian_digits' ), $decoded );
-                $value_html     = $prefix . implode( '، ', $persian_values ) . $suffix;
+                $value_html     = $prefix . implode( '<br>', $persian_values ) . $suffix;
             } elseif ( 'integer' === $type || 'decimal' === $type ) {
                 $val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
                 if ( $val === '' ) {
@@ -2733,7 +2733,7 @@ class BRZ_Product_Specs {
                     if ( ! empty( $suffix_display ) && ! in_array( substr( $suffix_display, 0, 1 ), array( ' ', '؛', ';', '<' ), true ) ) {
                         $suffix_display = ' ' . $suffix_display;
                     }
-                    $value_html     = $prefix . implode( '، ', $persian_values ) . $suffix_display;
+                    $value_html     = $prefix . implode( '<br>', $persian_values ) . $suffix_display;
                 } elseif ( 'integer' === $type || 'decimal' === $type ) {
                     $val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
                     if ( $val === '' ) {
@@ -2799,7 +2799,7 @@ class BRZ_Product_Specs {
                         $formatted_values[] = esc_html( $val );
                     }
                 }
-                $value_html = implode( '، ', $formatted_values );
+                $value_html = implode( '<br>', $formatted_values );
 
                 $value_html = trim( $value_html );
                 if ( $value_html === '' ) {
@@ -2993,7 +2993,7 @@ class BRZ_Product_Specs {
                         
                         $specs_values[ $slug ] = array(
                             'label' => $label,
-                            'value' => implode( '، ', $term_names )
+                            'value' => implode( '<br>', $term_names )
                         );
                         $normalized_labels[ $norm ] = $slug;
                     }
