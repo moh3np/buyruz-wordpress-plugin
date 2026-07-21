@@ -306,10 +306,14 @@ class BRZ_Compare_Table_Admin {
             $columns_count = 1;
         }
 
-        $rows_raw = isset( $meta['rows'] ) && is_array( $meta['rows'] ) ? $meta['rows'] : array();
-        $rows     = array();
+        $rows_raw        = isset( $meta['rows'] ) && is_array( $meta['rows'] ) ? $meta['rows'] : array();
+        $links_raw       = isset( $meta['links'] ) && is_array( $meta['links'] ) ? $meta['links'] : array();
+        $product_ids_raw = isset( $meta['product_ids'] ) && is_array( $meta['product_ids'] ) ? $meta['product_ids'] : array();
+        $rows            = array();
+        $links           = array();
+
         if ( ! empty( $rows_raw ) ) {
-            foreach ( $rows_raw as $row ) {
+            foreach ( $rows_raw as $r_i => $row ) {
                 if ( ! is_array( $row ) ) {
                     continue;
                 }
@@ -318,18 +322,28 @@ class BRZ_Compare_Table_Admin {
                     $clean_row[] = isset( $row[ $i ] ) ? sanitize_text_field( self::normalize_cell( $row[ $i ] ) ) : '';
                 }
                 $rows[] = $clean_row;
+
+                if ( ! empty( $product_ids_raw[ $r_i ] ) ) {
+                    $links[] = (string) $product_ids_raw[ $r_i ];
+                } elseif ( ! empty( $links_raw[ $r_i ] ) ) {
+                    $links[] = (string) $links_raw[ $r_i ];
+                } else {
+                    $links[] = '';
+                }
             }
         }
 
         // حداقل یک ردیف بدنه برای شروع ویرایش
         if ( empty( $rows ) ) {
-            $rows[] = array_fill( 0, $columns_count, '' );
+            $rows[]  = array_fill( 0, $columns_count, '' );
+            $links[] = '';
         }
 
         return array(
             'title'    => isset( $meta['title'] ) ? sanitize_text_field( $meta['title'] ) : '',
             'columns'  => $columns,
             'rows'     => $rows,
+            'links'    => $links,
             'table_id' => $table_id,
         );
     }
@@ -339,18 +353,21 @@ class BRZ_Compare_Table_Admin {
 
         $columns = isset( $_POST['brz_compare_columns'] ) ? (array) wp_unslash( $_POST['brz_compare_columns'] ) : array(); // phpcs:ignore WordPress.Security.NonceVerification.Missing
         $rows    = isset( $_POST['brz_compare_rows'] ) ? (array) wp_unslash( $_POST['brz_compare_rows'] ) : array(); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        $links   = isset( $_POST['brz_compare_links'] ) ? (array) wp_unslash( $_POST['brz_compare_links'] ) : array(); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 
         return array(
             'title'   => $title,
             'columns' => $columns,
             'rows'    => $rows,
+            'links'   => $links,
         );
     }
 
     private static function sanitize_payload( array $raw ) {
-        $title  = isset( $raw['title'] ) ? sanitize_text_field( $raw['title'] ) : '';
-        $cols   = isset( $raw['columns'] ) && is_array( $raw['columns'] ) ? $raw['columns'] : array();
-        $rows   = isset( $raw['rows'] ) && is_array( $raw['rows'] ) ? $raw['rows'] : array();
+        $title     = isset( $raw['title'] ) ? sanitize_text_field( $raw['title'] ) : '';
+        $cols      = isset( $raw['columns'] ) && is_array( $raw['columns'] ) ? $raw['columns'] : array();
+        $rows      = isset( $raw['rows'] ) && is_array( $raw['rows'] ) ? $raw['rows'] : array();
+        $raw_links = isset( $raw['links'] ) && is_array( $raw['links'] ) ? $raw['links'] : array();
 
         $clean_columns = array();
         foreach ( $cols as $col ) {
@@ -366,17 +383,40 @@ class BRZ_Compare_Table_Admin {
         $column_count = min( max( max( count( $clean_columns ), $max_row_width ), self::MIN_COLUMNS ), self::MAX_COLUMNS );
         $clean_columns = array_slice( array_pad( $clean_columns, $column_count, '' ), 0, self::MAX_COLUMNS );
 
-        $clean_rows = array();
-        foreach ( $rows as $row ) {
+        $clean_rows        = array();
+        $clean_links       = array();
+        $clean_product_ids = array();
+
+        foreach ( $rows as $i => $row ) {
             if ( ! is_array( $row ) ) {
                 continue;
             }
             $clean_row = array();
-            for ( $i = 0; $i < $column_count; $i++ ) {
-                $cell = isset( $row[ $i ] ) ? $row[ $i ] : '';
+            for ( $c = 0; $c < $column_count; $c++ ) {
+                $cell = isset( $row[ $c ] ) ? $row[ $c ] : '';
                 $clean_row[] = sanitize_text_field( self::normalize_cell( $cell ) );
             }
             $clean_rows[] = $clean_row;
+
+            $link_val = isset( $raw_links[ $i ] ) ? trim( sanitize_text_field( self::normalize_cell( $raw_links[ $i ] ) ) ) : '';
+            $pid = 0;
+            $url = '';
+
+            if ( ! empty( $link_val ) ) {
+                if ( is_numeric( $link_val ) ) {
+                    $pid = absint( $link_val );
+                    $url = get_permalink( $pid ) ?: '';
+                } else {
+                    $url = esc_url_raw( $link_val );
+                    $resolved_id = url_to_postid( $url );
+                    if ( $resolved_id && 'product' === get_post_type( $resolved_id ) ) {
+                        $pid = $resolved_id;
+                    }
+                }
+            }
+
+            $clean_links[]       = $url;
+            $clean_product_ids[] = $pid;
         }
 
         if ( empty( $clean_rows ) ) {
@@ -384,9 +424,11 @@ class BRZ_Compare_Table_Admin {
         }
 
         return array(
-            'title'   => $title,
-            'columns' => $clean_columns,
-            'rows'    => $clean_rows,
+            'title'       => $title,
+            'columns'     => $clean_columns,
+            'rows'        => $clean_rows,
+            'links'       => $clean_links,
+            'product_ids' => $clean_product_ids,
         );
     }
 
@@ -577,11 +619,15 @@ class BRZ_Compare_Table_Admin {
                         </thead>
                         <tbody>
                             <?php foreach ( $data['rows'] as $r_index => $row ) : ?>
+                                <?php $row_link = isset( $data['links'][ $r_index ] ) ? $data['links'][ $r_index ] : ''; ?>
                                 <tr class="brz-compare-row" data-row="<?php echo esc_attr( $r_index ); ?>">
                                     <td class="brz-compare-row-actions-cell">
                                         <div class="brz-compare-row-actions">
                                             <button type="button" class="brz-compare-btn brz-compare-btn--success" data-add-row="<?php echo esc_attr( $r_index ); ?>" aria-label="افزودن ردیف">+</button>
                                             <button type="button" class="brz-compare-btn brz-compare-btn--danger" data-remove-row="<?php echo esc_attr( $r_index ); ?>" aria-label="حذف ردیف">&minus;</button>
+                                        </div>
+                                        <div class="brz-compare-row-link-wrapper">
+                                            <input type="text" name="brz_compare_links[<?php echo esc_attr( $r_index ); ?>]" value="<?php echo esc_attr( $row_link ); ?>" placeholder="🔗 لینک / ID محصول" class="brz-compare-link-input" title="شناسه یا لینک محصول برای این سطر" />
                                         </div>
                                     </td>
                                     <?php for ( $c = 0; $c < $columns_count; $c++ ) : ?>

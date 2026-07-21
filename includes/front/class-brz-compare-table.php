@@ -219,13 +219,24 @@ class BRZ_Compare_Table {
             return self::$cache[ $post_id ];
         }
 
-        $title = isset( $decoded['title'] ) ? self::normalize_cell( $decoded['title'] ) : '';
+        $title       = isset( $decoded['title'] ) ? self::normalize_cell( $decoded['title'] ) : '';
+        $links_raw   = isset( $decoded['links'] ) && is_array( $decoded['links'] ) ? $decoded['links'] : array();
+        $pids_raw    = isset( $decoded['product_ids'] ) && is_array( $decoded['product_ids'] ) ? $decoded['product_ids'] : array();
+
+        $links       = array();
+        $product_ids = array();
+        foreach ( $rows as $r_i => $row ) {
+            $links[ $r_i ]       = isset( $links_raw[ $r_i ] ) && is_string( $links_raw[ $r_i ] ) ? esc_url_raw( $links_raw[ $r_i ] ) : '';
+            $product_ids[ $r_i ] = isset( $pids_raw[ $r_i ] ) ? absint( $pids_raw[ $r_i ] ) : 0;
+        }
 
         self::$cache[ $post_id ] = array(
-            'id'      => $table_id,
-            'title'   => $title,
-            'columns' => $columns,
-            'rows'    => $rows,
+            'id'          => $table_id,
+            'title'       => $title,
+            'columns'     => $columns,
+            'rows'        => $rows,
+            'links'       => $links,
+            'product_ids' => $product_ids,
         );
 
         return self::$cache[ $post_id ];
@@ -297,13 +308,40 @@ class BRZ_Compare_Table {
                     </thead>
                     <tbody>
                         <?php foreach ( $data['rows'] as $r_idx => $row ) : ?>
+                            <?php 
+                            $target_url = '';
+                            $pid        = isset( $data['product_ids'][ $r_idx ] ) ? absint( $data['product_ids'][ $r_idx ] ) : 0;
+                            $raw_url    = isset( $data['links'][ $r_idx ] ) ? $data['links'][ $r_idx ] : '';
+
+                            if ( $pid > 0 ) {
+                                if ( 'publish' === get_post_status( $pid ) ) {
+                                    $target_url = get_permalink( $pid );
+                                }
+                            } elseif ( ! empty( $raw_url ) ) {
+                                $resolved_id = url_to_postid( $raw_url );
+                                if ( $resolved_id && 'product' === get_post_type( $resolved_id ) ) {
+                                    if ( 'publish' === get_post_status( $resolved_id ) ) {
+                                        $target_url = $raw_url;
+                                    }
+                                } else {
+                                    $target_url = $raw_url;
+                                }
+                            }
+                            ?>
                             <tr class="<?php echo 0 === $r_idx ? 'buyruz-row-current' : ''; ?>">
                                 <?php foreach ( $data['columns'] as $index => $col ) : ?>
                                     <?php 
                                     $cell_content = isset( $row[ $index ] ) ? $row[ $index ] : '';
                                     if ( $index === 0 ) : ?>
                                         <th scope="row" data-label="<?php echo esc_attr( $data['columns'][ $index ] ); ?>">
-                                            <?php echo esc_html( $cell_content ); ?>
+                                            <?php if ( ! empty( $target_url ) ) : ?>
+                                                <a href="<?php echo esc_url( $target_url ); ?>" target="_blank" rel="noopener" class="buyruz-table-link" title="<?php echo esc_attr( sprintf( 'مشاهده %s در برگه جدید', $cell_content ) ); ?>">
+                                                    <span><?php echo esc_html( $cell_content ); ?></span>
+                                                    <svg class="buyruz-link-icon" aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                                                </a>
+                                            <?php else : ?>
+                                                <?php echo esc_html( $cell_content ); ?>
+                                            <?php endif; ?>
                                             <?php if ( 0 === $r_idx && false === strpos( $cell_content, 'محصول فعلی' ) && false === strpos( $cell_content, 'محصول جاری' ) ) : ?>
                                                 <span class="buyruz-badge-current">محصول فعلی</span>
                                             <?php endif; ?>

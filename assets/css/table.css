@@ -118,6 +118,33 @@
   white-space: nowrap;
 }
 
+/* Table Link Styling */
+.buyruz-table-wrap .buyruz-table-link {
+  color: #1a73e8;
+  text-decoration: none;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.15s ease;
+}
+
+.buyruz-table-wrap .buyruz-table-link:hover {
+  color: #1557b0;
+  text-decoration: underline;
+}
+
+.buyruz-table-wrap .buyruz-link-icon {
+  opacity: 0.65;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.buyruz-table-wrap .buyruz-table-link:hover .buyruz-link-icon {
+  opacity: 1;
+  transform: translate(-1px, -1px);
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .buyruz-table-container {

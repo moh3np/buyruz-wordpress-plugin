@@ -147,6 +147,19 @@
     actions.appendChild(addBtn);
     actions.appendChild(removeBtn);
     actionTd.appendChild(actions);
+
+    var linkWrapper = document.createElement('div');
+    linkWrapper.className = 'brz-compare-row-link-wrapper';
+    var linkInput = document.createElement('input');
+    linkInput.type = 'text';
+    linkInput.className = 'brz-compare-link-input';
+    linkInput.name = 'brz_compare_links[0]';
+    linkInput.placeholder = '🔗 لینک / ID محصول';
+    linkInput.title = 'شناسه یا لینک محصول برای این سطر';
+    linkInput.value = linkValue || '';
+    linkWrapper.appendChild(linkInput);
+    actionTd.appendChild(linkWrapper);
+
     row.appendChild(actionTd);
 
     var cols = columnCount() || defaultColumns;
@@ -306,6 +319,11 @@
       if (removeBtn) {
         removeBtn.setAttribute('data-remove-row', rIndex);
         removeBtn.disabled = rows.length <= 1;
+      }
+
+      var linkInput = row.querySelector('.brz-compare-link-input');
+      if (linkInput) {
+        linkInput.name = 'brz_compare_links[' + rIndex + ']';
       }
 
       var inputs = row.querySelectorAll('td.brz-compare-td input');

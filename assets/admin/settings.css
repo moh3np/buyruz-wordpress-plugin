@@ -1152,6 +1152,29 @@
   border-bottom: none;
 }
 
+.brz-compare-row-actions-cell {
+  vertical-align: top !important;
+  min-width: 145px;
+}
+
+.brz-compare-row-actions {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.brz-compare-row-link-wrapper {
+  margin-top: 4px;
+}
+
+.brz-compare-link-input {
+  font-size: 0.75rem !important;
+  padding: 4px 6px !important;
+  height: 28px;
+  background-color: var(--md-surface-dim);
+  border-radius: var(--md-radius-xs);
+}
+
 .brz-compare-table input[type="text"] {
   width: 100%;
   padding: var(--md-space-sm) var(--md-space-md);
