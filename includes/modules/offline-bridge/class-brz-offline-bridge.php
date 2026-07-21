@@ -44,6 +44,8 @@ class BRZ_Offline_Bridge {
         'english_name',
         'description',
         'short_description',
+        'buyruz_compare_table',
+        'primary_category',
     );
 
     const STOCK_STATUS_VALUES = array( 'instock', 'outofstock', 'onbackorder' );
@@ -959,6 +961,17 @@ class BRZ_Offline_Bridge {
                 }
                 return "فرمت فیلد categories باید آرایه باشد";
 
+            case 'primary_category':
+                // دسته اصلی را برای Rank Math Pro تنظیم می‌کند
+                $primary_id = intval( $value );
+                if ( $primary_id > 0 ) {
+                    $post_id = $product->get_id();
+                    if ( $post_id ) {
+                        update_post_meta( $post_id, 'rank_math_primary_product_cat', $primary_id );
+                    }
+                }
+                return null; // مقادیر نامعتبر نادیده گرفته می‌شوند
+
             case 'tags':
                 if ( is_array( $value ) ) {
                     $ids = array_column( $value, 'id' );
@@ -1238,6 +1251,25 @@ class BRZ_Offline_Bridge {
 
             case 'short_description':
                 $product->set_short_description( wp_kses_post( $value ) );
+                return null;
+
+            case 'buyruz_compare_table':
+                if ( ! is_array( $value ) ) {
+                    return "فیلد 'buyruz_compare_table' باید آرایه باشد";
+                }
+                if ( empty( $value['rows'] ) ) {
+                    return "فیلد 'buyruz_compare_table' باید حداقل یک سطر (row) داشته باشد";
+                }
+                update_post_meta( $product->get_id(), '_buyruz_compare_table', wp_json_encode( $value ) );
+                // پاک کردن cache افزونه در صورت وجود
+                if ( class_exists( 'BRZ_Compare_Table' ) ) {
+                    $reflection = new \ReflectionClass( 'BRZ_Compare_Table' );
+                    $cache_prop = $reflection->getProperty( 'cache' );
+                    $cache_prop->setAccessible( true );
+                    $cache = $cache_prop->getValue();
+                    unset( $cache[ $product->get_id() ] );
+                    $cache_prop->setValue( null, $cache );
+                }
                 return null;
 
             default:
