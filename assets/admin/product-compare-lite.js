@@ -109,14 +109,64 @@
     return th;
   }
 
-  function buildDataCell(value) {
+  var siteProducts = [];
+  try {
+    siteProducts = JSON.parse(box.dataset.siteProducts || '[]');
+  } catch (e) {}
+
+  function buildDataCell(colIndex, value, selectedVal, customUrlVal) {
     var td = document.createElement('td');
     td.className = 'brz-compare-td';
+    if (colIndex === 0) {
+      td.classList.add('brz-compare-td--product');
+    }
+
     var input = document.createElement('input');
     input.type = 'text';
-    input.name = 'brz_compare_rows[0][0]';
+    input.name = 'brz_compare_rows[0][' + colIndex + ']';
     input.value = value || '';
     td.appendChild(input);
+
+    if (colIndex === 0) {
+      var pickerWrap = document.createElement('div');
+      pickerWrap.className = 'brz-compare-product-picker-wrap';
+
+      var select = document.createElement('select');
+      select.className = 'brz-compare-product-select';
+      select.name = 'brz_compare_links[0]';
+
+      var optDefault = document.createElement('option');
+      optDefault.value = '';
+      optDefault.textContent = '-- بدون لینک (متن ساده) --';
+      select.appendChild(optDefault);
+
+      var optCustom = document.createElement('option');
+      optCustom.value = 'custom';
+      optCustom.textContent = '🔗 لینک سفارشی...';
+      if (selectedVal === 'custom') { optCustom.selected = true; }
+      select.appendChild(optCustom);
+
+      siteProducts.forEach(function(p) {
+        var opt = document.createElement('option');
+        opt.value = String(p.id);
+        opt.textContent = '📦 ' + p.title + ' (ID: ' + p.id + ')' + (p.status_tag || '');
+        if (String(selectedVal) === String(p.id)) { opt.selected = true; }
+        select.appendChild(opt);
+      });
+
+      pickerWrap.appendChild(select);
+
+      var customInput = document.createElement('input');
+      customInput.type = 'text';
+      customInput.className = 'brz-compare-custom-link-input' + (selectedVal === 'custom' ? '' : ' brz-hidden');
+      customInput.name = 'brz_compare_custom_links[0]';
+      customInput.placeholder = 'https://...';
+      customInput.value = customUrlVal || '';
+      pickerWrap.appendChild(customInput);
+
+      td.appendChild(pickerWrap);
+    }
+
     return td;
   }
 
@@ -147,19 +197,6 @@
     actions.appendChild(addBtn);
     actions.appendChild(removeBtn);
     actionTd.appendChild(actions);
-
-    var linkWrapper = document.createElement('div');
-    linkWrapper.className = 'brz-compare-row-link-wrapper';
-    var linkInput = document.createElement('input');
-    linkInput.type = 'text';
-    linkInput.className = 'brz-compare-link-input';
-    linkInput.name = 'brz_compare_links[0]';
-    linkInput.placeholder = '🔗 لینک / ID محصول';
-    linkInput.title = 'شناسه یا لینک محصول برای این سطر';
-    linkInput.value = linkValue || '';
-    linkWrapper.appendChild(linkInput);
-    actionTd.appendChild(linkWrapper);
-
     row.appendChild(actionTd);
 
     var cols = columnCount() || defaultColumns;
@@ -172,7 +209,7 @@
     }
 
     for (var i = 0; i < cols; i++) {
-      var cell = buildDataCell(values && values[i] ? values[i] : '');
+      var cell = buildDataCell(i, values && values[i] ? values[i] : '');
       row.appendChild(cell);
     }
 
@@ -238,9 +275,8 @@
     }
 
     Array.prototype.slice.call(dataRows()).forEach(function(row) {
-      var dataCell = buildDataCell('');
-      // Skip first td (actions)
       var cells = Array.prototype.slice.call(row.querySelectorAll('td.brz-compare-td'));
+      var dataCell = buildDataCell(cells.length, '');
       var anchor = cells[idx];
       if (anchor && anchor.nextSibling) {
         row.insertBefore(dataCell, anchor.nextSibling);
@@ -321,20 +357,26 @@
         removeBtn.disabled = rows.length <= 1;
       }
 
-      var linkInput = row.querySelector('.brz-compare-link-input');
-      if (linkInput) {
-        linkInput.name = 'brz_compare_links[' + rIndex + ']';
+      var select = row.querySelector('.brz-compare-product-select');
+      if (select) {
+        select.name = 'brz_compare_links[' + rIndex + ']';
+      }
+      var customInput = row.querySelector('.brz-compare-custom-link-input');
+      if (customInput) {
+        customInput.name = 'brz_compare_custom_links[' + rIndex + ']';
       }
 
-      var inputs = row.querySelectorAll('td.brz-compare-td input');
-      for (var c = 0; c < inputs.length; c++) {
-        inputs[c].name = 'brz_compare_rows[' + rIndex + '][' + c + ']';
+      var cells = row.querySelectorAll('td.brz-compare-td');
+      for (var c = 0; c < cells.length; c++) {
+        var input = cells[c].querySelector('input[type="text"]:not(.brz-compare-custom-link-input)');
+        if (input) {
+          input.name = 'brz_compare_rows[' + rIndex + '][' + c + ']';
+        }
       }
 
       // Ensure row has correct number of cells
-      var cells = row.querySelectorAll('td.brz-compare-td');
       while (cells.length < columnCount()) {
-        var filler = buildDataCell('');
+        var filler = buildDataCell(cells.length, '');
         row.appendChild(filler);
         cells = row.querySelectorAll('td.brz-compare-td');
       }
@@ -345,6 +387,21 @@
       }
     });
   }
+
+  box.addEventListener('change', function(e) {
+    if (e.target && e.target.classList.contains('brz-compare-product-select')) {
+      var select = e.target;
+      var customInput = select.parentNode ? select.parentNode.querySelector('.brz-compare-custom-link-input') : null;
+      if (customInput) {
+        if (select.value === 'custom') {
+          customInput.classList.remove('brz-hidden');
+          customInput.focus();
+        } else {
+          customInput.classList.add('brz-hidden');
+        }
+      }
+    }
+  });
 
   table.addEventListener('click', function(e) {
     var addColBtn = e.target.closest('[data-add-col]');

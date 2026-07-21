@@ -476,26 +476,30 @@ class BRZ_Compare_Table_Admin {
     }
 
     private static function normalize_cell( $value ) {
-        if ( is_array( $value ) || is_object( $value ) ) {
+        if ( null === $value || is_array( $value ) || is_object( $value ) ) {
             return '';
         }
 
         $value = (string) $value;
 
         // Decode escaped \uXXXX sequences
-        if ( strpos( $value, '\\u' ) !== false ) {
+        if ( str_contains( $value, '\u' ) ) {
             $decoded = json_decode( '"' . str_replace( array( "\r", "\n" ), '', addslashes( $value ) ) . '"', true );
-            if ( is_string( $decoded ) ) {
+            if ( is_string( $decoded ) && '' !== $decoded ) {
                 $value = $decoded;
             }
         }
 
-        // Decode bare uXXXX sequences that ممکن است قبلاً بک‌اسلش‌شان حذف شده باشد.
-        if ( preg_match( '/u[0-9a-fA-F]{4}/', $value ) ) {
+        // Decode bare uXXXX sequences where backslash was stripped
+        if ( str_contains( $value, 'u0' ) || str_contains( $value, 'u06' ) || str_contains( $value, 'u07' ) ) {
             $value = preg_replace_callback(
                 '/u([0-9a-fA-F]{4})/',
                 function( $m ) {
-                    return html_entity_decode( '&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8' );
+                    $code = hexdec( $m[1] );
+                    if ( ( $code >= 0x0600 && $code <= 0x06FF ) || ( $code >= 0xFB50 && $code <= 0xFDFF ) || ( $code >= 0xFE70 && $code <= 0xFEFF ) || ( $code >= 0x00A0 && $code <= 0x02FF ) ) {
+                        return mb_chr( $code, 'UTF-8' );
+                    }
+                    return $m[0];
                 },
                 $value
             );
@@ -569,8 +573,46 @@ class BRZ_Compare_Table_Admin {
         $max_columns   = self::MAX_COLUMNS;
         $nonce         = wp_create_nonce( 'brz_compare_table_save' );
         $columns_count = count( $data['columns'] );
+
+        $site_products = array();
+        if ( function_exists( 'wc_get_products' ) ) {
+            $posts_raw = wc_get_products( array(
+                'limit'   => 150,
+                'status'  => array( 'publish', 'draft', 'pending', 'private' ),
+                'orderby' => 'title',
+                'order'   => 'ASC',
+            ) );
+            foreach ( $posts_raw as $p_obj ) {
+                $status     = $p_obj->get_status();
+                $status_tag = 'publish' !== $status ? ' [' . $status . ']' : '';
+                $site_products[] = array(
+                    'id'         => $p_obj->get_id(),
+                    'title'      => self::normalize_cell( $p_obj->get_title() ),
+                    'status'     => $status,
+                    'status_tag' => $status_tag,
+                );
+            }
+        } else {
+            $posts_raw = get_posts( array(
+                'post_type'      => 'product',
+                'posts_per_page' => 150,
+                'post_status'    => array( 'publish', 'draft', 'pending', 'private' ),
+                'orderby'        => 'title',
+                'order'          => 'ASC',
+            ) );
+            foreach ( $posts_raw as $p_obj ) {
+                $status     = $p_obj->post_status;
+                $status_tag = 'publish' !== $status ? ' [' . $status . ']' : '';
+                $site_products[] = array(
+                    'id'         => $p_obj->ID,
+                    'title'      => self::normalize_cell( $p_obj->post_title ),
+                    'status'     => $status,
+                    'status_tag' => $status_tag,
+                );
+            }
+        }
         ?>
-        <div class="brz-compare-box brz-compare-modern" data-default-columns="<?php echo esc_attr( wp_json_encode( $defaults ) ); ?>" data-product-id="<?php echo esc_attr( $post_id ); ?>" data-nonce="<?php echo esc_attr( $nonce ); ?>" data-max-cols="<?php echo esc_attr( $max_columns ); ?>">
+        <div class="brz-compare-box brz-compare-modern" data-default-columns="<?php echo esc_attr( wp_json_encode( $defaults ) ); ?>" data-product-id="<?php echo esc_attr( $post_id ); ?>" data-nonce="<?php echo esc_attr( $nonce ); ?>" data-max-cols="<?php echo esc_attr( $max_columns ); ?>" data-site-products="<?php echo esc_attr( wp_json_encode( $site_products ) ); ?>">
             <?php wp_nonce_field( 'brz_compare_table_save', 'brz_compare_table_nonce' ); ?>
 
             <div class="brz-compare-top">
@@ -588,7 +630,7 @@ class BRZ_Compare_Table_Admin {
 
             <div class="brz-compare-sheet">
                 <div class="brz-compare-sheet__actions brz-compare-sheet__actions--stacked">
-                    <div class="brz-compare-sheet__hint">برای افزودن/حذف ستون از دکمه‌های بالای سطر هدر و برای مدیریت سطرها از کنترل سمت چپ هر سطر استفاده کنید.</div>
+                    <div class="brz-compare-sheet__hint">برای افزودن/حذف ستون از دکمه‌های بالای سطر هدر و برای انتخاب محصول یا مدیریت سطرها از کنترل‌های هر سطر استفاده کنید.</div>
                     <div class="brz-compare-id">
                         <div class="brz-compare-id__label">شناسه جدول</div>
                         <div class="brz-compare-id__value" data-compare-id><?php echo esc_html( $data['table_id'] ); ?></div>
@@ -619,21 +661,36 @@ class BRZ_Compare_Table_Admin {
                         </thead>
                         <tbody>
                             <?php foreach ( $data['rows'] as $r_index => $row ) : ?>
-                                <?php $row_link = isset( $data['links'][ $r_index ] ) ? $data['links'][ $r_index ] : ''; ?>
+                                <?php 
+                                $row_link = isset( $data['links'][ $r_index ] ) ? $data['links'][ $r_index ] : '';
+                                $row_pid  = isset( $data['product_ids'][ $r_index ] ) ? absint( $data['product_ids'][ $r_index ] ) : 0;
+                                $sel_val  = $row_pid > 0 ? (string) $row_pid : ( ! empty( $row_link ) ? 'custom' : '' );
+                                ?>
                                 <tr class="brz-compare-row" data-row="<?php echo esc_attr( $r_index ); ?>">
                                     <td class="brz-compare-row-actions-cell">
                                         <div class="brz-compare-row-actions">
                                             <button type="button" class="brz-compare-btn brz-compare-btn--success" data-add-row="<?php echo esc_attr( $r_index ); ?>" aria-label="افزودن ردیف">+</button>
                                             <button type="button" class="brz-compare-btn brz-compare-btn--danger" data-remove-row="<?php echo esc_attr( $r_index ); ?>" aria-label="حذف ردیف">&minus;</button>
                                         </div>
-                                        <div class="brz-compare-row-link-wrapper">
-                                            <input type="text" name="brz_compare_links[<?php echo esc_attr( $r_index ); ?>]" value="<?php echo esc_attr( $row_link ); ?>" placeholder="🔗 لینک / ID محصول" class="brz-compare-link-input" title="شناسه یا لینک محصول برای این سطر" />
-                                        </div>
                                     </td>
                                     <?php for ( $c = 0; $c < $columns_count; $c++ ) : ?>
                                         <?php $cell = isset( $row[ $c ] ) ? $row[ $c ] : ''; ?>
-                                        <td class="brz-compare-td">
+                                        <td class="brz-compare-td <?php echo 0 === $c ? 'brz-compare-td--product' : ''; ?>">
                                             <input type="text" name="brz_compare_rows[<?php echo esc_attr( $r_index ); ?>][<?php echo esc_attr( $c ); ?>]" value="<?php echo esc_attr( $cell ); ?>" />
+                                            <?php if ( 0 === $c ) : ?>
+                                                <div class="brz-compare-product-picker-wrap">
+                                                    <select name="brz_compare_links[<?php echo esc_attr( $r_index ); ?>]" class="brz-compare-product-select">
+                                                        <option value="">-- بدون لینک (متن ساده) --</option>
+                                                        <option value="custom" <?php selected( 'custom', $sel_val ); ?>>🔗 لینک سفارشی...</option>
+                                                        <?php foreach ( $site_products as $p_item ) : ?>
+                                                            <option value="<?php echo esc_attr( $p_item['id'] ); ?>" <?php selected( (string) $p_item['id'], $sel_val ); ?>>
+                                                                📦 <?php echo esc_html( $p_item['title'] ); ?> (ID: <?php echo esc_html( $p_item['id'] ); ?>)<?php echo esc_html( $p_item['status_tag'] ); ?>
+                                                            </option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                    <input type="text" name="brz_compare_custom_links[<?php echo esc_attr( $r_index ); ?>]" class="brz-compare-custom-link-input <?php echo 'custom' === $sel_val ? '' : 'brz-hidden'; ?>" value="<?php echo esc_attr( 'custom' === $sel_val ? $row_link : '' ); ?>" placeholder="https://..." />
+                                                </div>
+                                            <?php endif; ?>
                                         </td>
                                     <?php endfor; ?>
                                 </tr>

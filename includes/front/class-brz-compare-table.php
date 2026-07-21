@@ -111,30 +111,30 @@ class BRZ_Compare_Table {
     }
 
     private static function normalize_cell( $value ) {
-        if ( null === $value ) {
-            return '';
-        }
-
-        if ( is_array( $value ) || is_object( $value ) ) {
+        if ( null === $value || is_array( $value ) || is_object( $value ) ) {
             return '';
         }
 
         $value = (string) $value;
 
         // Decode escaped \uXXXX sequences
-        if ( str_contains( $value, '\\u' ) ) {
+        if ( str_contains( $value, '\u' ) ) {
             $decoded = json_decode( '"' . str_replace( array( "\r", "\n" ), '', addslashes( $value ) ) . '"', true );
-            if ( is_string( $decoded ) ) {
+            if ( is_string( $decoded ) && '' !== $decoded ) {
                 $value = $decoded;
             }
         }
 
-        // Decode bare uXXXX sequences (when backslash was stripped earlier)
-        if ( preg_match( '/u[0-9a-fA-F]{4}/', $value ) ) {
+        // Decode bare uXXXX sequences where backslash was stripped
+        if ( str_contains( $value, 'u0' ) || str_contains( $value, 'u06' ) || str_contains( $value, 'u07' ) ) {
             $value = preg_replace_callback(
                 '/u([0-9a-fA-F]{4})/',
                 function( $m ) {
-                    return html_entity_decode( '&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8' );
+                    $code = hexdec( $m[1] );
+                    if ( ( $code >= 0x0600 && $code <= 0x06FF ) || ( $code >= 0xFB50 && $code <= 0xFDFF ) || ( $code >= 0xFE70 && $code <= 0xFEFF ) || ( $code >= 0x00A0 && $code <= 0x02FF ) ) {
+                        return mb_chr( $code, 'UTF-8' );
+                    }
+                    return $m[0];
                 },
                 $value
             );
