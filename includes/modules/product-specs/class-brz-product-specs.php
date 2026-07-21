@@ -1783,7 +1783,7 @@ class BRZ_Product_Specs {
 
                 function openRangeFormatModal($input) {
                     $activeOptionsInput = $input;
-                    var rawVal = $input.val();
+                    var rawVal = ($input.val() || '').replace(/؛/g, ';');
                     
                     var parts = rawVal.split(';');
                     var bothFmt = $.trim(parts[0] || '');
@@ -1811,6 +1811,9 @@ class BRZ_Product_Specs {
                         minBefore = prefix ? prefix + ' ' : 'بالای ';
                         minAfter = suffix;
                     }
+                    if (!minAfter && bothAfter) {
+                        minAfter = bothAfter;
+                    }
                     
                     var maxBefore = 'تا ', maxAfter = '';
                     if (maxFmt.indexOf('{max}') !== -1) {
@@ -1820,6 +1823,9 @@ class BRZ_Product_Specs {
                         var $row = $input.closest('tr');
                         var suffix = $row.find('.brz-spec-suffix').val() || '';
                         maxAfter = suffix;
+                    }
+                    if (!maxAfter && bothAfter) {
+                        maxAfter = bothAfter;
                     }
 
                     $('#brz-rf-both-before').val(bothBefore);
@@ -1854,9 +1860,15 @@ class BRZ_Product_Specs {
                     
                     var minBefore = $('#brz-rf-min-before').val();
                     var minAfter = $('#brz-rf-min-after').val();
+                    if (!minAfter && bothAfter) {
+                        minAfter = bothAfter;
+                    }
                     
                     var maxBefore = $('#brz-rf-max-before').val();
                     var maxAfter = $('#brz-rf-max-after').val();
+                    if (!maxAfter && bothAfter) {
+                        maxAfter = bothAfter;
+                    }
                     
                     var bothFmt = bothBefore + '{min}' + bothBetween + '{max}' + bothAfter;
                     var minFmt = minBefore + '{min}' + minAfter;
@@ -2067,6 +2079,76 @@ class BRZ_Product_Specs {
     }
 
     /**
+     * Format range specification value based on min, max, options template, and default prefix/suffix.
+     *
+     * @param mixed  $min     Minimum value.
+     * @param mixed  $max     Maximum value.
+     * @param string $options Template options string (e.g. "{min} تا {max} سال; بالای {min} سال; تا {max} سال").
+     * @param string $prefix  Default prefix fallback.
+     * @param string $suffix  Default suffix fallback.
+     * @return string Formatted range string.
+     */
+    public static function format_range_value( $min, $max, string $options = '', string $prefix = '', string $suffix = '' ): string {
+        $min = ( $min !== null && $min !== false ) ? (string) $min : '';
+        $max = ( $max !== null && $max !== false ) ? (string) $max : '';
+
+        if ( $min === '' && $max === '' ) {
+            return '';
+        }
+
+        $raw_options = str_replace( '؛', ';', (string) $options );
+        $formats     = array_map( 'trim', explode( ';', $raw_options ) );
+
+        $clean_suffix = trim( $suffix );
+        $clean_prefix = trim( $prefix );
+
+        $def_both = '{min} تا {max}' . ( '' !== $clean_suffix ? ' ' . $clean_suffix : '' );
+        $def_min  = ( '' !== $clean_prefix ? $clean_prefix . ' ' : 'بالای ' ) . '{min}' . ( '' !== $clean_suffix ? ' ' . $clean_suffix : '' );
+        $def_max  = 'تا {max}' . ( '' !== $clean_suffix ? ' ' . $clean_suffix : '' );
+
+        $fmt_both = isset( $formats[0] ) && '' !== $formats[0] ? $formats[0] : $def_both;
+        $fmt_min  = isset( $formats[1] ) && '' !== $formats[1] ? $formats[1] : $def_min;
+        $fmt_max  = isset( $formats[2] ) && '' !== $formats[2] ? $formats[2] : $def_max;
+
+        // Auto-heal missing suffix in fmt_min and fmt_max if fmt_both has a suffix after {max}
+        $both_max_pos = strpos( $fmt_both, '{max}' );
+        $both_suffix  = ( false !== $both_max_pos ) ? substr( $fmt_both, $both_max_pos + 5 ) : '';
+
+        if ( '' !== $both_suffix ) {
+            if ( false !== strpos( $fmt_min, '{min}' ) ) {
+                $min_after = substr( $fmt_min, strpos( $fmt_min, '{min}' ) + 5 );
+                if ( '' === trim( $min_after ) ) {
+                    $fmt_min .= $both_suffix;
+                }
+            }
+            if ( false !== strpos( $fmt_max, '{max}' ) ) {
+                $max_after = substr( $fmt_max, strpos( $fmt_max, '{max}' ) + 5 );
+                if ( '' === trim( $max_after ) ) {
+                    $fmt_max .= $both_suffix;
+                }
+            }
+        }
+
+        if ( $min !== '' && $max !== '' ) {
+            if ( $min === $max ) {
+                $range_str = str_replace( '{min}', self::to_persian_digits( $min ), $fmt_min );
+            } else {
+                $range_str = str_replace(
+                    array( '{min}', '{max}' ),
+                    array( self::to_persian_digits( $min ), self::to_persian_digits( $max ) ),
+                    $fmt_both
+                );
+            }
+        } elseif ( $min !== '' ) {
+            $range_str = str_replace( '{min}', self::to_persian_digits( $min ), $fmt_min );
+        } else {
+            $range_str = str_replace( '{max}', self::to_persian_digits( $max ), $fmt_max );
+        }
+
+        return $range_str;
+    }
+
+    /**
      * Frontend injection: Displays specifications inside WooCommerce's additional information tab.
      */
     public static function render_custom_specs( $product ): void {
@@ -2166,34 +2248,7 @@ class BRZ_Product_Specs {
                     continue;
                 }
 
-                $raw_options = str_replace( '؛', ';', (string) $field['options'] );
-                $formats     = array_map( 'trim', explode( ';', $raw_options ) );
-                
-                $def_both = '{min} تا {max}' . ( $suffix ? ' ' . $suffix : '' );
-                $def_min  = ( $prefix ? $prefix . ' ' : '' ) . '{min}' . ( $suffix ? ' ' . $suffix : '' );
-                $def_max  = 'تا {max}' . ( $suffix ? ' ' . $suffix : '' );
-                
-                $fmt_both = isset( $formats[0] ) && '' !== $formats[0] ? $formats[0] : $def_both;
-                $fmt_min  = isset( $formats[1] ) && '' !== $formats[1] ? $formats[1] : $def_min;
-                $fmt_max  = isset( $formats[2] ) && '' !== $formats[2] ? $formats[2] : $def_max;
-
-                if ( $min !== '' && $max !== '' ) {
-                    if ( $min === $max ) {
-                        $range_str = str_replace( '{min}', self::to_persian_digits( $min ), $fmt_min );
-                    } else {
-                        $range_str = str_replace(
-                            array( '{min}', '{max}' ),
-                            array( self::to_persian_digits( $min ), self::to_persian_digits( $max ) ),
-                            $fmt_both
-                        );
-                    }
-                } elseif ( $min !== '' ) {
-                    $range_str = str_replace( '{min}', self::to_persian_digits( $min ), $fmt_min );
-                } else {
-                    $range_str = str_replace( '{max}', self::to_persian_digits( $max ), $fmt_max );
-                }
-
-                $value_html = $range_str;
+                $value_html = self::format_range_value( $min, $max, (string) $field['options'], $prefix, $suffix );
             } elseif ( 'array' === $type ) {
                 $val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
                 if ( empty( $val ) ) {
@@ -2695,34 +2750,7 @@ class BRZ_Product_Specs {
                         continue;
                     }
 
-                    $raw_options = str_replace( '؛', ';', (string) $field['options'] );
-                    $formats     = array_map( 'trim', explode( ';', $raw_options ) );
-                    
-                    $def_both = '{min} تا {max}' . ( $suffix ? ' ' . $suffix : '' );
-                    $def_min  = ( $prefix ? $prefix . ' ' : '' ) . '{min}' . ( $suffix ? ' ' . $suffix : '' );
-                    $def_max  = 'تا {max}' . ( $suffix ? ' ' . $suffix : '' );
-                    
-                    $fmt_both = isset( $formats[0] ) && '' !== $formats[0] ? $formats[0] : $def_both;
-                    $fmt_min  = isset( $formats[1] ) && '' !== $formats[1] ? $formats[1] : $def_min;
-                    $fmt_max  = isset( $formats[2] ) && '' !== $formats[2] ? $formats[2] : $def_max;
-
-                    if ( $min !== '' && $max !== '' ) {
-                        if ( $min === $max ) {
-                            $range_str = str_replace( '{min}', self::to_persian_digits( $min ), $fmt_min );
-                        } else {
-                            $range_str = str_replace(
-                                array( '{min}', '{max}' ),
-                                array( self::to_persian_digits( $min ), self::to_persian_digits( $max ) ),
-                                $fmt_both
-                            );
-                        }
-                    } elseif ( $min !== '' ) {
-                        $range_str = str_replace( '{min}', self::to_persian_digits( $min ), $fmt_min );
-                    } else {
-                        $range_str = str_replace( '{max}', self::to_persian_digits( $max ), $fmt_max );
-                    }
-
-                    $value_html = $range_str;
+                    $value_html = self::format_range_value( $min, $max, (string) $field['options'], $prefix, $suffix );
                 } elseif ( 'array' === $type ) {
                     $val = get_post_meta( $product->get_id(), '_brz_spec_' . $key, true );
                     if ( empty( $val ) ) {

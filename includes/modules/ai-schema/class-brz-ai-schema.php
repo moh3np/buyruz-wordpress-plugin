@@ -855,34 +855,8 @@ class BRZ_AI_Schema {
                 return '';
             }
 
-            $raw_options = isset( $target_field['options'] ) ? str_replace( '؛', ';', (string) $target_field['options'] ) : '';
-            $formats     = array_map( 'trim', explode( ';', $raw_options ) );
-
-            $def_both = '{min} تا {max}' . ( $suffix ? ' ' . $suffix : '' );
-            $def_min  = ( $prefix ? $prefix . ' ' : '' ) . '{min}' . ( $suffix ? ' ' . $suffix : '' );
-            $def_max  = 'تا {max}' . ( $suffix ? ' ' . $suffix : '' );
-
-            $fmt_both = isset( $formats[0] ) && '' !== $formats[0] ? $formats[0] : $def_both;
-            $fmt_min  = isset( $formats[1] ) && '' !== $formats[1] ? $formats[1] : $def_min;
-            $fmt_max  = isset( $formats[2] ) && '' !== $formats[2] ? $formats[2] : $def_max;
-
-            if ( $min !== '' && $max !== '' ) {
-                if ( $min === $max ) {
-                    $range_str = str_replace( '{min}', self::to_persian_digits( $min ), $fmt_min );
-                } else {
-                    $range_str = str_replace(
-                        array( '{min}', '{max}' ),
-                        array( self::to_persian_digits( $min ), self::to_persian_digits( $max ) ),
-                        $fmt_both
-                    );
-                }
-            } elseif ( $min !== '' ) {
-                $range_str = str_replace( '{min}', self::to_persian_digits( $min ), $fmt_min );
-            } else {
-                $range_str = str_replace( '{max}', self::to_persian_digits( $max ), $fmt_max );
-            }
-
-            return $range_str;
+            $raw_options = isset( $target_field['options'] ) ? (string) $target_field['options'] : '';
+            return BRZ_Product_Specs::format_range_value( $min, $max, $raw_options, $prefix, $suffix );
         } elseif ( 'array' === $type ) {
             $val = get_post_meta( $product_id, '_brz_spec_' . $spec_key, true );
             if ( empty( $val ) ) {
