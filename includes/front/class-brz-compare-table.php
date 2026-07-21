@@ -296,13 +296,18 @@ class BRZ_Compare_Table {
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ( $data['rows'] as $row ) : ?>
-                            <tr>
+                        <?php foreach ( $data['rows'] as $r_idx => $row ) : ?>
+                            <tr class="<?php echo 0 === $r_idx ? 'buyruz-row-current' : ''; ?>">
                                 <?php foreach ( $data['columns'] as $index => $col ) : ?>
                                     <?php 
                                     $cell_content = isset( $row[ $index ] ) ? $row[ $index ] : '';
                                     if ( $index === 0 ) : ?>
-                                        <th scope="row" data-label="<?php echo esc_attr( $data['columns'][ $index ] ); ?>"><?php echo esc_html( $cell_content ); ?></th>
+                                        <th scope="row" data-label="<?php echo esc_attr( $data['columns'][ $index ] ); ?>">
+                                            <?php echo esc_html( $cell_content ); ?>
+                                            <?php if ( 0 === $r_idx && false === strpos( $cell_content, 'محصول فعلی' ) && false === strpos( $cell_content, 'محصول جاری' ) ) : ?>
+                                                <span class="buyruz-badge-current">محصول فعلی</span>
+                                            <?php endif; ?>
+                                        </th>
                                     <?php else : ?>
                                         <td data-label="<?php echo esc_attr( $data['columns'][ $index ] ); ?>"><?php echo esc_html( $cell_content ); ?></td>
                                     <?php endif; ?>

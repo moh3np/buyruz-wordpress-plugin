@@ -91,6 +91,33 @@
   transition: background-color 0.15s ease;
 }
 
+/* Current Product Row Styling (Subtle Highlight + Badge) */
+.buyruz-table-wrap .buyruz-table tbody tr.buyruz-row-current th,
+.buyruz-table-wrap .buyruz-table tbody tr.buyruz-row-current td {
+  background-color: #f0f4f9;
+  font-weight: 500;
+}
+
+.buyruz-table-wrap .buyruz-table tbody tr.buyruz-row-current:hover th,
+.buyruz-table-wrap .buyruz-table tbody tr.buyruz-row-current:hover td {
+  background-color: #e3ebf7;
+}
+
+/* Badge for current product */
+.buyruz-table-wrap .buyruz-badge-current {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 2px 8px;
+  background-color: #e8f0fe;
+  color: #1a73e8;
+  font-size: 0.725rem;
+  font-weight: 600;
+  border-radius: 12px;
+  border: 1px solid #d2e3fc;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .buyruz-table-container {
