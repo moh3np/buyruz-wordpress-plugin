@@ -11,9 +11,13 @@ class BRZ_Media_Placeholder_Cleaner {
 
     public static function init() {
         if ( ! is_admin() ) {
-            add_filter( 'the_content', array( __CLASS__, 'clean_placeholders' ), 5 );
-            add_filter( 'woocommerce_short_description', array( __CLASS__, 'clean_placeholders' ), 5 );
-            add_filter( 'woocommerce_product_get_description', array( __CLASS__, 'clean_placeholders' ), 5 );
+            add_filter( 'the_content', array( __CLASS__, 'clean_placeholders' ), 1 );
+            add_filter( 'the_content', array( __CLASS__, 'clean_placeholders' ), 99 );
+            add_filter( 'woocommerce_short_description', array( __CLASS__, 'clean_placeholders' ), 1 );
+            add_filter( 'woocommerce_short_description', array( __CLASS__, 'clean_placeholders' ), 99 );
+            add_filter( 'woocommerce_product_get_description', array( __CLASS__, 'clean_placeholders' ), 10 );
+            add_filter( 'woocommerce_product_get_short_description', array( __CLASS__, 'clean_placeholders' ), 10 );
+            add_filter( 'get_the_excerpt', array( __CLASS__, 'clean_placeholders' ), 10 );
         }
     }
 

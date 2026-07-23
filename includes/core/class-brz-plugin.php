@@ -29,12 +29,12 @@ class BRZ_Plugin {
             BRZ_FAQ_Renderer::init();
             BRZ_Compare_Table::init();
             BRZ_WC_Shortcodes::init();
-            BRZ_Media_Placeholder_Cleaner::init();
         }
 
         // Always needed (REST fields for products, used by both admin and REST)
         BRZ_Rest::init();
         BRZ_Tag_Sync_Guard::init();
+        BRZ_Media_Placeholder_Cleaner::init();
 
         // Dynamic modules (only active ones)
         $active = BRZ_Modules::active_classes();
