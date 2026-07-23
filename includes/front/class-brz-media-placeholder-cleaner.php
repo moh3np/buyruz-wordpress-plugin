@@ -30,11 +30,11 @@ class BRZ_Media_Placeholder_Cleaner {
         $content = preg_replace( '/<(p|div|span)[^>]*class=["\']?[^"\']*brz-media-placeholder[^"\']*["\']?[^>]*>.*?<\/\1>/is', '', $content );
 
         // 2. Remove legacy [[IMAGE: ...]] tags and any wrapping <p>
-        $content = preg_replace( '/<p>\s*\[\[IMAGE:\s*.*?\]\]\s*<\/p>/i', '', $content );
-        $content = preg_replace( '/\[\[IMAGE:\s*.*?\]\]/i', '', $content );
+        $content = preg_replace( '/<p>\s*\[\[IMAGE:\s*.*?\]\]\s*<\/p>/is', '', $content );
+        $content = preg_replace( '/\[\[IMAGE:\s*.*?\]\]/is', '', $content );
 
         // 3. Remove HTML comments <!-- IMAGE: ... -->
-        $content = preg_replace( '/<!--\s*IMAGE:\s*.*?-->/i', '', $content );
+        $content = preg_replace( '/<!--\s*IMAGE:\s*.*?-->/is', '', $content );
 
         return $content;
     }
