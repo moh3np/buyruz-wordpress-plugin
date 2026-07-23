@@ -370,7 +370,7 @@ class BRZ_Product_Specs {
                         }
                     }
                     if ( isset( $val['max'] ) ) {
-                        if ( $val['max'] === null || $val['max'] === '' ) {
+                        if ( $val['max'] === null || $val['max'] === '' || 99 === intval( $val['max'] ) ) {
                             delete_post_meta( $post_id, $keys[1] );
                             if ( 'manual_age' === $key ) {
                                 delete_post_meta( $post_id, '_brz_spec_filter_max_age' );

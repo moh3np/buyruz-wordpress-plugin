@@ -117,30 +117,57 @@ class BRZ_Compare_Table {
 
         $value = (string) $value;
 
-        // Decode escaped \uXXXX sequences
-        if ( str_contains( $value, '\u' ) ) {
-            $decoded = json_decode( '"' . str_replace( array( "\r", "\n" ), '', addslashes( $value ) ) . '"', true );
-            if ( is_string( $decoded ) && '' !== $decoded ) {
-                $value = $decoded;
-            }
+        if ( '' === $value ) {
+            return '';
         }
 
-        // Decode bare uXXXX sequences where backslash was stripped
-        if ( str_contains( $value, 'u0' ) || str_contains( $value, 'u06' ) || str_contains( $value, 'u07' ) ) {
+        // Step 1: Decode standard \uXXXX sequences using regex + mb_chr
+        if ( str_contains( $value, '\u' ) ) {
+            $value = preg_replace_callback(
+                '/\\\\u([0-9a-fA-F]{4})/',
+                function( $m ) {
+                    $code = hexdec( $m[1] );
+                    return self::is_allowed_unicode_code( $code ) ? mb_chr( $code, 'UTF-8' ) : $m[0];
+                },
+                $value
+            );
+        }
+
+        // Step 2: Handle malformed leading 4 hex digits before uXXXX (e.g. 0627u062a... where initial \u lost its \u)
+        if ( preg_match( '/^([0-9a-fA-F]{4})u[0-9a-fA-F]{4}/', $value ) ) {
+            $value = preg_replace_callback(
+                '/^([0-9a-fA-F]{4})/',
+                function( $m ) {
+                    $code = hexdec( $m[1] );
+                    return self::is_allowed_unicode_code( $code ) ? mb_chr( $code, 'UTF-8' ) : $m[0];
+                },
+                $value
+            );
+        }
+
+        // Step 3: Decode bare uXXXX sequences where backslash was stripped (e.g. u200c for ZWNJ / half-space, u0627 for Alef)
+        if ( str_contains( $value, 'u' ) ) {
             $value = preg_replace_callback(
                 '/u([0-9a-fA-F]{4})/',
                 function( $m ) {
                     $code = hexdec( $m[1] );
-                    if ( ( $code >= 0x0600 && $code <= 0x06FF ) || ( $code >= 0xFB50 && $code <= 0xFDFF ) || ( $code >= 0xFE70 && $code <= 0xFEFF ) || ( $code >= 0x00A0 && $code <= 0x02FF ) ) {
-                        return mb_chr( $code, 'UTF-8' );
-                    }
-                    return $m[0];
+                    return self::is_allowed_unicode_code( $code ) ? mb_chr( $code, 'UTF-8' ) : $m[0];
                 },
                 $value
             );
         }
 
         return $value;
+    }
+
+    private static function is_allowed_unicode_code( $code ) {
+        return (
+            ( $code >= 0x0600 && $code <= 0x06FF ) || // Arabic / Persian
+            ( $code >= 0xFB50 && $code <= 0xFDFF ) || // Arabic Presentation Forms-A
+            ( $code >= 0xFE70 && $code <= 0xFEFF ) || // Arabic Presentation Forms-B
+            ( $code >= 0x2000 && $code <= 0x206F ) || // General Punctuation (includes U+200C ZWNJ / نیم‌فاصله, U+200D ZWJ)
+            ( $code >= 0x00A0 && $code <= 0x02FF )    // Latin Supplement / Extended
+        );
     }
 
     private static function get_table_data( $post_id ) {

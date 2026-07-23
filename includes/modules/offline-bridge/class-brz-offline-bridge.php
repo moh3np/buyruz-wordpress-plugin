@@ -1184,7 +1184,7 @@ class BRZ_Offline_Bridge {
                                     }
                                 }
                                 if ( isset( $val['max'] ) ) {
-                                    if ( $val['max'] === null || $val['max'] === '' ) {
+                                    if ( $val['max'] === null || $val['max'] === '' || 99 === intval( $val['max'] ) ) {
                                         $product->delete_meta_data( $keys[1] );
                                         if ( 'manual_age' === $key ) {
                                             $product->delete_meta_data( '_brz_spec_filter_max_age' );
