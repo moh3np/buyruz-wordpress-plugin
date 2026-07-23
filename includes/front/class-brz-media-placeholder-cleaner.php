@@ -66,6 +66,9 @@ class BRZ_Media_Placeholder_Cleaner {
         // 3. Remove HTML comments <!-- IMAGE: ... -->
         $content = preg_replace( '/<!--[\s\S]*?IMAGE:[\s\S]*?-->/isu', '', $content );
 
+        // 4. Auto-fix misplaced images inside h2 tags (e.g. <h2><img ...></h2>)
+        $content = preg_replace( '/<h2[^>]*>\s*(<img[^>]+>)\s*<\/h2>/isu', '<p style="text-align: center;">$1</p>', $content );
+
         return $content;
     }
 }
