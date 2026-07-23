@@ -20,6 +20,7 @@ spl_autoload_register( function( $class ) {
         'BRZ_Detector'               => 'front/class-brz-detector.php',
         'BRZ_Compare_Table'          => 'front/class-brz-compare-table.php',
         'BRZ_FAQ_Renderer'           => 'front/class-brz-faq-renderer.php',
+        'BRZ_Media_Placeholder_Cleaner' => 'front/class-brz-media-placeholder-cleaner.php',
         'BRZ_Tag_Sync_Guard'         => 'core/class-brz-tag-sync-guard.php',
         'BRZ_Rest'                   => 'integration/class-brz-rest.php',
         'BRZ_Smart_Linker'           => 'modules/smart-linker/class-brz-smart-linker.php',
