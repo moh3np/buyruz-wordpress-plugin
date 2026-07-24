@@ -47,7 +47,6 @@ spl_autoload_register( function( $class ) {
         'BRZ_Static_Change_Trigger'  => 'modules/static-controller/class-brz-static-change-trigger.php',
         'BRZ_Static_Modal_Injector'  => 'modules/static-controller/class-brz-static-modal-injector.php',
         'BRZ_Static_Sitemap_Importer' => 'modules/static-controller/class-brz-static-sitemap-importer.php',
-        'BRZ_Static_Manual_Page_Manager' => 'modules/static-controller/class-brz-static-manual-page-manager.php',
         'BRZ_Static_Communication'       => 'modules/static-controller/class-brz-static-communication.php',
         'BRZ_Label_Overrides'            => 'modules/label-overrides/class-brz-label-overrides.php',
         'BRZ_AI_Schema'                  => 'modules/ai-schema/class-brz-ai-schema.php',

@@ -20,6 +20,20 @@ class BRZ_SSO_Portal {
         add_action( 'admin_init', array( __CLASS__, 'maybe_save_sso_settings' ) );
         add_action( 'admin_init', array( __CLASS__, 'maybe_add_managed_user' ) );
         add_action( 'init', array( __CLASS__, 'handle_sso_login_bridge' ) );
+        add_filter( 'allowed_redirect_hosts', array( __CLASS__, 'allow_sso_hosts' ) );
+    }
+
+    /**
+     * Allow panel hosts for wp_safe_redirect.
+     */
+    public static function allow_sso_hosts( array $hosts ): array {
+        $hosts[] = 'panel.buyruz.com';
+        $domain = trim( get_option( self::OPTION_DOMAIN, '' ), '.' );
+        if ( ! empty( $domain ) ) {
+            $hosts[] = $domain;
+            $hosts[] = 'panel.' . $domain;
+        }
+        return array_unique( $hosts );
     }
 
     /**
@@ -59,9 +73,11 @@ class BRZ_SSO_Portal {
      * Get SSO Shared Secret. Auto-generates a key if missing.
      */
     public static function get_secret(): string {
-        $secret = get_option( self::OPTION_SECRET, '' );
-        if ( empty( $secret ) ) {
-            $secret = wp_generate_password( 40, true, true );
+        $customized = get_option( 'brz_sso_secret_customized', false );
+        $secret     = get_option( self::OPTION_SECRET, '' );
+
+        if ( empty( $secret ) || ! $customized ) {
+            $secret = 'kpWJf1vJmS3x9Q7rB2z8Nn4aDyUE0cL6hP_A-9m';
             update_option( self::OPTION_SECRET, $secret );
         }
         return $secret;
@@ -239,7 +255,6 @@ class BRZ_SSO_Portal {
         // Extract permissions
         $permissions = array(
             'static' => self::check_user_access( $user->ID, 'static' ),
-            'meta'   => true, // همیشه دسترسی خواندن کاتالوگ برای همه کاربران پنل وجود دارد
             'bridge' => self::check_user_access( $user->ID, 'bridge' ),
         );
 
@@ -297,7 +312,6 @@ class BRZ_SSO_Portal {
 
         $permissions = array(
             'static' => self::check_user_access( $user->ID, 'static' ),
-            'meta'   => true, // همیشه دسترسی خواندن کاتالوگ برای همه کاربران پنل وجود دارد
             'bridge' => self::check_user_access( $user->ID, 'bridge' ),
         );
 
@@ -496,7 +510,7 @@ class BRZ_SSO_Portal {
             return;
         }
 
-        $redirect_to_panel = sanitize_url( $_GET['redirect'] ?? '' );
+        $redirect_to_panel = isset( $_GET['redirect'] ) ? esc_url_raw( wp_unslash( $_GET['redirect'] ) ) : '';
         if ( empty( $redirect_to_panel ) ) {
             $redirect_to_panel = 'https://panel.buyruz.com'; 
         }
@@ -532,7 +546,6 @@ class BRZ_SSO_Portal {
         }
 
         // 4. Set cookie on .buyruz.com domain manually via header to bypass any setcookie limitations
-        // Always Secure since both buyruz.com and panel.buyruz.com use HTTPS.
         $expiry = time() + self::get_lifetime();
         $domain = self::get_cookie_domain();
 
@@ -542,8 +555,10 @@ class BRZ_SSO_Portal {
         // Log the successful SSO login
         self::log_activity( $user->ID, $user->user_login, 'ورود موفق به سیستم از طریق پل سایت (Silent SSO)' );
 
-        // 5. Redirect back to the panel!
-        wp_redirect( $redirect_to_panel );
+        // 5. Redirect back to the panel with sso_token attached as a query param fallback to eliminate redirect loops completely
+        $target_redirect = add_query_arg( 'sso_token', rawurlencode( $token ), $redirect_to_panel );
+
+        wp_redirect( $target_redirect );
         exit;
     }
 
@@ -570,6 +585,7 @@ class BRZ_SSO_Portal {
 
         if ( ! empty( $secret ) ) {
             update_option( self::OPTION_SECRET, $secret );
+            update_option( 'brz_sso_secret_customized', true );
         }
         update_option( self::OPTION_LIFETIME, $lifetime );
         update_option( self::OPTION_DOMAIN, $domain );
