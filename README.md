@@ -5,7 +5,7 @@
 
 **بدست:** کُدروز  
 **خانهٔ افزونه:** https://github.com/Codruz/buyruz-plugin.git
-**نسخه:** 5.25.6
+**نسخه:** 5.25.7
 
 ## محتوا
 - [معرفی](#معرفی)
@@ -15,6 +15,7 @@
 - [نحوهٔ استفاده](#نحوهٔ-استفاده)
 - [تنظیمات افزونه](#تنظیمات-افزونه)
 - [توسعه و مشارکت](#توسعه-و-مشارکت)
+- [مانیفست بسته‌بندی و ساخت فایل ZIP](#zip-manifest)
 - [به‌روزرسانی دستی](#manual-update)
 - [پشتیبانی](#پشتیبانی)
 - [لایسنس](#لایسنس)
@@ -73,6 +74,50 @@
 - توسعه‌ی فعلی توسط تیم کُدروز انجام می‌شود.
 - پیش از هر تغییری حتماً فایل [`CONTRIBUTING.md`](CONTRIBUTING.md) را مطالعه و چک‌لیست نسخه‌دهی اجباری را رعایت کنید.
 - برای پیشنهاد یا اشکال جدید می‌توانید Pull Request ثبت کنید. پیش از ارسال، مطمئن شوید که استایل کدنویسی وردپرس رعایت شده و هیچ بستهٔ وابستگی اضافه‌ای نیاز ندارد.
+
+<a id="zip-manifest"></a>
+
+## مانیفست بسته‌بندی و ساخت فایل ZIP (Packaging Rules)
+فایل فشردهٔ افزونه برای بارگذاری در سرور و نصب در مدیریت وردپرس باید بهینه، سبک و عاری از پوشه‌ها و فایل‌های مربوط به محیط توسعه و تست محلی باشد.
+
+### پوشه‌ها و فایل‌های مستثنی‌شده (استثناها - نباید در سرور یا فایل ZIP قرار گیرند):
+1. **`.git/`** : اطلاعات و تاریخچه کنترل نسخه Git
+2. **`.github/`** : اکشن‌ها و ورک‌فلوهای تست GitHub CI/CD
+3. **`.phpunit.cache/`** : فایل‌های کش اجرایی PHPUnit
+4. **`tests/`** : فایل‌ها و کدهای تست واحد و یکپارچگی (Unit Tests)
+5. **`vendor/`** : کتابخانه‌های توسعه PHPUnit و وابستگی‌های تست محلی (کدهای اجرا در سرور کاملاً مستقل و بی‌نیاز از vendor هستند)
+6. **`phpunit.xml`** : کانفیگ اجرای تست‌های محلی
+7. **`composer.json` و `composer.lock`** : کانفیگ وابسته به Composer تست‌ها
+8. **`.gitignore` و `.gitattributes`** : کانفیگ مخزن نسخه
+9. **`QA.md`** : سند داخلی کنترل کیفیت
+10. **`.DS_Store`** : فایل‌های موقت سیستم‌عامل macOS
+
+### پوشه‌ها و فایل‌های ضروری تولید و نصب (Production Build):
+- `buyruz-settings.php` : فایل اصلی و هدر ثبت افزونه
+- `uninstall.php` : پاک‌سازی دیتابیس هنگام حذف افزونه
+- `includes/` : کدهای هسته، ماژول‌ها و هوک‌های سیستم
+- `assets/` : استایل‌ها (CSS) و اسکریپت‌های فرانت و ادمین (JS)
+- `README.md` : مستندات اصلی و مانیفست
+- `CHANGELOG.md` : یادداشت‌های انتشار و تاریخچه
+- `LICENSE` : لایسنس پروژه
+
+### دستور استاندارد ساخت فایل ZIP جهت آپلود مستقیم در وردپرس:
+```bash
+zip -r buyruz-wordpress-plugin.zip buyruz-wordpress-plugin \
+  -x "buyruz-wordpress-plugin/.git/*" \
+  -x "buyruz-wordpress-plugin/.github/*" \
+  -x "buyruz-wordpress-plugin/.phpunit.cache/*" \
+  -x "buyruz-wordpress-plugin/tests/*" \
+  -x "buyruz-wordpress-plugin/vendor/*" \
+  -x "buyruz-wordpress-plugin/phpunit.xml" \
+  -x "buyruz-wordpress-plugin/composer.json" \
+  -x "buyruz-wordpress-plugin/composer.lock" \
+  -x "buyruz-wordpress-plugin/.gitignore" \
+  -x "buyruz-wordpress-plugin/.gitattributes" \
+  -x "buyruz-wordpress-plugin/QA.md" \
+  -x "buyruz-wordpress-plugin/*/.DS_Store" \
+  -x "*.DS_Store"
+```
 
 <a id="auto-update"></a>
 <a id="manual-update"></a>
