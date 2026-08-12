@@ -1,6 +1,8 @@
 # Changelog
 
-## [5.25.10] - 2026-08-12
+## [5.25.11] - 2026-08-12
+### برطرف کردن ریشه‌ای خطای متد استاتیک Rank Math و سفید شدن صفحه
+- **اصلاح فراخوانی کلاس `Snippet_Shortcode` رنک‌مث:** اصلاح تابع `fallback_to_rankmath` در کلاس `BRZ_FAQ_Renderer`؛ به طوری که به جای فراخوانی استاتیک اشتباه روی کلاس غیرموجود، یک Sample Instance از کلاس `\RankMath\Schema\Snippet_Shortcode` ساخته شده و متد `rich_snippet` به صورت متد شیء (Object Instance) اجرا می‌شود. این تغییر خطای کشنده PHP 8.0+ (`Fatal error: Using $this when not in object context`) را که باعث سفید شدن کامل صفحه محصول می‌شد به طور کامل برطرف نمود.
 ### رفع قطعی و ریشه‌ای حلقه بازگشتی (Infinite Recursion) و سفید شدن صفحه محصول
 - **جداسازی کامل هوک‌های Getter و Display:** حذف اتصالات فیلتر `do_shortcode` و پاک‌سازی از هوک‌های داخلی ووکارمرس (`woocommerce_product_get_description` و `woocommerce_product_get_short_description`). این فیلترها درون تابع `$product->get_description()` اجرا می‌شدند و هنگام فراخوانی متدهای محصول در شورت‌کدها یا ویجت‌های قالب، باعث ایجاد حلقه فراخوانی بی‌نهایت، پر شدن حافظه (Memory Exhaustion) و سفید شدن کامل صفحه محصول می‌گشتند.
 - **محدودسازی به فیلترهای نمایش اصلی:** اجرای شورت‌کدها به هوک‌های نمایش استاندارد وردپرس (`the_content` و `woocommerce_short_description`) محدود گردید تا لود کامل صفحه محصول بدون اختلال انجام شود.

@@ -171,9 +171,12 @@ class BRZ_FAQ_Renderer {
      * @return string
      */
     private static function fallback_to_rankmath( $id ) {
-        // رنک‌مث ممکن است handler خودش را داشته باشد
-        if ( class_exists( '\RankMath\Schema\Shortcode' ) && method_exists( '\RankMath\Schema\Shortcode', 'rich_snippet' ) ) {
-            return \RankMath\Schema\Shortcode::rich_snippet( array( 'id' => $id ) );
+        // Correct class name in Rank Math is \RankMath\Schema\Snippet_Shortcode
+        if ( class_exists( '\RankMath\Schema\Snippet_Shortcode' ) ) {
+            $instance = new \RankMath\Schema\Snippet_Shortcode();
+            if ( method_exists( $instance, 'rich_snippet' ) ) {
+                return $instance->rich_snippet( array( 'id' => $id ) );
+            }
         }
         return '';
     }
