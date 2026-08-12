@@ -41,6 +41,13 @@ class BRZ_Plugin {
                 }
                 return $data;
             }, 9999 );
+
+            add_filter( 'rank_math/snippet/rich_snippet_entity', function( $entity ) {
+                if ( is_array( $entity ) && ! isset( $entity['@type'] ) ) {
+                    $entity['@type'] = 'Thing';
+                }
+                return $entity;
+            }, 9999 );
         }
 
         // Always needed (REST fields for products, used by both admin and REST)
