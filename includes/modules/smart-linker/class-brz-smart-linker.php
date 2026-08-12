@@ -126,16 +126,59 @@ class BRZ_Smart_Linker {
         $plugin_file = plugin_basename( BRZ_PATH . 'buyruz-settings.php' );
         $nonce       = wp_create_nonce( 'brz_deactivation_nonce' );
         ?>
-        <div id="brz-deactivate-dialog" style="display:none;position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.55);align-items:center;justify-content:center;">
-            <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:460px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);direction:rtl;text-align:right;">
-                <h3 style="margin:0 0 12px;">⚠️ غیرفعال‌سازی افزونه بایروز</h3>
-                <p style="margin:0 0 16px;color:#555;font-size:14px;line-height:1.7;">آیا می‌خواهید داده‌های Smart Linker (جداول دیتابیس، ایندکس محتوا و لینک‌های pending) نیز پاک شوند؟</p>
-                <p style="margin:0 0 16px;color:#059669;font-size:13px;">✅ لینک‌های اعمال‌شده در محتوا در هر صورت حفظ می‌شوند.</p>
-                <div style="display:flex;gap:10px;justify-content:flex-start;">
-                    <button type="button" id="brz-deactivate-keep" style="padding:8px 20px;border:1px solid #2563eb;background:#2563eb;color:#fff;border-radius:8px;cursor:pointer;font-size:14px;">غیرفعال (حفظ داده‌ها)</button>
-                    <button type="button" id="brz-deactivate-delete" style="padding:8px 20px;border:1px solid #dc2626;background:#fff;color:#dc2626;border-radius:8px;cursor:pointer;font-size:14px;">غیرفعال + حذف داده‌ها</button>
-                    <button type="button" id="brz-deactivate-cancel" style="padding:8px 20px;border:1px solid #ccc;background:#f5f5f5;color:#333;border-radius:8px;cursor:pointer;font-size:14px;">انصراف</button>
+        <div id="brz-deactivate-dialog" style="display:none;position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,0.65);backdrop-filter:blur(4px);align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+            <div style="background:#ffffff;border-radius:16px;padding:28px 32px;max-width:500px;width:92%;box-shadow:0 20px 45px rgba(0,0,0,0.25);direction:rtl;text-align:right;border:1px solid #e2e8f0;box-sizing:border-box;">
+                
+                <!-- Header -->
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                    <div style="width:40px;height:40px;border-radius:10px;background:#eff6ff;color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:20px;">⏸️</div>
+                    <div>
+                        <h3 style="margin:0;font-size:17px;font-weight:700;color:#0f172a;">غیرفعال‌سازی افزونه بایروز</h3>
+                        <p style="margin:2px 0 0;font-size:12px;color:#64748b;">تنظیمات رفتاری هنگام خروج یا غیرفعال‌سازی موقت</p>
+                    </div>
                 </div>
+
+                <!-- Main Status Banner -->
+                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 16px;margin-bottom:20px;">
+                    <p style="margin:0;color:#166534;font-size:13px;line-height:1.6;font-weight:500;">
+                        ✅ <strong>حالت پیش‌فرض و ایمن:</strong> غیرفعال‌سازی افزونه، هیچ آسیبی به دیتابیس، تنظیمات یا لینک‌های ایجادشده نمی‌زند و کلیه داده‌ها برای استفاده مجدد حفظ خواهند شد.
+                    </p>
+                </div>
+
+                <!-- Primary Action Buttons -->
+                <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
+                    <button type="button" id="brz-deactivate-keep" style="width:100%;padding:12px 20px;border:none;background:#2563eb;color:#ffffff;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 12px rgba(37,99,235,0.25);transition:all 0.2s ease;">
+                        <span>غیرفعال‌سازی ایمن (حفظ کامل داده‌ها و دیتابیس)</span>
+                    </button>
+                    <button type="button" id="brz-deactivate-cancel" style="width:100%;padding:10px 20px;border:1px solid #cbd5e1;background:#f8fafc;color:#475569;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500;">
+                        انصراف
+                    </button>
+                </div>
+
+                <!-- Danger Zone Accordion Toggle -->
+                <div style="border-top:1px solid #f1f5f9;padding-top:14px;margin-top:10px;">
+                    <button type="button" id="brz-toggle-danger-zone" style="background:none;border:none;color:#dc2626;font-size:12px;cursor:pointer;padding:0;display:flex;align-items:center;gap:6px;font-weight:600;">
+                        <span>⚙️ پاک‌سازی کامل دیتابیس و اطلاعات (تنظیمات پیشرفته / خطرناک)</span>
+                        <span id="brz-danger-icon">▼</span>
+                    </button>
+                </div>
+
+                <!-- Danger Zone Content (Hidden by default) -->
+                <div id="brz-danger-zone-content" style="display:none;margin-top:14px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px;">
+                    <div style="color:#991b1b;font-size:12.5px;line-height:1.6;margin-bottom:14px;">
+                        🚨 <strong>هشدار غیرقابل بازگشت:</strong> در صورت تایید این بخش، تمام جداول دیتابیس (جداول Smart Linker، ایندکس محتوا و لینک‌های pending) برای همیشه **پاک خواهند شد**.
+                    </div>
+                    
+                    <label for="brz-confirm-delete-input" style="display:block;font-size:12px;font-weight:600;color:#7f1d1d;margin-bottom:6px;">
+                        جهت تایید حذف دائمی، عبارت <code style="background:#fee2e2;padding:2px 6px;border-radius:4px;color:#991b1b;">حذف داده ها</code> را تایپ کنید:
+                    </label>
+                    <input type="text" id="brz-confirm-delete-input" placeholder="عبارت حذف داده ها را وارد کنید" style="width:100%;padding:9px 12px;border:1px solid #fca5a5;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:12px;outline:none;background:#fff;">
+
+                    <button type="button" id="brz-deactivate-delete" disabled style="width:100%;padding:10px 16px;border:none;background:#ef4444;color:#ffffff;border-radius:8px;cursor:not-allowed;font-size:13px;font-weight:600;opacity:0.4;transition:all 0.2s ease;">
+                        حذف دائم داده‌ها و غیرفعال‌سازی
+                    </button>
+                </div>
+
             </div>
         </div>
         <script>
@@ -148,9 +191,41 @@ class BRZ_Smart_Linker {
             var dialog = document.getElementById('brz-deactivate-dialog');
             var originalHref = deactivateLink.href;
 
+            var dangerToggle = document.getElementById('brz-toggle-danger-zone');
+            var dangerContent = document.getElementById('brz-danger-zone-content');
+            var dangerIcon = document.getElementById('brz-danger-icon');
+            var confirmInput = document.getElementById('brz-confirm-delete-input');
+            var deleteBtn = document.getElementById('brz-deactivate-delete');
+
             deactivateLink.addEventListener('click', function(e) {
                 e.preventDefault();
                 dialog.style.display = 'flex';
+                // Reset state when opening
+                dangerContent.style.display = 'none';
+                dangerIcon.textContent = '▼';
+                confirmInput.value = '';
+                deleteBtn.disabled = true;
+                deleteBtn.style.opacity = '0.4';
+                deleteBtn.style.cursor = 'not-allowed';
+            });
+
+            dangerToggle.addEventListener('click', function() {
+                var isHidden = dangerContent.style.display === 'none';
+                dangerContent.style.display = isHidden ? 'block' : 'none';
+                dangerIcon.textContent = isHidden ? '▲' : '▼';
+            });
+
+            confirmInput.addEventListener('input', function() {
+                var val = this.value.trim();
+                if (val === 'حذف داده ها' || val === 'حذف داده‌ها' || val === 'حذف') {
+                    deleteBtn.disabled = false;
+                    deleteBtn.style.opacity = '1';
+                    deleteBtn.style.cursor = 'pointer';
+                } else {
+                    deleteBtn.disabled = true;
+                    deleteBtn.style.opacity = '0.4';
+                    deleteBtn.style.cursor = 'not-allowed';
+                }
             });
 
             function proceed(deleteData) {
@@ -164,7 +239,11 @@ class BRZ_Smart_Linker {
             }
 
             document.getElementById('brz-deactivate-keep').onclick = function() { proceed(false); };
-            document.getElementById('brz-deactivate-delete').onclick = function() { proceed(true); };
+            deleteBtn.onclick = function() {
+                if (!deleteBtn.disabled) {
+                    proceed(true);
+                }
+            };
             document.getElementById('brz-deactivate-cancel').onclick = function() { dialog.style.display = 'none'; };
         })();
         </script>
