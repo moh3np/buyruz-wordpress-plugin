@@ -65,44 +65,6 @@ class BRZ_Plugin {
                 }
                 return $entity;
             }, 9999 );
-
-            // Auto-repair or clean Rank Math schema postmeta rows missing top-level @type (fixes Rank Math PHP 8.1+ bug)
-            add_action( 'wp', function() {
-                if ( ! is_singular() ) {
-                    return;
-                }
-                $post_id = get_the_ID();
-                if ( ! $post_id ) {
-                    return;
-                }
-                global $wpdb;
-                $rows = $wpdb->get_results( $wpdb->prepare(
-                    "SELECT meta_id, meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key LIKE 'rank_math_schema%%'",
-                    $post_id
-                ) );
-                if ( empty( $rows ) || ! is_array( $rows ) ) {
-                    return;
-                }
-                foreach ( $rows as $row ) {
-                    $val = maybe_unserialize( $row->meta_value );
-                    if ( ! is_array( $val ) || empty( $val ) ) {
-                        $wpdb->delete( $wpdb->postmeta, array( 'meta_id' => $row->meta_id ) );
-                        continue;
-                    }
-                    if ( empty( $val['@type'] ) ) {
-                        if ( isset( $val['metadata']['type'] ) && ! empty( $val['metadata']['type'] ) ) {
-                            $val['@type'] = $val['metadata']['type'];
-                            $wpdb->update(
-                                $wpdb->postmeta,
-                                array( 'meta_value' => serialize( $val ) ),
-                                array( 'meta_id' => $row->meta_id )
-                            );
-                        } else {
-                            $wpdb->delete( $wpdb->postmeta, array( 'meta_id' => $row->meta_id ) );
-                        }
-                    }
-                }
-            }, 1 );
         }
 
         // Always needed (REST fields for products, used by both admin and REST)
