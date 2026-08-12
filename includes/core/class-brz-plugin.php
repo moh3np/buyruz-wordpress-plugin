@@ -29,6 +29,18 @@ class BRZ_Plugin {
             BRZ_FAQ_Renderer::init();
             BRZ_Compare_Table::init();
             BRZ_WC_Shortcodes::init();
+
+            // Guard Rank Math JSON-LD output against entities missing @type (prevents PHP 8.1+ Rank Math crashes)
+            add_filter( 'rank_math/json_ld', function( $data ) {
+                if ( is_array( $data ) ) {
+                    foreach ( $data as $key => $entity ) {
+                        if ( 'metadata' !== $key && is_array( $entity ) && ! isset( $entity['@type'] ) ) {
+                            unset( $data[ $key ] );
+                        }
+                    }
+                }
+                return $data;
+            }, 9999 );
         }
 
         // Always needed (REST fields for products, used by both admin and REST)

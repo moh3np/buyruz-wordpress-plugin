@@ -136,12 +136,18 @@ class BRZ_WC_Core_Specs {
      * @return array Modified markup.
      */
     public static function inject_into_wc_schema( array $markup, WC_Product $product ): array {
-        if ( self::$injected ) {
-            return $markup;
-        }
+        try {
+            if ( self::$injected ) {
+                return $markup;
+            }
 
-        $markup           = self::apply_physical_specs( $markup, $product );
-        self::$injected   = true;
+            $markup         = self::apply_physical_specs( $markup, $product );
+            self::$injected = true;
+        } catch ( \Throwable $e ) {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( '[BRZ_WC_Core_Specs] WC schema injection failed: ' . $e->getMessage() );
+            }
+        }
 
         return $markup;
     }
@@ -156,42 +162,48 @@ class BRZ_WC_Core_Specs {
      * @return array Modified data.
      */
     public static function inject_into_rankmath_jsonld( array $data, $jsonld ): array {
-        if ( self::$injected ) {
-            return $data;
-        }
-
-        if ( ! function_exists( 'is_product' ) || ! is_product() ) {
-            return $data;
-        }
-
-        global $product;
-        $wc_product = is_a( $product, 'WC_Product' ) ? $product : null;
-        if ( ! $wc_product ) {
-            $product_id = get_queried_object_id();
-            if ( $product_id ) {
-                $wc_product = wc_get_product( $product_id );
-            }
-        }
-
-        if ( ! $wc_product ) {
-            return $data;
-        }
-
-        foreach ( $data as $key => &$entity ) {
-            if ( ! is_array( $entity ) || ! isset( $entity['@type'] ) ) {
-                continue;
+        try {
+            if ( self::$injected ) {
+                return $data;
             }
 
-            $types = (array) $entity['@type'];
-            if ( ! in_array( 'Product', $types, true ) ) {
-                continue;
+            if ( ! function_exists( 'is_product' ) || ! is_product() ) {
+                return $data;
             }
 
-            $entity         = self::apply_physical_specs( $entity, $wc_product );
-            self::$injected = true;
-            break;
+            global $product;
+            $wc_product = is_a( $product, 'WC_Product' ) ? $product : null;
+            if ( ! $wc_product ) {
+                $product_id = get_queried_object_id();
+                if ( $product_id ) {
+                    $wc_product = wc_get_product( $product_id );
+                }
+            }
+
+            if ( ! $wc_product ) {
+                return $data;
+            }
+
+            foreach ( $data as $key => &$entity ) {
+                if ( ! is_array( $entity ) || ! isset( $entity['@type'] ) ) {
+                    continue;
+                }
+
+                $types = (array) $entity['@type'];
+                if ( ! in_array( 'Product', $types, true ) ) {
+                    continue;
+                }
+
+                $entity         = self::apply_physical_specs( $entity, $wc_product );
+                self::$injected = true;
+                break;
+            }
+            unset( $entity );
+        } catch ( \Throwable $e ) {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( '[BRZ_WC_Core_Specs] RankMath schema injection failed: ' . $e->getMessage() );
+            }
         }
-        unset( $entity );
 
         return $data;
     }

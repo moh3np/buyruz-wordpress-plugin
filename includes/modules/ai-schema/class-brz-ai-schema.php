@@ -599,12 +599,18 @@ class BRZ_AI_Schema {
      * @return array Modified markup.
      */
     public static function inject_into_wc_schema( $markup, $product ) {
-        if ( self::$injected ) {
-            return $markup;
-        }
+        try {
+            if ( self::$injected ) {
+                return $markup;
+            }
 
-        $markup           = self::apply_to_entity( $markup, $product );
-        self::$injected   = true;
+            $markup         = self::apply_to_entity( $markup, $product );
+            self::$injected = true;
+        } catch ( \Throwable $e ) {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( '[BRZ_AI_Schema] WC schema injection failed: ' . $e->getMessage() );
+            }
+        }
 
         return $markup;
     }
@@ -621,32 +627,38 @@ class BRZ_AI_Schema {
      * @return array Modified data.
      */
     public static function inject_into_rankmath_jsonld( $data, $jsonld ) {
-        // Skip if WooCommerce already handled injection.
-        if ( self::$injected ) {
-            return $data;
-        }
-
-        // Only on single product pages.
-        if ( ! function_exists( 'is_product' ) || ! is_product() ) {
-            return $data;
-        }
-
-        foreach ( $data as $key => &$entity ) {
-            if ( ! is_array( $entity ) || ! isset( $entity['@type'] ) ) {
-                continue;
+        try {
+            // Skip if WooCommerce already handled injection.
+            if ( self::$injected ) {
+                return $data;
             }
 
-            // Handle both string @type and array @type (e.g. ['Product', 'IndividualProduct']).
-            $types = (array) $entity['@type'];
-            if ( ! in_array( 'Product', $types, true ) ) {
-                continue;
+            // Only on single product pages.
+            if ( ! function_exists( 'is_product' ) || ! is_product() ) {
+                return $data;
             }
 
-            $entity         = self::apply_to_entity( $entity );
-            self::$injected = true;
-            break; // Only modify the first Product entity.
+            foreach ( $data as $key => &$entity ) {
+                if ( ! is_array( $entity ) || ! isset( $entity['@type'] ) ) {
+                    continue;
+                }
+
+                // Handle both string @type and array @type (e.g. ['Product', 'IndividualProduct']).
+                $types = (array) $entity['@type'];
+                if ( ! in_array( 'Product', $types, true ) ) {
+                    continue;
+                }
+
+                $entity         = self::apply_to_entity( $entity );
+                self::$injected = true;
+                break; // Only modify the first Product entity.
+            }
+            unset( $entity );
+        } catch ( \Throwable $e ) {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( '[BRZ_AI_Schema] RankMath schema injection failed: ' . $e->getMessage() );
+            }
         }
-        unset( $entity );
 
         return $data;
     }

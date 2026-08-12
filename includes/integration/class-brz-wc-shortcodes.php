@@ -21,7 +21,8 @@ class BRZ_WC_Shortcodes {
         add_filter( 'the_content', array( __CLASS__, 'process_the_content' ), 11 );
         add_filter( 'woocommerce_short_description', array( __CLASS__, 'process_woocommerce_short_description' ), 11 );
         add_filter( 'the_excerpt', array( __CLASS__, 'process_the_excerpt' ), 11 );
-        add_action( 'wp', array( __CLASS__, 'prime_global_post_content' ) );
+        // Disabled early mutation of global $post content on 'wp' hook to prevent Rank Math schema corruption
+        // add_action( 'wp', array( __CLASS__, 'prime_global_post_content' ) );
     }
 
     private static function is_enabled() {
