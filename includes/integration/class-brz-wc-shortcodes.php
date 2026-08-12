@@ -39,6 +39,7 @@ class BRZ_WC_Shortcodes {
         if ( is_admin() ) { return true; }
         if ( function_exists( 'wp_doing_ajax' ) && wp_doing_ajax() ) { return true; }
         if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) { return true; }
+        if ( doing_action( 'wp_head' ) || doing_action( 'rank_math/head' ) || doing_filter( 'rank_math/json_ld' ) || doing_filter( 'woocommerce_structured_data_product' ) ) { return true; }
         return false;
     }
 

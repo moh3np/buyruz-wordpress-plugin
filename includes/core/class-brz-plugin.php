@@ -30,12 +30,27 @@ class BRZ_Plugin {
             BRZ_Compare_Table::init();
             BRZ_WC_Shortcodes::init();
 
-            // Guard Rank Math JSON-LD output against entities missing @type (prevents PHP 8.1+ Rank Math crashes)
+            // Clean & sanitize Rank Math JSON-LD output against entities missing @type (prevents PHP 8.1+ Rank Math crashes)
             add_filter( 'rank_math/json_ld', function( $data ) {
                 if ( is_array( $data ) ) {
                     foreach ( $data as $key => $entity ) {
-                        if ( 'metadata' !== $key && is_array( $entity ) && ! isset( $entity['@type'] ) ) {
-                            unset( $data[ $key ] );
+                        if ( 'metadata' !== $key ) {
+                            if ( ! is_array( $entity ) || empty( $entity['@type'] ) ) {
+                                unset( $data[ $key ] );
+                            }
+                        }
+                    }
+                }
+                return $data;
+            }, 1 );
+
+            add_filter( 'rank_math/json_ld', function( $data ) {
+                if ( is_array( $data ) ) {
+                    foreach ( $data as $key => $entity ) {
+                        if ( 'metadata' !== $key ) {
+                            if ( ! is_array( $entity ) || empty( $entity['@type'] ) ) {
+                                unset( $data[ $key ] );
+                            }
                         }
                     }
                 }
@@ -43,13 +58,15 @@ class BRZ_Plugin {
             }, 9999 );
 
             add_filter( 'rank_math/snippet/rich_snippet_entity', function( $entity ) {
-                if ( is_array( $entity ) && ! isset( $entity['@type'] ) ) {
-                    $entity['@type'] = 'Thing';
+                if ( ! is_array( $entity ) || empty( $entity['@type'] ) ) {
+                    if ( is_array( $entity ) ) {
+                        $entity['@type'] = 'Thing';
+                    }
                 }
                 return $entity;
             }, 9999 );
 
-            // Auto-repair Rank Math schema postmeta rows missing top-level @type (fixes Rank Math PHP 8.1+ bug)
+            // Auto-repair or clean Rank Math schema postmeta rows missing top-level @type (fixes Rank Math PHP 8.1+ bug)
             add_action( 'wp', function() {
                 if ( ! is_singular() ) {
                     return;
@@ -68,17 +85,21 @@ class BRZ_Plugin {
                 }
                 foreach ( $rows as $row ) {
                     $val = maybe_unserialize( $row->meta_value );
-                    if ( is_array( $val ) && ! isset( $val['@type'] ) ) {
+                    if ( ! is_array( $val ) || empty( $val ) ) {
+                        $wpdb->delete( $wpdb->postmeta, array( 'meta_id' => $row->meta_id ) );
+                        continue;
+                    }
+                    if ( empty( $val['@type'] ) ) {
                         if ( isset( $val['metadata']['type'] ) && ! empty( $val['metadata']['type'] ) ) {
                             $val['@type'] = $val['metadata']['type'];
+                            $wpdb->update(
+                                $wpdb->postmeta,
+                                array( 'meta_value' => serialize( $val ) ),
+                                array( 'meta_id' => $row->meta_id )
+                            );
                         } else {
-                            $val['@type'] = 'Thing';
+                            $wpdb->delete( $wpdb->postmeta, array( 'meta_id' => $row->meta_id ) );
                         }
-                        $wpdb->update(
-                            $wpdb->postmeta,
-                            array( 'meta_value' => serialize( $val ) ),
-                            array( 'meta_id' => $row->meta_id )
-                        );
                     }
                 }
             }, 1 );
