@@ -1295,11 +1295,19 @@ class BRZ_Offline_Bridge {
                 return null;
 
             case 'description':
-                $product->set_description( wp_kses_post( $value ) );
+                $desc = wp_kses_post( $value );
+                if ( $product->get_id() ) {
+                    $desc = str_ireplace( 'WooID', (string) $product->get_id(), $desc );
+                }
+                $product->set_description( $desc );
                 return null;
 
             case 'short_description':
-                $product->set_short_description( wp_kses_post( $value ) );
+                $sdesc = wp_kses_post( $value );
+                if ( $product->get_id() ) {
+                    $sdesc = str_ireplace( 'WooID', (string) $product->get_id(), $sdesc );
+                }
+                $product->set_short_description( $sdesc );
                 return null;
 
             case 'buyruz_compare_table':

@@ -14,6 +14,18 @@ class BRZ_Compare_Table {
         add_shortcode( 'buyruz_compare_table', array( __CLASS__, 'shortcode' ) );
         add_shortcode( 'brz_compare_table', array( __CLASS__, 'shortcode' ) );
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
+
+        // WooID Lifecycle Support (New & Existing products)
+        add_filter( 'wp_insert_post_data', array( __CLASS__, 'filter_post_data_replace_wooid' ), 20, 2 );
+        add_action( 'wp_after_insert_post', array( __CLASS__, 'on_after_insert_post' ), 20, 3 );
+        add_action( 'save_post_product', array( __CLASS__, 'on_woocommerce_save_product' ), 20, 2 );
+        add_action( 'woocommerce_new_product', array( __CLASS__, 'on_woocommerce_save_product' ), 20, 2 );
+        add_action( 'woocommerce_update_product', array( __CLASS__, 'on_woocommerce_save_product' ), 20, 2 );
+        add_action( 'woocommerce_rest_insert_product_object', array( __CLASS__, 'on_rest_insert_product' ), 20, 3 );
+
+        // Frontend dynamic filters (fail-safe for display)
+        add_filter( 'the_content', array( __CLASS__, 'filter_wooid_in_content' ), 5 );
+        add_filter( 'woocommerce_short_description', array( __CLASS__, 'filter_wooid_in_content' ), 5 );
     }
 
     public static function enqueue_assets() {
@@ -89,9 +101,14 @@ class BRZ_Compare_Table {
         return $normalized;
     }
 
-    private static function normalize_table_id( $value, $post_id ) {
+    public static function normalize_table_id( $value, $post_id ) {
         $value = is_string( $value ) ? $value : '';
         $value = preg_replace( '/[^a-zA-Z0-9_-]/', '', $value );
+        if ( strcasecmp( $value, 'WooID' ) === 0 || strcasecmp( $value, 'brz-ct-WooID' ) === 0 ) {
+            $value = 'brz-ct-' . absint( $post_id );
+        } elseif ( ! empty( $post_id ) ) {
+            $value = str_ireplace( 'WooID', (string) absint( $post_id ), $value );
+        }
         if ( empty( $value ) ) {
             $value = 'brz-ct-' . absint( $post_id );
         }
@@ -406,11 +423,23 @@ class BRZ_Compare_Table {
 
         $post_id = 0;
         if ( ! empty( $atts['product_id'] ) ) {
-            $post_id = absint( $atts['product_id'] );
+            if ( strcasecmp( trim( $atts['product_id'] ), 'WooID' ) === 0 ) {
+                $post_id = self::get_current_product_id();
+            } else {
+                $post_id = absint( $atts['product_id'] );
+            }
         }
 
         if ( ! $post_id && ! empty( $atts['id'] ) ) {
-            $post_id = self::product_id_from_table_id( $atts['id'] );
+            if ( stripos( $atts['id'], 'WooID' ) !== false ) {
+                $post_id = self::get_current_product_id();
+            } else {
+                $post_id = self::product_id_from_table_id( $atts['id'] );
+            }
+        }
+
+        if ( ! $post_id ) {
+            $post_id = self::get_current_product_id();
         }
 
         if ( ! $post_id ) {
@@ -455,5 +484,253 @@ class BRZ_Compare_Table {
 
         self::$rendered[ $post_id ] = true;
         echo $html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    }
+
+    /**
+     * Replace WooID token in text with the actual WooCommerce product ID.
+     *
+     * @param string $text
+     * @param int    $product_id
+     * @return string
+     */
+    public static function replace_wooid_in_text( $text, $product_id ) {
+        $product_id = absint( $product_id );
+        if ( ! $product_id || empty( $text ) || ! is_string( $text ) ) {
+            return $text;
+        }
+
+        if ( stripos( $text, 'WooID' ) === false ) {
+            return $text;
+        }
+
+        return str_ireplace( 'WooID', (string) $product_id, $text );
+    }
+
+    /**
+     * Replace WooID token in product post_content, post_excerpt, and compare table meta.
+     * Works seamlessly for newly created products and existing products.
+     *
+     * @param int|object $product
+     * @return bool True if changes were made and saved, false otherwise.
+     */
+    public static function replace_wooid_in_product( $product ) {
+        $post_id = 0;
+        if ( is_numeric( $product ) ) {
+            $post_id = absint( $product );
+        } elseif ( is_object( $product ) && method_exists( $product, 'get_id' ) ) {
+            $post_id = absint( $product->get_id() );
+        } elseif ( is_object( $product ) && isset( $product->ID ) ) {
+            $post_id = absint( $product->ID );
+        }
+
+        if ( ! $post_id ) {
+            return false;
+        }
+
+        if ( function_exists( 'get_post_type' ) && 'product' !== get_post_type( $post_id ) ) {
+            return false;
+        }
+
+        $post = function_exists( 'get_post' ) ? get_post( $post_id ) : null;
+        $content = '';
+        $excerpt = '';
+
+        if ( $post ) {
+            $content = $post->post_content ?? '';
+            $excerpt = $post->post_excerpt ?? '';
+        } elseif ( is_object( $product ) ) {
+            $content = method_exists( $product, 'get_description' ) ? $product->get_description() : '';
+            $excerpt = method_exists( $product, 'get_short_description' ) ? $product->get_short_description() : '';
+        }
+
+        $has_in_content = ( is_string( $content ) && stripos( $content, 'WooID' ) !== false );
+        $has_in_excerpt = ( is_string( $excerpt ) && stripos( $excerpt, 'WooID' ) !== false );
+
+        $updated = false;
+
+        if ( $has_in_content || $has_in_excerpt ) {
+            $new_content = $has_in_content ? self::replace_wooid_in_text( $content, $post_id ) : $content;
+            $new_excerpt = $has_in_excerpt ? self::replace_wooid_in_text( $excerpt, $post_id ) : $excerpt;
+
+            global $wpdb;
+            if ( $wpdb && ! empty( $wpdb->posts ) ) {
+                $wpdb->update(
+                    $wpdb->posts,
+                    array(
+                        'post_content' => $new_content,
+                        'post_excerpt' => $new_excerpt,
+                    ),
+                    array( 'ID' => $post_id )
+                );
+            }
+
+            if ( is_object( $product ) ) {
+                if ( $has_in_content && method_exists( $product, 'set_description' ) ) {
+                    $product->set_description( $new_content );
+                }
+                if ( $has_in_excerpt && method_exists( $product, 'set_short_description' ) ) {
+                    $product->set_short_description( $new_excerpt );
+                }
+            }
+
+            if ( $post ) {
+                $post->post_content = $new_content;
+                $post->post_excerpt = $new_excerpt;
+            }
+
+            if ( function_exists( 'clean_post_cache' ) ) {
+                clean_post_cache( $post_id );
+            }
+
+            $updated = true;
+        }
+
+        if ( function_exists( 'get_post_meta' ) && function_exists( 'update_post_meta' ) ) {
+            $existing_table_id = get_post_meta( $post_id, self::META_ID_KEY, true );
+            if ( is_string( $existing_table_id ) && stripos( $existing_table_id, 'WooID' ) !== false ) {
+                $clean_table_id = self::replace_wooid_in_text( $existing_table_id, $post_id );
+                update_post_meta( $post_id, self::META_ID_KEY, $clean_table_id );
+                $updated = true;
+            }
+        }
+
+        return $updated;
+    }
+
+    /**
+     * Filter post data before saving to replace WooID for existing products.
+     *
+     * @param array $data
+     * @param array $postarr
+     * @return array
+     */
+    public static function filter_post_data_replace_wooid( $data, $postarr = array() ) {
+        $pid = 0;
+        if ( ! empty( $postarr['ID'] ) ) {
+            $pid = absint( $postarr['ID'] );
+        } elseif ( ! empty( $data['ID'] ) ) {
+            $pid = absint( $data['ID'] );
+        }
+
+        $post_type = $data['post_type'] ?? ( $postarr['post_type'] ?? '' );
+        if ( 'product' !== $post_type && ! empty( $pid ) && function_exists( 'get_post_type' ) ) {
+            $post_type = get_post_type( $pid );
+        }
+
+        if ( 'product' !== $post_type ) {
+            return $data;
+        }
+
+        if ( $pid > 0 ) {
+            if ( ! empty( $data['post_content'] ) && is_string( $data['post_content'] ) ) {
+                $data['post_content'] = self::replace_wooid_in_text( $data['post_content'], $pid );
+            }
+            if ( ! empty( $data['post_excerpt'] ) && is_string( $data['post_excerpt'] ) ) {
+                $data['post_excerpt'] = self::replace_wooid_in_text( $data['post_excerpt'], $pid );
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * Action on after insert post (useful for newly created products where ID was just assigned).
+     *
+     * @param int|object $post
+     * @param bool       $update
+     * @param object     $post_before
+     */
+    public static function on_after_insert_post( $post, $update = false, $post_before = null ) {
+        if ( empty( $post ) ) {
+            return;
+        }
+        $post_id = is_object( $post ) && isset( $post->ID ) ? absint( $post->ID ) : absint( $post );
+        if ( ! $post_id ) {
+            return;
+        }
+        $post_type = is_object( $post ) && isset( $post->post_type ) ? $post->post_type : ( function_exists( 'get_post_type' ) ? get_post_type( $post_id ) : '' );
+        if ( 'product' !== $post_type ) {
+            return;
+        }
+        self::replace_wooid_in_product( $post_id );
+    }
+
+    /**
+     * Action on woocommerce product save/create.
+     *
+     * @param int         $product_id
+     * @param object|null $product
+     */
+    public static function on_woocommerce_save_product( $product_id, $product = null ) {
+        $pid = absint( $product_id );
+        if ( ! $pid && is_object( $product ) && method_exists( $product, 'get_id' ) ) {
+            $pid = absint( $product->get_id() );
+        }
+        if ( $pid ) {
+            self::replace_wooid_in_product( $pid );
+        }
+    }
+
+    /**
+     * Action on woocommerce REST API product insert/update.
+     *
+     * @param object $product
+     * @param object $request
+     * @param bool   $creating
+     */
+    public static function on_rest_insert_product( $product, $request = null, $creating = false ) {
+        if ( is_object( $product ) && method_exists( $product, 'get_id' ) && $product->get_id() ) {
+            self::replace_wooid_in_product( $product );
+        }
+    }
+
+    /**
+     * Frontend filter on content to replace WooID on-the-fly.
+     *
+     * @param string $content
+     * @return string
+     */
+    public static function filter_wooid_in_content( $content ) {
+        if ( empty( $content ) || ! is_string( $content ) || stripos( $content, 'WooID' ) === false ) {
+            return $content;
+        }
+        $post_id = self::get_current_product_id();
+        if ( ! $post_id ) {
+            return $content;
+        }
+        return self::replace_wooid_in_text( $content, $post_id );
+    }
+
+    /**
+     * Get the current product ID across different environments (single page, loop, global).
+     *
+     * @return int
+     */
+    public static function get_current_product_id() {
+        global $product, $post;
+
+        if ( is_object( $product ) && method_exists( $product, 'get_id' ) ) {
+            return absint( $product->get_id() );
+        }
+
+        if ( ! empty( $post->ID ) && function_exists( 'get_post_type' ) && 'product' === get_post_type( $post->ID ) ) {
+            return absint( $post->ID );
+        }
+
+        if ( function_exists( 'get_queried_object_id' ) && function_exists( 'get_post_type' ) ) {
+            $queried_id = get_queried_object_id();
+            if ( $queried_id && 'product' === get_post_type( $queried_id ) ) {
+                return absint( $queried_id );
+            }
+        }
+
+        if ( function_exists( 'get_the_ID' ) && function_exists( 'get_post_type' ) ) {
+            $the_id = get_the_ID();
+            if ( $the_id && 'product' === get_post_type( $the_id ) ) {
+                return absint( $the_id );
+            }
+        }
+
+        return 0;
     }
 }

@@ -27,13 +27,15 @@ class BRZ_Plugin {
             }
         }
 
+        // Compare table core & WooID lifecycle hooks (all contexts when WooCommerce is active)
+        if ( $is_wc && class_exists( 'BRZ_Compare_Table' ) ) {
+            BRZ_Compare_Table::init();
+        }
+
         // Frontend-only core
         if ( ! $is_admin && ! $is_rest ) {
             BRZ_FAQ_Renderer::init();
             if ( $is_wc ) {
-                if ( class_exists( 'BRZ_Compare_Table' ) ) {
-                    BRZ_Compare_Table::init();
-                }
                 if ( class_exists( 'BRZ_WC_Shortcodes' ) ) {
                     BRZ_WC_Shortcodes::init();
                 }

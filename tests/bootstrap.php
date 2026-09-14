@@ -324,10 +324,14 @@ if ( ! class_exists( 'WC_Product' ) ) {
         public function get_width( $context = 'view' ) { return $this->data['width'] ?? ''; }
         public function get_height( $context = 'view' ) { return $this->data['height'] ?? ''; }
         public function get_attribute( $key ) { return $this->attributes[ $key ] ?? ''; }
+        public function get_description( $context = 'view' ) { return $this->data['description'] ?? ''; }
+        public function get_short_description( $context = 'view' ) { return $this->data['short_description'] ?? ''; }
 
         public function set_name( $name ) { $this->data['name'] = $name; }
         public function set_slug( $slug ) { $this->data['slug'] = $slug; }
         public function set_status( $status ) { $this->data['status'] = $status; }
+        public function set_description( $desc ) { $this->data['description'] = $desc; }
+        public function set_short_description( $desc ) { $this->data['short_description'] = $desc; }
         public function set_price( $price ) { $this->data['price'] = $price; }
         public function set_regular_price( $price ) { $this->data['regular_price'] = $price; }
         public function set_sale_price( $price ) { $this->data['sale_price'] = $price; }
