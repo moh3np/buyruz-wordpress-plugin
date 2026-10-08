@@ -27,6 +27,21 @@ class BRZ_Product_Desc_Optimizer {
         add_action( 'template_redirect', array( __CLASS__, 'start_output_buffer' ), 1 );
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ), 99 );
         add_action( 'wp_head', array( __CLASS__, 'inject_critical_anti_cls_css' ), 1 );
+        add_filter( 'perfmatters_delay_js_exclusions', array( __CLASS__, 'exclude_swiper_from_delay_js' ) );
+    }
+
+    /**
+     * Prevent PerfMatters from delaying Swiper script until touch on mobile product pages.
+     *
+     * @param mixed $exclusions Current delayed JS exclusions.
+     * @return array Updated exclusions array containing swiper.
+     */
+    public static function exclude_swiper_from_delay_js( $exclusions ): array {
+        if ( ! is_array( $exclusions ) ) {
+            $exclusions = array_filter( array_map( 'trim', explode( "\n", (string) $exclusions ) ) );
+        }
+        $exclusions[] = 'swiper';
+        return array_unique( $exclusions );
     }
 
     /**
@@ -34,8 +49,15 @@ class BRZ_Product_Desc_Optimizer {
      */
     public static function inject_critical_anti_cls_css(): void {
         echo '<style id="brz-anti-cls-css">'
-            . '#bakala-mobile-gallery-wrapper, .swiper-responsive-product-slider, .swiper-responsive-product-slider .swiper-slide, .swiper-responsive-product-slider .woocommerce-product-gallery__image { aspect-ratio: 1 / 1 !important; width: 100% !important; display: block !important; }'
-            . '.swiper-responsive-product-slider img { aspect-ratio: 1 / 1 !important; width: 100% !important; height: auto !important; object-fit: contain !important; }'
+            . '#bakala-mobile-gallery-wrapper { width: 100% !important; height: auto !important; aspect-ratio: auto !important; display: block !important; position: relative !important; overflow: visible !important; }'
+            . '.swiper-responsive-product-slider { width: 100% !important; height: auto !important; display: block !important; position: relative !important; }'
+            . '.swiper-responsive-product-slider img { width: 100% !important; height: auto !important; display: block !important; object-fit: contain !important; }'
+            . '@media (max-width: 991.98px) {'
+            . '#bakala-mobile-gallery-wrapper ul.product-tooltips, .bakala_product_gallery_style_two ul.product-tooltips { position: relative !important; top: auto !important; bottom: auto !important; left: auto !important; right: auto !important; margin: 10px auto 12px auto !important; display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; z-index: 10 !important; width: max-content !important; background-color: #03432E !important; border-radius: 24px !important; padding: 6px 18px !important; box-shadow: 0 4px 12px rgba(3, 67, 46, 0.15) !important; clear: both !important; }'
+            . '#bakala-mobile-gallery-wrapper ul.product-tooltips li, .bakala_product_gallery_style_two ul.product-tooltips li { height: 32px !important; margin: 0 8px !important; display: flex !important; align-items: center !important; justify-content: center !important; }'
+            . '#bakala-mobile-gallery-wrapper ul.product-tooltips a, .bakala_product_gallery_style_two ul.product-tooltips a { color: #FFFFFF !important; display: flex !important; align-items: center !important; justify-content: center !important; font-size: 18px !important; }'
+            . 'body.single-product .product-det { margin-top: 0 !important; clear: both !important; }'
+            . '}'
             . '@media (min-width: 992px) {'
             . 'body.single-product .short-description .innerContent { max-height: none !important; height: auto !important; overflow: visible !important; }'
             . 'body.single-product .short-description .readmore, body.single-product .short-description [data-readmore-toggle], body.single-product .short-description .readmore_link { display: none !important; }'
@@ -67,6 +89,42 @@ class BRZ_Product_Desc_Optimizer {
         $html = preg_replace(
             '/(<div[^>]*?class=["\'][^"\']*?innerContent[^"\']*?["\'][^>]*?)\s*style=["\'][^"\']*?height:\s*250px[^"\']*?["\']([^>]*?>)/i',
             '$1$2',
+            $html
+        );
+
+        // =========================================================================
+        // 0.B Pre-render Swiper pagination bullets in SSR if empty so dots capsule is instantly visible on first paint
+        // =========================================================================
+        $html = preg_replace_callback(
+            '/(<div[^>]*?class=[\x27\"][^\x27\"]*?swiper-responsive-product-slider[^\x27\"]*?[\x27\"][^>]*?>)(.*?)(<div[^>]*?class=[\x27\"][^\x27\"]*?swiper-pagination[^\x27\"]*?[\x27\"][^>]*?>)\s*(<\/div>)/is',
+            function( $m ) {
+                $slider_open  = $m[1];
+                $inner_slides = $m[2];
+                $pag_open     = $m[3];
+                $pag_close    = $m[4];
+
+                $slide_count = preg_match_all( '/<div[^>]*?class=[\x27\"][^\x27\"]*?swiper-slide/i', $inner_slides );
+                if ( $slide_count <= 1 ) {
+                    return $m[0];
+                }
+
+                $bullets = '';
+                for ( $i = 1; $i <= $slide_count; $i++ ) {
+                    if ( 1 === $i ) {
+                        $bullets .= '<span class="swiper-pagination-bullet swiper-pagination-bullet-active" tabindex="0" role="button" aria-label="Go to slide 1" aria-current="true"></span>';
+                    } else {
+                        $bullets .= '<span class="swiper-pagination-bullet" tabindex="0" role="button" aria-label="Go to slide ' . $i . '"></span>';
+                    }
+                }
+
+                $pag_open_enhanced = preg_replace(
+                    '/class=[\x27\"]([^\x27\"]*)[\x27\"]/i',
+                    'class="$1 swiper-pagination-clickable swiper-pagination-bullets swiper-pagination-horizontal"',
+                    $pag_open
+                );
+
+                return $slider_open . $inner_slides . $pag_open_enhanced . $bullets . $pag_close;
+            },
             $html
         );
 

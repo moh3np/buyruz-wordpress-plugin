@@ -70,6 +70,10 @@ namespace {
                 $this->meta[ $key ] = $value;
             }
 
+            public function delete_meta_data( $key ) {
+                unset( $this->meta[ $key ] );
+            }
+
             public function save() {
                 return true;
             }
@@ -171,6 +175,7 @@ namespace {
     }
 
     // Load files under test
+    require_once __DIR__ . '/../../includes/modules/product-audio/class-brz-product-audio.php';
     require_once __DIR__ . '/../../includes/modules/offline-bridge/class-brz-change-log.php';
     require_once __DIR__ . '/../../includes/modules/offline-bridge/class-brz-offline-bridge.php';
 }
@@ -310,6 +315,68 @@ namespace Tests\Unit {
                 }
             }
             $this->assertTrue( $found, 'فیلد battery_type باید به brz_product_specs_fields اضافه شده باشد.' );
+        }
+
+        public function test_offline_bridge_applies_audio_fields() {
+            global $wp_test_products;
+
+            $product_id = 777;
+            $product = new \WC_Product( $product_id );
+            $wp_test_products[ $product_id ] = $product;
+
+            $payload = array(
+                'id'                => $product_id,
+                'audio_content_url' => 'https://buyruz.arvanvod.ir/vod/audio.mp4',
+                'audio_title'       => 'معرفی پادکست آفلاین',
+                'audio_duration'    => 'PT1M15S',
+                'audio_transcript'  => 'متن کامل معرفی صوتی محصول از طریق پل آفلاین',
+                'audio_position'    => 'custom_tab',
+            );
+
+            $reflection = new \ReflectionClass( '\BRZ_Offline_Bridge' );
+            $method = $reflection->getMethod( 'apply_item' );
+            $method->setAccessible( true );
+
+            $result = $method->invoke( null, $payload );
+
+            $this->assertTrue( $result['success'] );
+            $this->assertEquals( 'https://buyruz.arvanvod.ir/vod/audio.mp4', $product->meta['_brz_audio_url'] );
+            $this->assertEquals( 'معرفی پادکست آفلاین', $product->meta['_brz_audio_title'] );
+            $this->assertEquals( 'PT1M15S', $product->meta['_brz_audio_duration'] );
+            $this->assertEquals( 'متن کامل معرفی صوتی محصول از طریق پل آفلاین', $product->meta['_brz_audio_transcript'] );
+            $this->assertEquals( 'custom_tab', $product->meta['_brz_audio_position'] );
+        }
+
+        public function test_offline_bridge_applies_nested_audio() {
+            global $wp_test_products;
+
+            $product_id = 888;
+            $product = new \WC_Product( $product_id );
+            $wp_test_products[ $product_id ] = $product;
+
+            $payload = array(
+                'id'    => $product_id,
+                'audio' => array(
+                    'url'        => 'https://buyruz.arvanvod.ir/vod/nested.mp3',
+                    'title'      => 'پادکست تودرتو',
+                    'duration'   => '01:30',
+                    'transcript' => 'متن پادکست تودرتو',
+                    'position'   => 'before_cart',
+                ),
+            );
+
+            $reflection = new \ReflectionClass( '\BRZ_Offline_Bridge' );
+            $method = $reflection->getMethod( 'apply_item' );
+            $method->setAccessible( true );
+
+            $result = $method->invoke( null, $payload );
+
+            $this->assertTrue( $result['success'] );
+            $this->assertEquals( 'https://buyruz.arvanvod.ir/vod/nested.mp3', $product->meta['_brz_audio_url'] );
+            $this->assertEquals( 'پادکست تودرتو', $product->meta['_brz_audio_title'] );
+            $this->assertEquals( 'PT1M30S', $product->meta['_brz_audio_duration'] );
+            $this->assertEquals( 'متن پادکست تودرتو', $product->meta['_brz_audio_transcript'] );
+            $this->assertEquals( 'before_cart', $product->meta['_brz_audio_position'] );
         }
     }
 }

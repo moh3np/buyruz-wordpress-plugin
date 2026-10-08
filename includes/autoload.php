@@ -75,7 +75,10 @@ spl_autoload_register( function( $class ) {
         'BRZ_Editorial'                  => 'modules/editorial/class-brz-editorial.php',
         'BRZ_Local_Avatar'               => 'modules/editorial/class-brz-local-avatar.php',
         'BRZ_Product_Audio'              => 'modules/product-audio/class-brz-product-audio.php',
+        'BRZ_Product_Video'              => 'modules/product-video/class-brz-product-video.php',
+        'BRZ_Product_Media'              => 'modules/product-media/class-brz-product-media.php',
         'BRZ_Rank_Math_Bridge'           => 'modules/editorial/class-brz-rank-math-bridge.php',
+        'BRZ_Product_Brand_Cat_Header'   => 'modules/product-brand-cat-header/class-brz-product-brand-cat-header.php',
     );
 
     $map = apply_filters( 'brz/autoload_map', $map );

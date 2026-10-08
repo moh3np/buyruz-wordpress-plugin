@@ -46,6 +46,14 @@ class BRZ_Offline_Bridge {
         'short_description',
         'buyruz_compare_table',
         'primary_category',
+        'audio_content_url',
+        'audio_url',
+        'audio_title',
+        'audio_embed_url',
+        'audio_duration',
+        'audio_transcript',
+        'audio_position',
+        'audio',
     );
 
     const STOCK_STATUS_VALUES = array( 'instock', 'outofstock', 'onbackorder' );
@@ -1328,6 +1336,87 @@ class BRZ_Offline_Bridge {
                     $cache_prop->setValue( null, $cache );
                 }
                 return null;
+
+            case 'audio_content_url':
+            case 'audio_url':
+                $a_url = esc_url_raw( trim( (string) $value ) );
+                if ( ! empty( $a_url ) ) {
+                    $product->update_meta_data( '_brz_audio_url', $a_url );
+                } else {
+                    $product->delete_meta_data( '_brz_audio_url' );
+                }
+                return null;
+
+            case 'audio_title':
+                $a_title = sanitize_text_field( trim( (string) $value ) );
+                if ( ! empty( $a_title ) ) {
+                    $product->update_meta_data( '_brz_audio_title', $a_title );
+                } else {
+                    $product->delete_meta_data( '_brz_audio_title' );
+                }
+                return null;
+
+            case 'audio_duration':
+                $a_dur = sanitize_text_field( trim( (string) $value ) );
+                if ( ! empty( $a_dur ) ) {
+                    if ( class_exists( 'BRZ_Product_Audio' ) && method_exists( 'BRZ_Product_Audio', 'normalize_duration_iso' ) ) {
+                        $a_dur = \BRZ_Product_Audio::normalize_duration_iso( $a_dur );
+                    }
+                    $product->update_meta_data( '_brz_audio_duration', $a_dur );
+                } else {
+                    $product->delete_meta_data( '_brz_audio_duration' );
+                }
+                return null;
+
+            case 'audio_transcript':
+                $a_transcript = wp_kses_post( trim( (string) $value ) );
+                if ( ! empty( $a_transcript ) ) {
+                    $product->update_meta_data( '_brz_audio_transcript', $a_transcript );
+                } else {
+                    $product->delete_meta_data( '_brz_audio_transcript' );
+                }
+                return null;
+
+            case 'audio_embed_url':
+                $a_embed = esc_url_raw( trim( (string) $value ) );
+                if ( ! empty( $a_embed ) ) {
+                    $product->update_meta_data( '_brz_audio_embed_url', $a_embed );
+                } else {
+                    $product->delete_meta_data( '_brz_audio_embed_url' );
+                }
+                return null;
+
+            case 'audio_position':
+                $allowed = array( 'short_desc', 'before_cart', 'custom_tab', 'shortcode_only' );
+                $pos     = sanitize_key( (string) $value );
+                if ( in_array( $pos, $allowed, true ) ) {
+                    $product->update_meta_data( '_brz_audio_position', $pos );
+                }
+                return null;
+
+            case 'audio':
+                if ( is_array( $value ) ) {
+                    if ( isset( $value['url'] ) || isset( $value['content_url'] ) ) {
+                        self::apply_field( $product, 'audio_content_url', $value['url'] ?? $value['content_url'] );
+                    }
+                    if ( isset( $value['title'] ) ) {
+                        self::apply_field( $product, 'audio_title', $value['title'] );
+                    }
+                    if ( isset( $value['duration'] ) ) {
+                        self::apply_field( $product, 'audio_duration', $value['duration'] );
+                    }
+                    if ( isset( $value['transcript'] ) ) {
+                        self::apply_field( $product, 'audio_transcript', $value['transcript'] );
+                    }
+                    if ( isset( $value['embed_url'] ) ) {
+                        self::apply_field( $product, 'audio_embed_url', $value['embed_url'] );
+                    }
+                    if ( isset( $value['position'] ) ) {
+                        self::apply_field( $product, 'audio_position', $value['position'] );
+                    }
+                    return null;
+                }
+                return "فرمت فیلد audio باید آرایه باشد";
 
             default:
                 return "فیلد '{$field}' پشتیبانی نمی‌شود و نادیده گرفته شد";

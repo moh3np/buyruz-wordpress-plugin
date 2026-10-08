@@ -82,6 +82,20 @@ class BRZ_Modules {
                 'category'    => 'shop',
                 'requires_wc' => true,
             ),
+            'product_video' => array(
+                'label'       => 'ویدئو و تیزر محصول',
+                'description' => 'متاباکس چند ویدئو با پشتیبانی از آروان، آپارات، یوتیوب، VideoObject Schema و هماهنگ با گالری باکالا.',
+                'class'       => 'BRZ_Product_Video',
+                'category'    => 'shop',
+                'requires_wc' => true,
+            ),
+            'product_media' => array(
+                'label'       => 'هاب رسانه محصول',
+                'description' => 'بخش «محتوای این محصول» — نمایش یکپارچه ویدئوها و صوت‌ها خارج از تب‌های ووکامرس.',
+                'class'       => 'BRZ_Product_Media',
+                'category'    => 'shop',
+                'requires_wc' => true,
+            ),
             'a11y_fixes' => array(
                 'label'       => 'رفع دسترسی‌پذیری',
                 'description' => 'اصلاح خودکار مشکلات ARIA و ساختار HTML در صفحه محصول (WCAG 2.1 AA).',
@@ -180,6 +194,13 @@ class BRZ_Modules {
                 'category'    => 'universal',
                 'requires_wc' => false,
             ),
+            'product_brand_cat_header' => array(
+                'label'       => 'هدر مینیمال برند و دسته‌بندی بالای عنوان',
+                'description' => 'نمایش نوار هوشمند برند و دسته‌بندی (الگوی مینیمال دیجی‌کالا با هویت بایروز) در بالای عنوان و ساماندهی اعتبار اجتماعی و دیدگاه‌ها در زیر عنوان.',
+                'class'       => 'BRZ_Product_Brand_Cat_Header',
+                'category'    => 'shop',
+                'requires_wc' => true,
+            ),
         );
     }
 
@@ -235,6 +256,17 @@ class BRZ_Modules {
                 $classes[] = $meta['class'];
             }
         }
+
+        // Guarantee core product media modules are active on WooCommerce sites
+        if ( $is_wc ) {
+            $core_media = array( 'BRZ_Product_Audio', 'BRZ_Product_Video', 'BRZ_Product_Media' );
+            foreach ( $core_media as $cmc ) {
+                if ( ! in_array( $cmc, $classes, true ) ) {
+                    $classes[] = $cmc;
+                }
+            }
+        }
+
         return $classes;
     }
 
@@ -247,6 +279,18 @@ class BRZ_Modules {
         // Default static_controller to enabled if not explicitly set
         if ( ! array_key_exists( 'static_controller', $states ) ) {
             $states['static_controller'] = 1;
+        }
+        if ( ! array_key_exists( 'product_video', $states ) ) {
+            $states['product_video'] = 1;
+        }
+        if ( ! array_key_exists( 'product_audio', $states ) ) {
+            $states['product_audio'] = 1;
+        }
+        if ( ! array_key_exists( 'product_media', $states ) ) {
+            $states['product_media'] = 1;
+        }
+        if ( ! array_key_exists( 'product_brand_cat_header', $states ) ) {
+            $states['product_brand_cat_header'] = 1;
         }
         return wp_parse_args( $states, self::default_states() );
     }

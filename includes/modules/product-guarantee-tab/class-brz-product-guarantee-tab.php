@@ -613,7 +613,154 @@ class BRZ_Product_Guarantee_Tab {
             margin-left: 10px;
             text-align: right;
         }
+
+        @media (max-width: 1023.98px), (max-width: 768px) {
+            /* Standalone closed card for Guarantee & Shipping section */
+            body.single-product.woocommerce div.product > #tab-guarantee,
+            body.single-product.woocommerce div.product > .woocommerce-Tabs-panel--guarantee,
+            body.single-product.woocommerce .woocommerce-tabs #tab-guarantee,
+            body.single-product.woocommerce .woocommerce-tabs .woocommerce-Tabs-panel--guarantee,
+            .woocommerce div.product .woocommerce-tabs .panel.woocommerce-Tabs-panel--guarantee {
+                display: block !important;
+                order: 8 !important;
+                background-color: var(--brz-card-bg, #FFFFFF) !important;
+                border: 1px solid var(--brz-border, #E2E8F0) !important;
+                border-left: none !important;
+                border-right: none !important;
+                border-radius: 0 !important;
+                padding: 16px 14px !important;
+                margin: 0 0 16px 0 !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
+                box-sizing: border-box !important;
+                width: 100% !important;
+            }
+
+            /* Section Title with yellow accent dot matching Bakala design */
+            .woocommerce-Tabs-panel--guarantee h2.title,
+            #tab-guarantee h2.title {
+                margin: 0 0 12px 0 !important;
+                padding: 0 0 10px 0 !important;
+                border-bottom: 1px solid #F1F5F9 !important;
+                color: #03432E !important;
+                font-size: 15px !important;
+                font-weight: 800 !important;
+                display: flex !important;
+                align-items: center !important;
+                gap: 8px !important;
+            }
+            .woocommerce-Tabs-panel--guarantee h2.title::before,
+            #tab-guarantee h2.title::before {
+                content: "" !important;
+                display: inline-block !important;
+                width: 8px !important;
+                height: 8px !important;
+                min-width: 8px !important;
+                background-color: var(--accent_color2, #FFB800) !important;
+                border-radius: 50% !important;
+                box-shadow: 0 0 6px rgba(255, 184, 0, 0.4) !important;
+                flex-shrink: 0 !important;
+            }
+
+            /* Section Description */
+            .woocommerce-Tabs-panel--guarantee .brz-tab-description,
+            #tab-guarantee .brz-tab-description {
+                margin-bottom: 14px !important;
+                font-size: 13px !important;
+                line-height: 1.6 !important;
+                color: #64748B !important;
+            }
+
+            /* Compact Ergonomic Mobile Accordions (Zero Bloat, 42px touch target) */
+            .woocommerce-tabs .rank-math-list,
+            .woocommerce-tabs #rank-math-faq {
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+            }
+            .woocommerce-tabs .rank-math-list-item,
+            .woocommerce-tabs .rank-math-faq-item,
+            .rank-math-list-item,
+            .rank-math-faq-item {
+                border: 1px solid var(--brz-border, #E2E8F0) !important;
+                border-radius: 10px !important;
+                margin-bottom: 8px !important;
+                background-color: #FAFAFA !important;
+                overflow: hidden !important;
+                box-sizing: border-box !important;
+                width: 100% !important;
+            }
+            .woocommerce-tabs .rank-math-question,
+            .rank-math-question {
+                padding: 0 !important;
+                margin: 0 !important;
+                border: none !important;
+                background: transparent !important;
+            }
+            .woocommerce-tabs .brz-faq-trigger,
+            .brz-faq-trigger {
+                padding: 10px 14px !important;
+                min-height: 42px !important;
+                font-size: 13.5px !important;
+                font-weight: 700 !important;
+                color: #03432E !important;
+                line-height: 1.45 !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: space-between !important;
+                width: 100% !important;
+                background-color: #FFFFFF !important;
+                box-sizing: border-box !important;
+            }
+            .woocommerce-tabs .brz-faq-trigger::after,
+            .brz-faq-trigger::after,
+            .woocommerce-tabs .rank-math-question:not(:has(.brz-faq-trigger))::after,
+            .rank-math-question:not(:has(.brz-faq-trigger))::after {
+                width: 18px !important;
+                height: 18px !important;
+                margin-right: 8px !important;
+                flex-shrink: 0 !important;
+            }
+            .woocommerce-tabs .rank-math-answer,
+            .rank-math-answer,
+            .woocommerce-tabs .rank-math-list-item.brz-active .rank-math-answer,
+            .rank-math-list-item.brz-active .rank-math-answer {
+                padding: 10px 14px 12px !important;
+                font-size: 13px !important;
+                line-height: 1.7 !important;
+                color: #334155 !important;
+                background-color: #FAFAFA !important;
+                border-top: 1px solid var(--brz-border, #E2E8F0) !important;
+            }
+            .brz-accordion-cta {
+                margin-top: 8px !important;
+                font-size: 12px !important;
+            }
+        }
         </style>
+        <script>
+        (function() {
+            function brzRelocateMobileGuarantee() {
+                if (window.innerWidth >= 1024) return;
+                var guaranteePanel = document.getElementById('tab-guarantee') || document.querySelector('.woocommerce-Tabs-panel--guarantee');
+                var commentsTab = document.querySelector('.comments_tab') || document.querySelector('.users-comments') || document.getElementById('comments');
+                if (guaranteePanel && commentsTab && commentsTab.parentNode) {
+                    if (commentsTab.nextSibling) {
+                        commentsTab.parentNode.insertBefore(guaranteePanel, commentsTab.nextSibling);
+                    } else {
+                        commentsTab.parentNode.appendChild(guaranteePanel);
+                    }
+                }
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', brzRelocateMobileGuarantee);
+            } else {
+                brzRelocateMobileGuarantee();
+            }
+        })();
+        </script>
         <?php
     }
 

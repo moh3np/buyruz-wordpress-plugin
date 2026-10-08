@@ -80,11 +80,28 @@ if ( ! function_exists( 'get_post_meta' ) ) {
 
 if ( ! function_exists( 'update_post_meta' ) ) {
     function update_post_meta( int $post_id, string $key, $value ) {
-        global $wp_test_postmeta;
+        global $wp_test_postmeta, $wp_test_post_meta;
         if ( ! isset( $wp_test_postmeta[ $post_id ] ) ) {
             $wp_test_postmeta[ $post_id ] = [];
         }
         $wp_test_postmeta[ $post_id ][ $key ] = $value;
+        if ( ! isset( $wp_test_post_meta[ $post_id ] ) ) {
+            $wp_test_post_meta[ $post_id ] = [];
+        }
+        $wp_test_post_meta[ $post_id ][ $key ] = $value;
+        return true;
+    }
+}
+
+if ( ! function_exists( 'delete_post_meta' ) ) {
+    function delete_post_meta( int $post_id, string $key ) {
+        global $wp_test_postmeta, $wp_test_post_meta;
+        if ( isset( $wp_test_postmeta[ $post_id ][ $key ] ) ) {
+            unset( $wp_test_postmeta[ $post_id ][ $key ] );
+        }
+        if ( isset( $wp_test_post_meta[ $post_id ][ $key ] ) ) {
+            unset( $wp_test_post_meta[ $post_id ][ $key ] );
+        }
         return true;
     }
 }
@@ -138,6 +155,18 @@ function esc_html( string $text ): string {
 
 function esc_attr( string $text ): string {
     return htmlspecialchars( $text, ENT_QUOTES, 'UTF-8' );
+}
+
+if ( ! function_exists( 'esc_url_raw' ) ) {
+    function esc_url_raw( $url ) {
+        return (string) $url;
+    }
+}
+
+if ( ! function_exists( 'wp_kses_post' ) ) {
+    function wp_kses_post( $content ) {
+        return (string) $content;
+    }
 }
 
 function checked( $checked, $current = true, bool $echo = true ): string {
@@ -323,6 +352,13 @@ if ( ! class_exists( 'WC_Product' ) ) {
         public function get_length( $context = 'view' ) { return $this->data['length'] ?? ''; }
         public function get_width( $context = 'view' ) { return $this->data['width'] ?? ''; }
         public function get_height( $context = 'view' ) { return $this->data['height'] ?? ''; }
+        public function get_average_rating( $context = 'view' ) { return $this->data['average_rating'] ?? 0; }
+        public function get_rating_count( $context = 'view' ) { return $this->data['rating_count'] ?? 0; }
+        public function get_review_count( $context = 'view' ) { return $this->data['review_count'] ?? 0; }
+        public function set_average_rating( $rating ) { $this->data['average_rating'] = $rating; }
+        public function set_rating_count( $count ) { $this->data['rating_count'] = $count; }
+        public function set_review_count( $count ) { $this->data['review_count'] = $count; }
+
         public function get_attribute( $key ) { return $this->attributes[ $key ] ?? ''; }
         public function get_description( $context = 'view' ) { return $this->data['description'] ?? ''; }
         public function get_short_description( $context = 'view' ) { return $this->data['short_description'] ?? ''; }
@@ -380,12 +416,99 @@ if ( ! function_exists( 'str_ends_with' ) ) {
 // ─── Helper to reset global state between tests ────────────────────────────────
 
 function brz_test_reset_state(): void {
-    global $wp_options, $wp_test_filters, $wp_test_json_response, $wp_test_current_user_can, $wp_test_nonce_valid;
+    global $wp_options, $wp_test_filters, $wp_test_json_response, $wp_test_current_user_can, $wp_test_nonce_valid, $wp_test_queried_object_id, $wp_test_is_singular, $wp_test_revision_posts;
     $wp_options                = array();
     $wp_test_filters           = array();
     $wp_test_json_response     = null;
     $wp_test_current_user_can  = true;
     $wp_test_nonce_valid       = true;
+    $wp_test_queried_object_id = null;
+    $wp_test_is_singular       = false;
+    $wp_test_revision_posts    = array();
+}
+
+if ( ! function_exists( 'get_queried_object_id' ) ) {
+    function get_queried_object_id(): int {
+        global $wp_test_queried_object_id;
+        return (int) ( $wp_test_queried_object_id ?? 0 );
+    }
+}
+
+if ( ! function_exists( 'is_singular' ) ) {
+    function is_singular( $post_types = '' ): bool {
+        global $wp_test_is_singular;
+        return ! empty( $wp_test_is_singular );
+    }
+}
+
+if ( ! function_exists( 'wp_is_post_revision' ) ) {
+    function wp_is_post_revision( int $post_id ) {
+        global $wp_test_revision_posts;
+        return $wp_test_revision_posts[ $post_id ] ?? false;
+    }
+}
+
+if ( ! function_exists( 'shortcode_atts' ) ) {
+    function shortcode_atts( $pairs, $atts, $shortcode = '' ) {
+        $atts = (array) $atts;
+        $out  = array();
+        foreach ( $pairs as $name => $default ) {
+            if ( array_key_exists( $name, $atts ) ) {
+                $out[ $name ] = $atts[ $name ];
+            } else {
+                $out[ $name ] = $default;
+            }
+        }
+        return $out;
+    }
+}
+
+if ( ! function_exists( 'wp_nonce_field' ) ) {
+    function wp_nonce_field( $action = -1, $name = '_wpnonce', $referer = true, $echo = true ) {
+        $name_esc = htmlspecialchars( (string) $name, ENT_QUOTES, 'UTF-8' );
+        $field    = '<input type="hidden" id="' . $name_esc . '" name="' . $name_esc . '" value="mock_nonce" />';
+        if ( $echo ) {
+            echo $field;
+        }
+        return $field;
+    }
+}
+
+if ( ! function_exists( 'selected' ) ) {
+    function selected( $selected, $current = true, $echo = true ) {
+        $result = ( (string) $selected === (string) $current ) ? ' selected="selected"' : '';
+        if ( $echo ) {
+            echo $result;
+        }
+        return $result;
+    }
+}
+
+if ( ! function_exists( 'checked' ) ) {
+    function checked( $checked, $current = true, $echo = true ) {
+        $result = ( (string) $checked === (string) $current ) ? ' checked="checked"' : '';
+        if ( $echo ) {
+            echo $result;
+        }
+        return $result;
+    }
+}
+
+if ( ! function_exists( 'get_the_title' ) ) {
+    function get_the_title( $post_id = 0 ) {
+        global $wp_test_post_titles;
+        if ( is_array( $wp_test_post_titles ) && isset( $wp_test_post_titles[ $post_id ] ) ) {
+            return $wp_test_post_titles[ $post_id ];
+        }
+        return 'تست عنوان محصول';
+    }
+}
+
+if ( ! function_exists( 'get_comments_number' ) ) {
+    function get_comments_number( $post = null ) {
+        global $wp_test_comments_number;
+        return (int) ( $wp_test_comments_number ?? 0 );
+    }
 }
 
 // ─── Load source files ─────────────────────────────────────────────────────────

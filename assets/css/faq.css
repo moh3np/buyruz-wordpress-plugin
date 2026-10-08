@@ -162,35 +162,66 @@
 }
 
 /* Mobile Optimization */
-@media (max-width: 768px) {
+@media (max-width: 1023.98px), (max-width: 768px) {
 
   .rank-math-list-item,
-  .rank-math-faq-item {
-    border-radius: 8px !important;
-    margin-bottom: calc(var(--brz-spacing, 10px) - 2px) !important;
+  .rank-math-faq-item,
+  .rank-math-list .rank-math-list-item,
+  #rank-math-faq .rank-math-list-item {
+    border-radius: 10px !important;
+    margin-bottom: 8px !important;
+    border: 1px solid var(--brz-border, #E2E8F0) !important;
+    background-color: #FAFAFA !important;
   }
 
   .rank-math-question {
-    padding: 14px 16px !important;
-    font-size: calc(var(--brz-fz-question, 15px) - 1px) !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 13.5px !important;
+    border: none !important;
+    background: transparent !important;
   }
 
-  .rank-math-question::after {
-    width: 20px !important;
-    height: 20px !important;
-    margin-right: 10px !important;
+  .brz-faq-trigger {
+    padding: 10px 14px !important;
+    min-height: 42px !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    line-height: 1.45 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    background-color: #FFFFFF !important;
+    box-sizing: border-box !important;
+  }
+
+  .brz-faq-trigger::after,
+  .rank-math-question:not(:has(.brz-faq-trigger))::after {
+    width: 18px !important;
+    height: 18px !important;
+    margin-right: 8px !important;
+    flex-shrink: 0 !important;
   }
 
   .rank-math-answer {
-    padding: 0 16px !important;
-    font-size: calc(var(--brz-fz-answer, 14px) - 1px) !important;
+    padding: 0 14px !important;
+    font-size: 13px !important;
+    line-height: 1.7 !important;
+    color: #334155 !important;
+    background-color: #FAFAFA !important;
   }
 
   .rank-math-list-item.brz-active .rank-math-answer,
   .rank-math-faq-item.brz-active .rank-math-answer,
   .rank-math-list .rank-math-list-item.brz-active .rank-math-answer,
   #rank-math-faq .rank-math-list-item.brz-active .rank-math-answer {
-    padding-bottom: 16px !important;
+    padding: 10px 14px 12px !important;
+    border-top: 1px solid var(--brz-border, #E2E8F0) !important;
+  }
+
+  .brz-accordion-cta {
+    margin-top: 8px !important;
+    font-size: 12px !important;
   }
 }
 
