@@ -395,17 +395,23 @@ class BRZ_Settings {
             array( __CLASS__, 'render_page' )
         );
 
-        add_submenu_page(
-            self::PARENT_SLUG,
-            'ویژگی‌ها و فیلترها',
-            'ویژگی‌ها و فیلترها',
-            $capability,
-            'buyruz-attributes-hub',
-            array( __CLASS__, 'render_page' )
-        );
+        if ( BRZ_Profile::is_woocommerce_active() ) {
+            add_submenu_page(
+                self::PARENT_SLUG,
+                'ویژگی‌ها و فیلترها',
+                'ویژگی‌ها و فیلترها',
+                $capability,
+                'buyruz-attributes-hub',
+                array( __CLASS__, 'render_page' )
+            );
+        }
 
+        $wc_active = BRZ_Profile::is_woocommerce_active();
         foreach ( self::module_nav_items() as $slug => $meta ) {
             if ( in_array( $slug, self::get_hub_modules(), true ) ) {
+                continue;
+            }
+            if ( ! empty( $meta['requires_wc'] ) && ! $wc_active ) {
                 continue;
             }
             add_submenu_page(
@@ -663,12 +669,77 @@ class BRZ_Settings {
                 <a href="<?php echo esc_url( admin_url( 'admin.php?page=buyruz-general' ) ); ?>" class="button button-secondary" style="font-size:12px;">تغییر حالت سایت ←</a>
             </div>
 
-            <div class="brz-section-header brz-section-header--modules">
+            <?php
+            $is_mag_mode = class_exists( 'BRZ_Profile' ) && BRZ_Profile::is_magazine();
+            $wc_active   = class_exists( 'BRZ_Profile' ) ? BRZ_Profile::is_woocommerce_active() : class_exists( 'WooCommerce' );
+            ?>
+            <div class="brz-section-header brz-section-header--modules" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;">
                 <div>
                     <h2>پیشخوان ماژول‌ها</h2>
                     <p>شبکهٔ مدرن و واکنش‌گرا برای کنترل سریع ماژول‌ها متناسب با محیط فروشگاه و مجله خبری.</p>
                 </div>
+                <!-- Smart Context Filter Bar -->
+                <div class="brz-module-filter-bar" style="display:flex;gap:6px;background:#f1f5f9;padding:4px;border-radius:8px;border:1px solid #e2e8f0;">
+                    <button type="button" class="brz-filter-btn is-active" data-filter="context" style="border:none;background:#05593D;color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s ease;">
+                        <?php echo $is_mag_mode ? 'ماژول‌های مجله و عمومی (توصیه‌شده)' : 'ماژول‌های فروشگاه و عمومی'; ?>
+                    </button>
+                    <button type="button" class="brz-filter-btn" data-filter="all" style="border:none;background:transparent;color:#475569;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s ease;">
+                        همهٔ ماژول‌ها (<?php echo count( $modules ); ?>)
+                    </button>
+                    <button type="button" class="brz-filter-btn" data-filter="shop" style="border:none;background:transparent;color:#475569;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s ease;">
+                        فروشگاه
+                    </button>
+                    <button type="button" class="brz-filter-btn" data-filter="universal" style="border:none;background:transparent;color:#475569;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s ease;">
+                        عمومی
+                    </button>
+                </div>
             </div>
+
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var filterBtns = document.querySelectorAll('.brz-filter-btn');
+                var cards = document.querySelectorAll('.brz-module-card');
+                
+                function applyFilter(filter) {
+                    cards.forEach(function(card) {
+                        var cat = card.getAttribute('data-category');
+                        var reqWc = card.getAttribute('data-requires-wc') === '1';
+                        var isMag = <?php echo $is_mag_mode ? 'true' : 'false'; ?>;
+                        
+                        if (filter === 'all') {
+                            card.style.display = '';
+                        } else if (filter === 'context') {
+                            if (isMag && reqWc) {
+                                card.style.display = 'none';
+                            } else {
+                                card.style.display = '';
+                            }
+                        } else if (filter === 'shop') {
+                            card.style.display = (cat === 'shop') ? '' : 'none';
+                        } else if (filter === 'universal') {
+                            card.style.display = (cat === 'universal' || cat === 'magazine') ? '' : 'none';
+                        }
+                    });
+                }
+
+                filterBtns.forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        filterBtns.forEach(function(b) {
+                            b.classList.remove('is-active');
+                            b.style.background = 'transparent';
+                            b.style.color = '#475569';
+                        });
+                        this.classList.add('is-active');
+                        this.style.background = '#05593D';
+                        this.style.color = '#fff';
+                        applyFilter(this.getAttribute('data-filter'));
+                    });
+                });
+
+                // Apply initial context filter
+                applyFilter('context');
+            });
+            </script>
 
             <div class="brz-module-grid">
                         <?php foreach ( $modules as $slug => $meta ) : ?>
@@ -677,7 +748,6 @@ class BRZ_Settings {
                             $icon        = self::module_icon_letter( $meta );
                             $category    = isset( $meta['category'] ) ? $meta['category'] : 'universal';
                             $requires_wc = ! empty( $meta['requires_wc'] );
-                            $wc_active   = BRZ_Profile::is_woocommerce_active();
                             $disabled_wc = $requires_wc && ! $wc_active;
 
                             $cat_label = 'عمومی';
@@ -690,7 +760,7 @@ class BRZ_Settings {
                                 $cat_color = '#00875a';
                             }
                             ?>
-                            <div class="brz-module-card <?php echo $enabled && ! $disabled_wc ? 'is-active' : 'is-inactive'; ?>" data-module="<?php echo esc_attr( $slug ); ?>">
+                            <div class="brz-module-card <?php echo $enabled && ! $disabled_wc ? 'is-active' : 'is-inactive'; ?>" data-module="<?php echo esc_attr( $slug ); ?>" data-category="<?php echo esc_attr( $category ); ?>" data-requires-wc="<?php echo $requires_wc ? '1' : '0'; ?>">
                                 <div class="brz-module-card__badge" style="background:<?php echo esc_attr( $cat_color ); ?>20;color:<?php echo esc_attr( $cat_color ); ?>;border:1px solid <?php echo esc_attr( $cat_color ); ?>40;">
                                     <?php echo esc_html( $cat_label ); ?>
                                 </div>
@@ -1280,8 +1350,17 @@ class BRZ_Settings {
                                     <div><code style="direction:ltr;display:inline-block;background:#fff;padding:3px 8px;border:1px solid #cbd5e1;border-radius:4px;">[brz_article_hero]</code> <span style="font-size:12px;color:#64748b;">← درج سربرگ متادیتای مقاله</span></div>
                                     <div><code style="direction:ltr;display:inline-block;background:#fff;padding:3px 8px;border:1px solid #cbd5e1;border-radius:4px;">[brz_author_box]</code> <span style="font-size:12px;color:#64748b;">← درج کارت نویسنده</span></div>
                                     <div><code style="direction:ltr;display:inline-block;background:#fff;padding:3px 8px;border:1px solid #cbd5e1;border-radius:4px;">[brz_reading_time]</code> <span style="font-size:12px;color:#64748b;">← درج نشان زمان مطالعه</span></div>
+                                    <div><code style="direction:ltr;display:inline-block;background:#fff;padding:3px 8px;border:1px solid #cbd5e1;border-radius:4px;">[buyruz_mag_spotlight]</code> <span style="font-size:12px;color:#64748b;">← درج المان هوشمند مقاله برگزیده صفحه اصلی مجله</span></div>
                                 </div>
                             </div>
+
+                            <?php
+                            if ( class_exists( 'BRZ_Mag_Spotlight' ) ) {
+                                echo '<div style="margin-top:24px;">';
+                                BRZ_Mag_Spotlight::render_admin_card();
+                                echo '</div>';
+                            }
+                            ?>
                         </div>
                     </div>
                 </div>

@@ -292,6 +292,9 @@ class BRZ_Modules {
         if ( ! array_key_exists( 'product_brand_cat_header', $states ) ) {
             $states['product_brand_cat_header'] = 1;
         }
+        if ( class_exists( 'BRZ_Profile' ) && BRZ_Profile::is_magazine() ) {
+            $states['mag_tools'] = 1;
+        }
         return wp_parse_args( $states, self::default_states() );
     }
 }

@@ -11,6 +11,11 @@ class BRZ_Mag_Tools {
         add_shortcode( 'brz_reading_time', array( __CLASS__, 'render_reading_time_shortcode' ) );
         add_shortcode( 'brz_toc', array( __CLASS__, 'render_toc_shortcode' ) );
 
+        // Initialize Spotlight Hero component
+        if ( class_exists( 'BRZ_Mag_Spotlight' ) ) {
+            BRZ_Mag_Spotlight::init();
+        }
+
         // Add reading time to admin posts list
         if ( is_admin() ) {
             add_filter( 'manage_posts_columns', array( __CLASS__, 'add_admin_columns' ) );
@@ -19,6 +24,9 @@ class BRZ_Mag_Tools {
 
         // Automatic reading time insertion if enabled in settings
         add_filter( 'the_content', array( __CLASS__, 'maybe_auto_insert_reading_time' ), 8 );
+
+        // Optimize single post featured image LCP & bypass lazy-loading
+        add_filter( 'wp_get_attachment_image_attributes', array( __CLASS__, 'optimize_featured_image_lcp' ), 20, 3 );
     }
 
     /**
@@ -136,5 +144,27 @@ class BRZ_Mag_Tools {
 
         $html .= '</ul></div>';
         return $html;
+    }
+
+    /**
+     * Ensure single post featured image has eager loading and skips lazy loading for maximum LCP.
+     *
+     * @param array $attr
+     * @param WP_Post|int $attachment
+     * @param string|array $size
+     * @return array
+     */
+    public static function optimize_featured_image_lcp( array $attr, $attachment, $size ): array {
+        if ( is_singular( 'post' ) ) {
+            $thumb_id = get_post_thumbnail_id();
+            $att_id   = is_object( $attachment ) ? $attachment->ID : (int) $attachment;
+            if ( $thumb_id && (int) $thumb_id === $att_id ) {
+                $attr['data-no-lazy']   = '1';
+                $attr['data-skip-lazy'] = '1';
+                $attr['loading']        = 'eager';
+                $attr['fetchpriority']  = 'high';
+            }
+        }
+        return $attr;
     }
 }
