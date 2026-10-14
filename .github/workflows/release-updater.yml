@@ -54,21 +54,7 @@ jobs:
 
           # Generate version.json
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S")
-          cat << JSONEOF > version.json
-{
-  "version": "$VERSION",
-  "name": "تنظیمات بایروز",
-  "slug": "buyruz-wordpress-plugin",
-  "download_url": "https://dl.buyruz.ir/plugins/buyruz-plugin/buyruz-wordpress-plugin.zip",
-  "requires_php": "8.3",
-  "requires": "6.8.3",
-  "tested": "6.8.3",
-  "sha256": "$SHA256",
-  "last_updated": "$TIMESTAMP",
-  "upgrade_notice": "به‌روزرسانی خودکار و پایدار افزونه تنظیمات بایروز",
-  "changelog": "انتشار نسخه جدید با ارتقای پایداری و بهبود کارایی اتصالات."
-}
-JSONEOF
+          printf '{\n  "version": "%s",\n  "name": "تنظیمات بایروز",\n  "slug": "buyruz-wordpress-plugin",\n  "download_url": "https://dl.buyruz.ir/plugins/buyruz-plugin/buyruz-wordpress-plugin.zip",\n  "requires_php": "8.3",\n  "requires": "6.8.3",\n  "tested": "6.8.3",\n  "sha256": "%s",\n  "last_updated": "%s",\n  "upgrade_notice": "به‌روزرسانی خودکار و پایدار افزونه تنظیمات بایروز",\n  "changelog": "انتشار نسخه جدید با ارتقای پایداری و بهبود کارایی اتصالات."\n}\n' "$VERSION" "$SHA256" "$TIMESTAMP" > version.json
 
           mv buyruz-wordpress-plugin.zip "$GITHUB_WORKSPACE/"
           mv version.json "$GITHUB_WORKSPACE/"
