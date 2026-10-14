@@ -1,4 +1,4 @@
-name: Deploy to Production
+name: Deploy to Production & Mag
 
 on:
   push:
@@ -8,7 +8,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via SSH
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Main Site and Mag via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -16,8 +19,73 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            cd /home/buyruz/public_html/wp-content/plugins/buyruz-wordpress-plugin/
-            git fetch origin main
-            git reset --hard origin/main
-            cd /home/buyruz/public_html/wp-content/plugins/buyruz-wordpress-plugin
-            # Skip vendor for WordPress plugins (already committed)
+            set -e
+            echo "🚀 Starting deployment of buyruz-wordpress-plugin to Main Site and Mag..."
+            TEMP_DEPLOY_DIR="/tmp/buyruz_plugin_deploy_${{ github.sha }}"
+            rm -rf "$TEMP_DEPLOY_DIR"
+            mkdir -p "$TEMP_DEPLOY_DIR"
+
+      - name: Copy Plugin Files via SCP to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "./*"
+          target: "/tmp/buyruz_plugin_deploy_${{ github.sha }}"
+          rm: false
+
+      - name: Sync and Finalize Deployment on Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -e
+            TEMP_DEPLOY_DIR="/tmp/buyruz_plugin_deploy_${{ github.sha }}"
+            MAIN_PLUGIN_DIR="/var/www/buyruz/wp-content/plugins/buyruz-wordpress-plugin"
+            MAG_PLUGIN_DIR="/var/www/buyruz/mag/wp-content/plugins/buyruz-wordpress-plugin"
+            
+            echo "📦 Syncing to Main Site: $MAIN_PLUGIN_DIR ..."
+            mkdir -p "$MAIN_PLUGIN_DIR"
+            rsync -av --delete \
+              --exclude='.git*' \
+              --exclude='tests' \
+              --exclude='.phpunit.cache' \
+              --exclude='phpunit.xml' \
+              --exclude='.DS_Store' \
+              "$TEMP_DEPLOY_DIR/" "$MAIN_PLUGIN_DIR/"
+            chown -R www-data:www-data "$MAIN_PLUGIN_DIR"
+            
+            echo "📦 Syncing to Mag: $MAG_PLUGIN_DIR ..."
+            mkdir -p "$MAG_PLUGIN_DIR"
+            rsync -av --delete \
+              --exclude='.git*' \
+              --exclude='tests' \
+              --exclude='.phpunit.cache' \
+              --exclude='phpunit.xml' \
+              --exclude='.DS_Store' \
+              "$TEMP_DEPLOY_DIR/" "$MAG_PLUGIN_DIR/"
+            chown -R www-data:www-data "$MAG_PLUGIN_DIR"
+            
+            # Clean up temp deploy folder
+            rm -rf "$TEMP_DEPLOY_DIR"
+            
+            echo "⚡ Flushing WordPress Caches..."
+            wp cache flush --path=/var/www/buyruz --allow-root || true
+            wp cache flush --path=/var/www/buyruz/mag --allow-root || true
+            
+            echo "✅ Deployment to Main Site and Mag successfully completed!"
+
+      - name: Purge ArvanCloud CDN Cache
+        if: ${{ secrets.ARVAN_CDN_API_KEY != '' }}
+        run: |
+          echo "🧹 Purging ArvanCloud CDN Cache for buyruz.com and buyruz.com/mag..."
+          curl -s -X POST "https://napi.arvancloud.ir/cdn/4.0/domains/buyruz.com/caching/purge" \
+            -H "Authorization: ${{ secrets.ARVAN_CDN_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"purge":"individual","purge_urls":["https://buyruz.com/","https://buyruz.com/mag/"]}' || true
+          echo "✅ CDN cache purge request sent."

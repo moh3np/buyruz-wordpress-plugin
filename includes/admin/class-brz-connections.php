@@ -7,6 +7,78 @@ class BRZ_Connections {
         add_action( 'admin_menu', array( __CLASS__, 'add_menu' ), 12 );
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
         add_action( 'wp_ajax_brz_regenerate_api_key', array( __CLASS__, 'ajax_regenerate_api_key' ) );
+        add_action( 'wp_ajax_brz_save_updater_settings', array( __CLASS__, 'ajax_save_updater_settings' ) );
+        add_action( 'wp_ajax_brz_check_updater_now', array( __CLASS__, 'ajax_check_updater_now' ) );
+    }
+
+    /**
+     * Save updater settings via AJAX.
+     */
+    public static function ajax_save_updater_settings() {
+        check_ajax_referer( 'brz_smart_linker_save' );
+        if ( ! current_user_can( BRZ_Settings::CAPABILITY ) ) {
+            wp_send_json_error( array( 'message' => 'Permission denied' ), 403 );
+        }
+
+        $enabled      = ! empty( $_POST['updater_enabled'] ) ? 1 : 0;
+        $source_mode  = sanitize_text_field( $_POST['source_mode'] ?? 'auto' );
+        $arvan_url    = esc_url_raw( trim( $_POST['arvan_url'] ?? '' ) );
+        $github_token = sanitize_text_field( trim( $_POST['github_token'] ?? '' ) );
+
+        if ( ! in_array( $source_mode, array( 'auto', 'arvan', 'github' ), true ) ) {
+            $source_mode = 'auto';
+        }
+
+        $current = BRZ_Updater::get_settings();
+        // If token input was sent masked/empty but already exists, preserve it unless explicitly overwritten
+        if ( empty( $github_token ) && ! empty( $current['github_token'] ) && isset( $_POST['github_token_preserved'] ) ) {
+            $github_token = $current['github_token'];
+        }
+
+        $to_save = array(
+            'enabled'      => $enabled,
+            'source_mode'  => $source_mode,
+            'arvan_url'    => ! empty( $arvan_url ) ? $arvan_url : BRZ_Updater::DEFAULT_ARVAN_URL,
+            'github_token' => $github_token,
+        );
+
+        BRZ_Updater::update_settings( $to_save );
+        wp_send_json_success( array( 'message' => 'تنظیمات به‌روزرسانی با موفقیت ذخیره شد.' ) );
+    }
+
+    /**
+     * Force check for updates via AJAX.
+     */
+    public static function ajax_check_updater_now() {
+        check_ajax_referer( 'brz_smart_linker_save' );
+        if ( ! current_user_can( BRZ_Settings::CAPABILITY ) ) {
+            wp_send_json_error( array( 'message' => 'Permission denied' ), 403 );
+        }
+
+        $remote = BRZ_Updater::check_for_updates( true );
+        $settings = BRZ_Updater::get_settings();
+
+        if ( empty( $remote ) || empty( $remote['new_version'] ) ) {
+            wp_send_json_error( array(
+                'message' => 'عدم امکان دریافت اطلاعات نسخه از منابع انتخابی. لطفاً اتصال سرور و توکن را بررسی کنید.',
+                'settings' => $settings,
+            ) );
+        }
+
+        $has_update = version_compare( $remote['new_version'], BRZ_VERSION, '>' );
+        $source_title = 'arvan' === ( $remote['source'] ?? '' ) ? 'استوریج ابری آروان‌کلاد (CDN ایران)' : 'مخزن پرایوت گیت‌هاب (GitHub Releases)';
+
+        wp_send_json_success( array(
+            'has_update'     => $has_update,
+            'current_version'=> BRZ_VERSION,
+            'latest_version' => $remote['new_version'],
+            'source'         => $source_title,
+            'changelog'      => $remote['changelog'] ?? '',
+            'message'        => $has_update 
+                ? "نسخه جدید {$remote['new_version']} در دسترس است (دریافت شده از {$source_title})." 
+                : "افزونه شما به آخرین نسخه ({$remote['new_version']}) به‌روز است (تایید شده از {$source_title}).",
+            'settings'       => $settings,
+        ) );
     }
 
     /**
@@ -69,6 +141,7 @@ class BRZ_Connections {
                     <a class="nav-tab" data-brz-tab="gsheet">گوگل شیت</a>
                     <a class="nav-tab" data-brz-tab="ai">API هوش مصنوعی</a>
                     <a class="nav-tab" data-brz-tab="bi">تحلیل سایت</a>
+                    <a class="nav-tab" data-brz-tab="updater">به‌روزرسانی خودکار</a>
                 </h2>
                 <div class="brz-card__body">
                     <div class="brz-tab-pane" data-pane="peer">
@@ -82,6 +155,9 @@ class BRZ_Connections {
                     </div>
                     <div class="brz-tab-pane" data-pane="bi" style="display:none;">
                         <?php self::render_bi_settings(); ?>
+                    </div>
+                    <div class="brz-tab-pane" data-pane="updater" style="display:none;">
+                        <?php self::render_updater_settings(); ?>
                     </div>
                 </div>
             </div>
@@ -284,6 +360,101 @@ class BRZ_Connections {
         <?php
     }
 
+    private static function render_updater_settings() {
+        $settings = BRZ_Updater::get_settings();
+        $save_nonce = wp_create_nonce( 'brz_smart_linker_save' );
+        $last_check_str = ! empty( $settings['last_check'] ) ? wp_date( 'Y-m-d H:i:s', $settings['last_check'] ) : 'تاکنون بررسی نشده است';
+        $has_gh_token = ! empty( $settings['github_token'] );
+        ?>
+        <div class="brz-card brz-card--sub">
+            <div class="brz-card__header">
+                <h3>سیستم به‌روزرسانی هوشمند و دوگانه (Dual-Source Resilient Updater)</h3>
+            </div>
+            <div class="brz-card__body">
+                <p class="description" style="margin-bottom: 20px;">
+                    این سیستم امکان دریافت خودکار و بدون فیلتر آخرین نسخه افزونه را از دو منبع موازی (سرور ابری پرسرعت آروان‌کلاد ایران و مخزن اختصاصی پرایوت گیت‌هاب) فراهم می‌سازد. در صورت اختلال در یک منبع، سیستم به طور خودکار به منبع جایگزین سوئیچ می‌کند.
+                </p>
+
+                <!-- Status Card -->
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:24px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
+                    <div>
+                        <div style="font-weight:600;font-size:15px;color:#03432E;margin-bottom:4px;">
+                            وضعیت نسخه: نگارش نصب‌شده <?php echo esc_html( BRZ_VERSION ); ?>
+                        </div>
+                        <div style="font-size:13px;color:#64748b;">
+                            آخرین بررسی: <span id="brz-updater-last-check"><?php echo esc_html( $last_check_str ); ?></span>
+                            <?php if ( ! empty( $settings['last_source'] ) ) : ?>
+                                | منبع متصل: <span id="brz-updater-last-source"><?php echo esc_html( 'arvan' === $settings['last_source'] ? 'آروان‌کلاد (CDN)' : 'گیت‌هاب' ); ?></span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <button type="button" id="brz-check-updater-btn" class="button button-secondary" style="height:38px;padding:0 16px;border-color:#05593D;color:#05593D;font-weight:600;">
+                            🔄 بررسی اکنون نگارش جدید
+                        </button>
+                    </div>
+                </div>
+
+                <div id="brz-updater-result-box" style="display:none;margin-bottom:20px;padding:12px 16px;border-radius:8px;font-size:14px;"></div>
+
+                <form id="brz-updater-settings-form" class="brz-settings-form">
+                    <input type="hidden" name="_wpnonce" value="<?php echo esc_attr( $save_nonce ); ?>" />
+                    <table class="form-table" role="presentation">
+                        <tbody>
+                            <tr>
+                                <th scope="row">به‌روزرسانی خودکار</th>
+                                <td>
+                                    <label>
+                                        <input type="checkbox" name="updater_enabled" value="1" <?php checked( ! empty( $settings['enabled'] ) ); ?> />
+                                        فعال‌سازی بررسی و دریافت خودکار به‌روزرسانی‌های افزونه در وردپرس
+                                    </label>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="brz-updater-source-mode">منبع دریافت به‌روزرسانی</label></th>
+                                <td>
+                                    <select id="brz-updater-source-mode" name="source_mode" style="min-width:280px;">
+                                        <option value="auto" <?php selected( $settings['source_mode'], 'auto' ); ?>>🌟 ترکیبی هوشمند (اولویت آروان‌کلاد + پشتیبان گیت‌هاب)</option>
+                                        <option value="arvan" <?php selected( $settings['source_mode'], 'arvan' ); ?>>فقط استوریج و CDN آروان‌کلاد (سرور ایران)</option>
+                                        <option value="github" <?php selected( $settings['source_mode'], 'github' ); ?>>فقط مخزن پرایوت گیت‌هاب (GitHub Releases)</option>
+                                    </select>
+                                    <p class="description">حالت ترکیبی هوشمند تضمین می‌کند در صورت تحریم، فیلترینگ یا قطعی هر یک از سرورها، به‌روزرسانی بدون وقفه انجام پذیرد.</p>
+                                </td>
+                            </tr>
+                            <tr class="brz-updater-field-arvan">
+                                <th scope="row"><label for="brz-updater-arvan-url">آدرس مانیفست آروان‌کلاد (CDN)</label></th>
+                                <td>
+                                    <input type="url" id="brz-updater-arvan-url" name="arvan_url" class="regular-text code" dir="ltr" value="<?php echo esc_url( $settings['arvan_url'] ); ?>" placeholder="https://dl.buyruz.ir/plugins/buyruz-plugin/version.json" />
+                                    <p class="description">آدرس مستقیم فایل <code>version.json</code> بر روی استوریج و CDN ابری بایروز.</p>
+                                </td>
+                            </tr>
+                            <tr class="brz-updater-field-github">
+                                <th scope="row"><label for="brz-updater-github-token">توکن دسترسی مخزن پرایوت گیت‌هاب (PAT)</label></th>
+                                <td>
+                                    <?php if ( $has_gh_token ) : ?>
+                                        <input type="hidden" name="github_token_preserved" value="1" />
+                                    <?php endif; ?>
+                                    <input type="password" id="brz-updater-github-token" name="github_token" class="regular-text code" dir="ltr" value="<?php echo $has_gh_token ? '••••••••••••••••••••••••••••••••' : ''; ?>" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="new-password" />
+                                    <p class="description">
+                                        Personal Access Token با دسترسی فقط‌خواندنی (Read-Only Contents) برای دریافت بسته‌ها از مخزن اختصاصی <code>Codruz/buyruz-plugin</code>.
+                                        <?php if ( defined( 'BRZ_GITHUB_UPDATE_TOKEN' ) ) : ?>
+                                            <br><span style="color:#05593D;">(توکن اختصاصی از ثابت سیستم در wp-config لود شده است)</span>
+                                        <?php endif; ?>
+                                    </p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="brz-save-bar" style="display:flex;gap:8px;align-items:center;margin-top:20px;">
+                        <button type="submit" class="button button-primary">ذخیره تنظیمات به‌روزرسانی</button>
+                        <span id="brz-updater-save-status" class="description"></span>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <?php
+    }
+
     private static function inline_js() {
         $nonce = wp_create_nonce( 'brz_smart_linker_save' );
         ?>
@@ -432,6 +603,97 @@ class BRZ_Connections {
                     s.textContent='Testing...';
                     const fd=new FormData();fd.append('action','brz_smart_linker_test_peer');fd.append('_wpnonce','<?php echo esc_js( $nonce ); ?>');
                     fetch(ajaxurl,{method:'POST',credentials:'same-origin',body:fd}).then(r=>r.json()).then(j=>{s.textContent=j?.data?.message||'OK';}).catch(()=>s.textContent='خطا');
+                });
+            }
+
+            // Updater Form AJAX Submission
+            const updaterForm = document.getElementById('brz-updater-settings-form');
+            if(updaterForm){
+                const statusSpan = document.getElementById('brz-updater-save-status');
+                updaterForm.addEventListener('submit', (e)=>{
+                    e.preventDefault();
+                    statusSpan.style.color = '#05593D';
+                    statusSpan.textContent = 'در حال ذخیره...';
+                    const fd = new FormData(updaterForm);
+                    fd.append('action', 'brz_save_updater_settings');
+                    fetch(ajaxurl, { method: 'POST', credentials: 'same-origin', body: fd })
+                        .then(r => r.json())
+                        .then(j => {
+                            if(j.success){
+                                statusSpan.style.color = '#05593D';
+                                statusSpan.textContent = j.data?.message || 'ذخیره شد.';
+                            } else {
+                                statusSpan.style.color = '#dc2626';
+                                statusSpan.textContent = j.data?.message || 'خطا در ذخیره سازی.';
+                            }
+                            setTimeout(()=>{ statusSpan.textContent = ''; }, 4000);
+                        })
+                        .catch(()=>{
+                            statusSpan.style.color = '#dc2626';
+                            statusSpan.textContent = 'خطا در ارتباط با سرور.';
+                        });
+                });
+            }
+
+            // Updater Manual Check Button
+            const checkBtn = document.getElementById('brz-check-updater-btn');
+            if(checkBtn){
+                const resBox = document.getElementById('brz-updater-result-box');
+                const lastCheckSpan = document.getElementById('brz-updater-last-check');
+                const lastSourceSpan = document.getElementById('brz-updater-last-source');
+
+                checkBtn.addEventListener('click', ()=>{
+                    checkBtn.disabled = true;
+                    checkBtn.textContent = '⏳ در حال بررسی آنلاین...';
+                    resBox.style.display = 'none';
+
+                    const fd = new FormData();
+                    fd.append('action', 'brz_check_updater_now');
+                    fd.append('_wpnonce', '<?php echo esc_js( $nonce ); ?>');
+
+                    fetch(ajaxurl, { method: 'POST', credentials: 'same-origin', body: fd })
+                        .then(r => r.json())
+                        .then(j => {
+                            checkBtn.disabled = false;
+                            checkBtn.textContent = '🔄 بررسی اکنون نگارش جدید';
+                            resBox.style.display = 'block';
+
+                            if(j.success){
+                                const d = j.data;
+                                if(d.has_update){
+                                    resBox.style.background = '#fef3c7';
+                                    resBox.style.color = '#92400e';
+                                    resBox.style.border = '1px solid #fcd34d';
+                                    resBox.innerHTML = '<strong>' + d.message + '</strong><br><span style="font-size:13px;">برای ارتقا به صفحه <a href="plugins.php" style="color:#05593D;text-decoration:underline;">افزونه‌ها</a> مراجعه کنید.</span>';
+                                } else {
+                                    resBox.style.background = '#ecfdf5';
+                                    resBox.style.color = '#065f46';
+                                    resBox.style.border = '1px solid #a7f3d0';
+                                    resBox.innerHTML = '<strong>' + d.message + '</strong>';
+                                }
+                                if(lastCheckSpan){
+                                    const now = new Date();
+                                    lastCheckSpan.textContent = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+                                }
+                                if(lastSourceSpan && d.source){
+                                    lastSourceSpan.textContent = d.source;
+                                }
+                            } else {
+                                resBox.style.background = '#fef2f2';
+                                resBox.style.color = '#991b1b';
+                                resBox.style.border = '1px solid #fecaca';
+                                resBox.textContent = j.data?.message || 'خطا در بررسی به‌روزرسانی.';
+                            }
+                        })
+                        .catch(()=>{
+                            checkBtn.disabled = false;
+                            checkBtn.textContent = '🔄 بررسی اکنون نگارش جدید';
+                            resBox.style.display = 'block';
+                            resBox.style.background = '#fef2f2';
+                            resBox.style.color = '#991b1b';
+                            resBox.style.border = '1px solid #fecaca';
+                            resBox.textContent = 'خطای اتصال شبکه هنگام بررسی نگارش.';
+                        });
                 });
             }
         })();

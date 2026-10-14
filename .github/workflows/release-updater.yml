@@ -1,0 +1,116 @@
+name: Release & Sync Updater to ArvanCloud and GitHub
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release-and-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+
+      - name: Extract Version and Metadata
+        id: meta
+        run: |
+          VERSION=$(grep -oE "Version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+" buyruz-settings.php | awk '{print $2}')
+          if [ -z "$VERSION" ]; then
+            echo "Error: Could not extract version from buyruz-settings.php"
+            exit 1
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted Plugin Version: $VERSION"
+
+      - name: Package Plugin Zip
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          BUILD_DIR="/tmp/buyruz_build"
+          rm -rf "$BUILD_DIR"
+          mkdir -p "$BUILD_DIR/buyruz-wordpress-plugin"
+          
+          # Copy plugin files excluding git, tests and dev cache
+          rsync -av --exclude='.git*' \
+                    --exclude='tests' \
+                    --exclude='.phpunit.cache' \
+                    --exclude='phpunit.xml' \
+                    --exclude='.DS_Store' \
+                    ./ "$BUILD_DIR/buyruz-wordpress-plugin/"
+
+          cd "$BUILD_DIR"
+          zip -r buyruz-wordpress-plugin.zip buyruz-wordpress-plugin
+          
+          # Calculate SHA256 checksum
+          SHA256=$(sha256sum buyruz-wordpress-plugin.zip | awk '{print $1}')
+          echo "SHA256: $SHA256"
+          echo "sha256=$SHA256" >> $GITHUB_ENV
+
+          # Generate version.json
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S")
+          cat << JSONEOF > version.json
+{
+  "version": "$VERSION",
+  "name": "تنظیمات بایروز",
+  "slug": "buyruz-wordpress-plugin",
+  "download_url": "https://dl.buyruz.ir/plugins/buyruz-plugin/buyruz-wordpress-plugin.zip",
+  "requires_php": "8.3",
+  "requires": "6.8.3",
+  "tested": "6.8.3",
+  "sha256": "$SHA256",
+  "last_updated": "$TIMESTAMP",
+  "upgrade_notice": "به‌روزرسانی خودکار و پایدار افزونه تنظیمات بایروز",
+  "changelog": "انتشار نسخه جدید با ارتقای پایداری و بهبود کارایی اتصالات."
+}
+JSONEOF
+
+          mv buyruz-wordpress-plugin.zip "$GITHUB_WORKSPACE/"
+          mv version.json "$GITHUB_WORKSPACE/"
+
+      - name: Configure AWS CLI for ArvanCloud S3
+        run: |
+          aws configure set aws_access_key_id "${{ secrets.ARVAN_S3_ACCESS_KEY }}"
+          aws configure set aws_secret_access_key "${{ secrets.ARVAN_S3_SECRET_KEY }}"
+          aws configure set default.region "${{ secrets.ARVAN_S3_REGION || 'ir-central1' }}"
+
+      - name: Sync & Clean Old Plugin Files on ArvanCloud S3
+        env:
+          ENDPOINT: ${{ secrets.ARVAN_S3_ENDPOINT || 'https://hot.ir-central1.arvanstorage.ir' }}
+          BUCKET: ${{ secrets.ARVAN_S3_BUCKET || 'buruz' }}
+          PREFIX: "plugins/buyruz-plugin"
+        run: |
+          if [ -n "${{ secrets.ARVAN_S3_ACCESS_KEY }}" ]; then
+            echo "Connected to ArvanCloud S3 ($ENDPOINT, Bucket: $BUCKET)..."
+            
+            # Delete only existing objects under plugins/buyruz-plugin/ prefix (preserving all other bucket data)
+            aws --endpoint-url="$ENDPOINT" s3 rm "s3://$BUCKET/$PREFIX/" --recursive || true
+            
+            # Upload latest zip and manifest
+            aws --endpoint-url="$ENDPOINT" s3 cp buyruz-wordpress-plugin.zip "s3://$BUCKET/$PREFIX/buyruz-wordpress-plugin.zip" --acl public-read
+            aws --endpoint-url="$ENDPOINT" s3 cp version.json "s3://$BUCKET/$PREFIX/version.json" --acl public-read --cache-control "no-cache, no-store, must-revalidate"
+            
+            echo "Successfully uploaded latest version to ArvanCloud S3: s3://$BUCKET/$PREFIX/"
+          else
+            echo "Notice: ARVAN_S3_ACCESS_KEY not configured in GitHub Secrets, skipping S3 upload."
+          fi
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
+        with:
+          tag_name: v${{ steps.meta.outputs.version }}
+          name: نگارش ${{ steps.meta.outputs.version }}
+          body: انتشار خودکار نسخه ${{ steps.meta.outputs.version }} افزونه تنظیمات بایروز.
+          draft: false
+          prerelease: false
+          files: |
+            buyruz-wordpress-plugin.zip
+            version.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

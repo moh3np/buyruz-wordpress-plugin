@@ -617,10 +617,53 @@ class BRZ_SSO_Portal {
         // Log the successful SSO login
         self::log_activity( $user->ID, $user->user_login, 'ورود موفق به سیستم از طریق پل سایت (Silent SSO)' );
 
+        // ارسال هدرهای قطعی ضد کش (Zero-Cache Redirect)
+        if ( ! headers_sent() ) {
+            header( 'Cache-Control: no-store, no-cache, must-revalidate, max-age=0' );
+            header( 'Pragma: no-cache' );
+        }
+
+        // اگر درخواست از پنجره پاپ‌آپ آمده باشد، توکن را بدون ریدایرکت به پنجره والد بفرست و ببند
+        if ( ! empty( $_GET['popup'] ) ) {
+            ?>
+            <!DOCTYPE html>
+            <html lang="fa" dir="rtl">
+            <head>
+                <meta charset="UTF-8">
+                <title>احراز هویت موفق</title>
+                <style>
+                    body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #03432E; color: #fff; text-align: center; }
+                    .box { background: rgba(255,255,255,0.08); padding: 24px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); }
+                </style>
+            </head>
+            <body>
+                <div class="box">
+                    <p>✓ احراز هویت با موفقیت انجام شد.</p>
+                    <p style="font-size:0.85rem; color:#FFB800;">در حال انتقال به پنل...</p>
+                </div>
+                <script>
+                    const token = <?php echo wp_json_encode( $token ); ?>;
+                    if (window.opener && !window.opener.closed) {
+                        try {
+                            window.opener.postMessage({ type: 'BRZ_SSO_SUCCESS', token: token }, '*');
+                        } catch(e) {}
+                        setTimeout(function() {
+                            window.close();
+                        }, 400);
+                    } else {
+                        window.location.href = <?php echo wp_json_encode( add_query_arg( 'sso_token', rawurlencode( $token ), $redirect_to_panel ) ); ?>;
+                    }
+                </script>
+            </body>
+            </html>
+            <?php
+            exit;
+        }
+
         // 5. Redirect back to the panel with sso_token attached as a query param fallback to eliminate redirect loops completely
         $target_redirect = add_query_arg( 'sso_token', rawurlencode( $token ), $redirect_to_panel );
 
-        wp_redirect( $target_redirect );
+        wp_redirect( $target_redirect, 302 );
         exit;
     }
 

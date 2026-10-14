@@ -515,3 +515,4 @@ if ( ! function_exists( 'get_comments_number' ) ) {
 
 require_once __DIR__ . '/../includes/modules/http-firewall/class-brz-firewall-validator.php';
 require_once __DIR__ . '/../includes/modules/http-firewall/class-brz-firewall.php';
+require_once __DIR__ . '/../includes/core/class-brz-updater.php';

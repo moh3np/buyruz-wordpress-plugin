@@ -13,6 +13,7 @@ spl_autoload_register( function( $class ) {
 
     $map = array(
         'BRZ_Plugin'                     => 'core/class-brz-plugin.php',
+        'BRZ_Updater'                    => 'core/class-brz-updater.php',
         'BRZ_Guard'                      => 'core/class-brz-guard.php',
         'BRZ_Profile'                    => 'core/class-brz-profile.php',
         'BRZ_Modules'                    => 'core/class-brz-modules.php',

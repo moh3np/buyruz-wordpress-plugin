@@ -19,6 +19,11 @@ class BRZ_Plugin {
         $is_rest  = defined( 'REST_REQUEST' ) && REST_REQUEST;
         $is_wc    = BRZ_Profile::is_woocommerce_active();
 
+        // Dual-source plugin auto-updater bootstrap
+        if ( class_exists( 'BRZ_Updater' ) ) {
+            BRZ_Updater::init();
+        }
+
         // Admin-only core
         if ( $is_admin ) {
             BRZ_Settings::init();
