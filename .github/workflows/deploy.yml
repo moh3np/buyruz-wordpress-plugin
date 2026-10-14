@@ -81,7 +81,9 @@ jobs:
             echo "✅ Deployment to Main Site and Mag successfully completed!"
 
       - name: Purge ArvanCloud CDN Cache
-        if: ${{ secrets.ARVAN_CDN_API_KEY != '' }}
+        if: env.ARVAN_CDN_API_KEY != ''
+        env:
+          ARVAN_CDN_API_KEY: ${{ secrets.ARVAN_CDN_API_KEY }}
         run: |
           echo "🧹 Purging ArvanCloud CDN Cache for buyruz.com and buyruz.com/mag..."
           curl -s -X POST "https://napi.arvancloud.ir/cdn/4.0/domains/buyruz.com/caching/purge" \
