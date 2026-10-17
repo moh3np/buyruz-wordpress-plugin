@@ -123,7 +123,11 @@ class BRZ_Order_Processor {
             set_transient( 'brz_orders_heartbeat_ts', $heartbeat, 24 * HOUR_IN_SECONDS );
         }
 
-        $counts = wc_get_order_count( 'processing' );
+        // شمارش سفارشات در حال پردازش و آماده‌سازی با تابع استاندارد ووکامرس
+        $counts = 0;
+        if ( function_exists( 'wc_orders_count' ) ) {
+            $counts = wc_orders_count( 'processing' ) + wc_orders_count( 'pws-ready-to-ship' ) + wc_orders_count( 'on-hold' );
+        }
 
         return new WP_REST_Response( [
             'success'          => true,
@@ -151,7 +155,7 @@ class BRZ_Order_Processor {
             'status'  => $statuses,
             'limit'   => $limit,
             'orderby' => 'date',
-            'order'   => 'ASC',
+            'order'   => 'DESC',
         ] );
 
         $formatted = [];

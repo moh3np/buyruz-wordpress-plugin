@@ -206,7 +206,7 @@ class BRZ_Modules {
 
     public static function default_states() {
         $states = array();
-        $disabled_by_default = array( 'outbound_guard', 'order_processor', 'label_overrides', 'ai_schema', 'product_guarantee_tab', 'sso_portal', 'live_debugger' );
+        $disabled_by_default = array( 'outbound_guard', 'label_overrides', 'ai_schema', 'product_guarantee_tab', 'sso_portal', 'live_debugger' );
         $is_magazine = class_exists( 'BRZ_Profile' ) && BRZ_Profile::is_magazine();
 
         foreach ( self::registry() as $slug => $meta ) {
