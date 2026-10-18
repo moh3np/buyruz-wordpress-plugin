@@ -47,6 +47,13 @@ class BRZ_Modules {
                 'category'    => 'shop',
                 'requires_wc' => true,
             ),
+            'sms_shield' => array(
+                'label'       => 'سپر دفاعی پیامک (SMS Shield)',
+                'description' => 'سیستم جامع مهار و جلوگیری از ارسال پیامک و ایمیل ناخواسته در تغییر وضعیت سفارشات',
+                'class'       => 'BRZ_SMS_Shield',
+                'category'    => 'shop',
+                'requires_wc' => true,
+            ),
             'offline_bridge' => array(
                 'label'       => 'پل آفلاین',
                 'description' => 'اعمال تغییرات محصول از Google Sheet بدون نیاز به اتصال مستقیم',

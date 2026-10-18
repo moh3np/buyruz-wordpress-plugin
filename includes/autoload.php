@@ -40,6 +40,7 @@ spl_autoload_register( function( $class ) {
         'BRZ_Connections'                => 'admin/class-brz-connections.php',
         'BRZ_WC_Shortcodes'              => 'integration/class-brz-wc-shortcodes.php',
         'BRZ_Order_Processor'            => 'integration/class-brz-order-processor.php',
+        'BRZ_SMS_Shield'                 => 'integration/class-brz-sms-shield.php',
         'BRZ_BI_Exporter'                => 'modules/bi-exporter/class-brz-bi-exporter.php',
         'BRZ_Firewall'                   => 'modules/http-firewall/class-brz-firewall.php',
         'BRZ_Firewall_Validator'         => 'modules/http-firewall/class-brz-firewall-validator.php',
