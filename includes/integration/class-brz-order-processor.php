@@ -77,6 +77,74 @@ class BRZ_Order_Processor {
             'callback'            => [ __CLASS__, 'get_orders_feed' ],
             'permission_callback' => [ __CLASS__, 'check_permission' ],
         ] );
+
+        // Endpoint تغییر سریع وضعیت سفارش با کنترل پیامک (Change Status)
+        register_rest_route( self::NAMESPACE, '/order/change-status', [
+            'methods'             => WP_REST_Server::CREATABLE, // POST
+            'callback'            => [ __CLASS__, 'change_order_status' ],
+            'permission_callback' => [ __CLASS__, 'check_permission' ],
+            'args'                => [
+                'order_id' => [
+                    'required'          => true,
+                    'type'              => 'integer',
+                    'sanitize_callback' => 'absint',
+                ],
+                'status' => [
+                    'required'          => true,
+                    'type'              => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ],
+                'suppress_sms' => [
+                    'required'          => false,
+                    'type'              => 'boolean',
+                    'default'           => false,
+                ],
+                'note' => [
+                    'required'          => false,
+                    'type'              => 'string',
+                    'default'           => '',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ],
+            ],
+        ] );
+
+        // Endpoint استعلام زنده موجودی پنل پیامک (SMS Balance)
+        register_rest_route( self::NAMESPACE, '/sms/balance', [
+            'methods'             => WP_REST_Server::READABLE, // GET
+            'callback'            => [ __CLASS__, 'get_sms_balance' ],
+            'permission_callback' => [ __CLASS__, 'check_permission' ],
+        ] );
+
+        // Endpoint دریافت تاریخچه پیامک‌های سفارش (SMS History)
+        register_rest_route( self::NAMESPACE, '/order/(?P<id>\d+)/sms-history', [
+            'methods'             => WP_REST_Server::READABLE, // GET
+            'callback'            => [ __CLASS__, 'get_order_sms_history' ],
+            'permission_callback' => [ __CLASS__, 'check_permission' ],
+        ] );
+
+        // Endpoint ارسال مستقیم پیامک سفارشی / دلخواه به خریدار (Direct Custom SMS)
+        register_rest_route( self::NAMESPACE, '/order/send-direct-sms', [
+            'methods'             => WP_REST_Server::CREATABLE, // POST
+            'callback'            => [ __CLASS__, 'send_direct_sms' ],
+            'permission_callback' => [ __CLASS__, 'check_permission' ],
+            'args'                => [
+                'order_id' => [
+                    'required'          => true,
+                    'type'              => 'integer',
+                    'sanitize_callback' => 'absint',
+                ],
+                'mobile' => [
+                    'required'          => true,
+                    'type'              => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ],
+                'message' => [
+                    'required'          => true,
+                    'type'              => 'string',
+                    'sanitize_callback' => 'sanitize_textarea_field',
+                ],
+            ],
+        ] );
     }
     
     /**
@@ -230,6 +298,8 @@ class BRZ_Order_Processor {
                 'total_weight_est'=> $total_weight_est,
                 'total'           => floatval( $order->get_total() ),
                 'payment_method'  => $order->get_payment_method_title(),
+                'customer_note'   => trim( (string) $order->get_customer_note() ),
+                'has_customer_note' => ! empty( trim( (string) $order->get_customer_note() ) ),
             ];
         }
 
@@ -287,6 +357,18 @@ class BRZ_Order_Processor {
                 'type'        => 'string',
                 'default'     => '',
                 'description' => 'وضعیت جدید سفارش',
+            ],
+            'scanned_sns' => [
+                'required'    => false,
+                'type'        => 'array',
+                'default'     => [],
+                'description' => 'لیست سریال‌های اسکن‌شده فیزیکی کالاها',
+            ],
+            'suppress_sms' => [
+                'required'    => false,
+                'type'        => 'boolean',
+                'default'     => false,
+                'description' => 'مهار و جلوگیری کامل از ارسال هرگونه پیامک و ایمیل در تغییر وضعیت سفارش',
             ],
         ];
     }
@@ -351,6 +433,12 @@ class BRZ_Order_Processor {
         $box_size       = absint( $request->get_param( 'box_size' ) );
         $manual_barcode = sanitize_text_field( $request->get_param( 'manual_barcode' ) );
         $new_status     = sanitize_text_field( $request->get_param( 'status' ) );
+        $suppress_sms   = rest_sanitize_boolean( $request->get_param( 'suppress_sms' ) );
+
+        // مهار پیامک در صورت درخواست
+        if ( $suppress_sms && class_exists( 'BRZ_SMS_Shield' ) ) {
+            BRZ_SMS_Shield::start_silent_mode( $order_id );
+        }
         
         // دریافت سفارش
         $order = wc_get_order( $order_id );
@@ -438,11 +526,38 @@ class BRZ_Order_Processor {
         
         // تغییر وضعیت (اگر درخواست شده)
         if ( ! empty( $new_status ) && $new_status !== $order->get_status() ) {
-            $order->set_status( $new_status, 'تغییر وضعیت از گوگل شیت - ' );
+            $order->set_status( $new_status, 'تغییر وضعیت از بایروز اَپ - ' );
             $order->save();
             $result['new_status'] = $new_status;
         }
+
+        // ذخیره سریال‌های اسکن‌شده کالا و ثبت یادداشت رسمی سفارش
+        $scanned_sns = $request->get_param( 'scanned_sns' );
+        if ( is_array( $scanned_sns ) && ! empty( $scanned_sns ) ) {
+            $sns_clean = array_map( 'sanitize_text_field', $scanned_sns );
+            $sns_str   = implode( ', ', $sns_clean );
+            $order->update_meta_data( '_scanned_serials', $sns_str );
+            $order->update_meta_data( 'product_sn', $sns_str );
+            $order->save_meta_data();
+            $result['scanned_serials'] = $sns_clean;
+
+            $trk = $result['tracking_code'] ?: $manual_barcode ?: $order->get_meta( 'post_barcode' );
+            $order->add_order_note( sprintf(
+                '📦 ثبت و تخصیص توسط بایروز اَپ — سریال(های) فیزیکی کالا: %s%s',
+                $sns_str,
+                $trk ? ( ' | بارکد رهگیری: ' . $trk ) : ''
+            ) );
+        }
         
+        // مهار نهایی پیامک و بازگرداندن وضعیت
+        if ( $suppress_sms && class_exists( 'BRZ_SMS_Shield' ) ) {
+            BRZ_SMS_Shield::record_silent_note( $order, 'پردازش نهایی سفارش از بایروز اَپ' );
+            BRZ_SMS_Shield::stop_silent_mode();
+            $result['sms_suppressed'] = true;
+        } else {
+            $result['sms_suppressed'] = false;
+        }
+
         // لاگ
         do_action( 'buyruz_order_processed', $order_id, $result );
         
@@ -651,5 +766,103 @@ class BRZ_Order_Processor {
         }
         
         return $statuses;
+    }
+
+    /**
+     * تغییر سریع وضعیت سفارش با پشتیبانی از مهار پیامک (SMS Shield)
+     * @param WP_REST_Request $request
+     * @return WP_REST_Response
+     */
+    public static function change_order_status( WP_REST_Request $request ): WP_REST_Response {
+        $order_id     = absint( $request->get_param( 'order_id' ) );
+        $new_status   = sanitize_text_field( $request->get_param( 'status' ) );
+        $suppress_sms = rest_sanitize_boolean( $request->get_param( 'suppress_sms' ) );
+        $note         = sanitize_text_field( $request->get_param( 'note' ) );
+
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+            return new WP_REST_Response( [
+                'success' => false,
+                'message' => 'سفارش #' . $order_id . ' یافت نشد.',
+            ], 404 );
+        }
+
+        // تمیز کردن پیشوند wc- اگر ارسال شده باشد
+        $clean_status = preg_replace( '/^wc-/', '', $new_status );
+        $old_status   = $order->get_status();
+
+        if ( $suppress_sms && class_exists( 'BRZ_SMS_Shield' ) ) {
+            BRZ_SMS_Shield::start_silent_mode( $order_id );
+        }
+
+        try {
+            $order_note = ! empty( $note ) ? $note : 'تغییر وضعیت مستقیم از بایروز اَپ (سفارش #' . $order_id . ')';
+            $order->set_status( $clean_status, $order_note . ' - ' );
+            $order->save();
+
+            if ( $suppress_sms && class_exists( 'BRZ_SMS_Shield' ) ) {
+                BRZ_SMS_Shield::record_silent_note( $order, 'تغییر وضعیت از ' . $old_status . ' به ' . $clean_status . ' (بایروز اَپ)' );
+            }
+        } finally {
+            if ( $suppress_sms && class_exists( 'BRZ_SMS_Shield' ) ) {
+                BRZ_SMS_Shield::stop_silent_mode();
+            }
+        }
+
+        self::mark_heartbeat_dirty( $order_id );
+
+        return new WP_REST_Response( [
+            'success'        => true,
+            'order_id'       => $order_id,
+            'old_status'     => $old_status,
+            'new_status'     => $clean_status,
+            'sms_suppressed' => $suppress_sms,
+            'message'        => sprintf( 'وضعیت سفارش #%d به %s تغییر یافت (%s).', $order_id, $clean_status, $suppress_sms ? 'بدون پیامک' : 'با ارسال پیامک' ),
+        ], 200 );
+    }
+
+    /**
+     * استعلام اعتبار پنل پیامک (Endpoint)
+     * @return WP_REST_Response
+     */
+    public static function get_sms_balance( WP_REST_Request $request ): WP_REST_Response {
+        $refresh = rest_sanitize_boolean( $request->get_param( 'refresh' ) );
+        $balance = class_exists( 'BRZ_SMS_Shield' ) 
+            ? BRZ_SMS_Shield::get_gateway_balance( $refresh ) 
+            : [ 'ok' => false, 'error' => 'ماژول مهار پیامک فعال نیست.' ];
+
+        return new WP_REST_Response( $balance, 200 );
+    }
+
+    /**
+     * دریافت تاریخچه پیامک‌های یک سفارش (Endpoint)
+     * @param WP_REST_Request $request
+     * @return WP_REST_Response
+     */
+    public static function get_order_sms_history( WP_REST_Request $request ): WP_REST_Response {
+        $order_id = absint( $request->get_param( 'id' ) );
+        $history  = class_exists( 'BRZ_SMS_Shield' )
+            ? BRZ_SMS_Shield::get_order_sms_history( $order_id )
+            : [ 'ok' => false, 'error' => 'ماژول پیامک در دسترس نیست.' ];
+
+        return new WP_REST_Response( $history, 200 );
+    }
+
+    /**
+     * ارسال مستقیم پیامک دلخواه به مشتری (Endpoint)
+     * @param WP_REST_Request $request
+     * @return WP_REST_Response
+     */
+    public static function send_direct_sms( WP_REST_Request $request ): WP_REST_Response {
+        $order_id = absint( $request->get_param( 'order_id' ) );
+        $mobile   = sanitize_text_field( $request->get_param( 'mobile' ) );
+        $message  = sanitize_textarea_field( $request->get_param( 'message' ) );
+
+        $result = class_exists( 'BRZ_SMS_Shield' )
+            ? BRZ_SMS_Shield::send_direct_sms( $order_id, $mobile, $message )
+            : [ 'ok' => false, 'error' => 'ماژول ارسال پیامک در دسترس نیست.' ];
+
+        $status_code = ( $result['ok'] ?? false ) ? 200 : 400;
+        return new WP_REST_Response( $result, $status_code );
     }
 }
