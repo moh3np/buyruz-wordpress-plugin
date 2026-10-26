@@ -53,7 +53,7 @@ namespace Buyruz\Tests\Unit {
             ) );
 
             $this->assertEquals( 50000, BRZ_Smart_Telemetry::normalize_amount( 50000 ) );
-            $this->assertEquals( 'IRT', BRZ_Smart_Telemetry::get_currency_code() );
+            $this->assertEquals( 'USD', BRZ_Smart_Telemetry::get_currency_code() );
         }
 
         public function test_module_registered_in_brz_modules() {

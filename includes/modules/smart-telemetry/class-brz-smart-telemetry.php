@@ -186,7 +186,8 @@ class BRZ_Smart_Telemetry {
         if ( ! empty( $opts['convert_currency'] ) ) {
             return 'IRR';
         }
-        return 'IRT';
+        // USD is used as the safe ISO 4217 reporting currency matching GA4 property standard
+        return 'USD';
     }
 
     /**
@@ -442,11 +443,12 @@ window.dataLayer.push({
             update_post_meta( $order_id, '_brz_telemetry_tracked', current_time( 'mysql' ) );
         }
 
-        $currency      = self::get_currency_code();
-        $total         = self::normalize_amount( $order->get_total() );
-        $shipping      = self::normalize_amount( $order->get_shipping_total() );
-        $tax           = self::normalize_amount( $order->get_total_tax() );
-        $coupons       = implode( ', ', $order->get_coupon_codes() );
+        $currency       = self::get_currency_code();
+        $total          = self::normalize_amount( $order->get_total() );
+        $shipping       = self::normalize_amount( $order->get_shipping_total() );
+        $tax            = self::normalize_amount( $order->get_total_tax() );
+        $coupons        = implode( ', ', $order->get_coupon_codes() );
+        $payment_method = method_exists( $order, 'get_payment_method_title' ) ? $order->get_payment_method_title() : '';
 
         $items         = array();
         $yekta_items   = array();
@@ -494,6 +496,7 @@ window.dataLayer.push({
     shipping: <?php echo floatval( $shipping ); ?>,
     currency: '<?php echo esc_js( $currency ); ?>',
     coupon: '<?php echo esc_js( $coupons ); ?>',
+    payment_type: '<?php echo esc_js( $payment_method ); ?>',
     items: <?php echo wp_json_encode( $items ); ?>
   }
 });
