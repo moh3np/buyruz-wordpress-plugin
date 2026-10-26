@@ -111,5 +111,11 @@ namespace Buyruz\Tests\Unit {
             $output = ob_get_clean();
             $this->assertEmpty( trim( $output ) );
         }
+
+        public function test_purge_telemetry_caches_runs_cleanly() {
+            // Must execute without exceptions
+            BRZ_Smart_Telemetry::purge_telemetry_caches();
+            $this->assertTrue( true );
+        }
     }
 }

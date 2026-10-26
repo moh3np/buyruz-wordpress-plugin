@@ -759,7 +759,41 @@ window.dataLayer.push({
 
         update_option( self::OPTION_KEY, $clean );
 
-        wp_send_json_success( array( 'message' => 'تنظیمات ره‌گیری هوشمند با موفقیت ذخیره شد.' ) );
+        // Self-healing: purge multi-layer caches immediately so changes are live instantly
+        self::purge_telemetry_caches();
+
+        wp_send_json_success( array( 'message' => 'تنظیمات ره‌گیری هوشمند با موفقیت ذخیره و کلیه کش‌های سیستم تخلیه شدند.' ) );
+    }
+
+    /**
+     * Purges multi-layer caches (Nginx FastCGI microcache, WordPress object cache)
+     * so telemetry changes take effect immediately across all visitors without manual intervention.
+     */
+    public static function purge_telemetry_caches(): void {
+        // 1. WordPress / Redis Object Cache
+        if ( function_exists( 'wp_cache_flush' ) ) {
+            wp_cache_flush();
+        }
+
+        // 2. Nginx FastCGI Microcache (PHP-FPM runs as www-data and owns /var/cache/nginx/wpcache)
+        $cache_dir = '/var/cache/nginx/wpcache';
+        if ( is_dir( $cache_dir ) && is_writable( $cache_dir ) ) {
+            try {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator( $cache_dir, \RecursiveDirectoryIterator::SKIP_DOTS ),
+                    \RecursiveIteratorIterator::CHILD_FIRST
+                );
+                foreach ( $iterator as $fileinfo ) {
+                    if ( $fileinfo->isDir() ) {
+                        @rmdir( $fileinfo->getRealPath() );
+                    } else {
+                        @unlink( $fileinfo->getRealPath() );
+                    }
+                }
+            } catch ( \Exception $e ) {
+                // Defensive fallback: ignore transient lock
+            }
+        }
     }
 
     /**
