@@ -395,6 +395,14 @@ class BRZ_Product_Media {
                 display: contents !important;
             }
 
+            /* Hide top tab switcher bar on mobile since all sections are standalone vertical cards */
+            body.single-product.woocommerce .woocommerce-tabs ul.tabs,
+            .woocommerce div.product .woocommerce-tabs ul.tabs,
+            .products-tabs ul.tabs,
+            ul.tabs.wc-tabs {
+                display: none !important;
+            }
+
             /* Re-order Studio Media Hub right after related products (order: 3) & before short_tabs_content (order: 4) */
             body.single-product.woocommerce div.product > #tab-brz_media,
             body.single-product.woocommerce div.product > .woocommerce-Tabs-panel--brz_media,

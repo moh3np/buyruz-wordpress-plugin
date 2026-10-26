@@ -37,9 +37,6 @@ class BRZ_Product_Brand_Cat_Header {
             return;
         }
 
-        // حذف هوک پیش‌فرض قالب باکالا برای جلوگیری از تداخل
-        add_action( 'wp', array( __CLASS__, 'remove_theme_defaults' ), 20 );
-
         // اتصال نوار برند و دسته‌بندی به بالای عنوان در موبایل و دسکتاپ
         add_action( 'woocommerce_single_product_before_title', array( __CLASS__, 'render_micro_nav' ), 5 );
 
@@ -49,15 +46,6 @@ class BRZ_Product_Brand_Cat_Header {
 
         // تزریق استایل‌های بومی و بهینه در هدر
         add_action( 'wp_head', array( __CLASS__, 'inject_styles' ), 25 );
-    }
-
-    /**
-     * Remove conflicting theme hooks if present.
-     */
-    public static function remove_theme_defaults(): void {
-        if ( function_exists( 'display_brand_and_filtered_category' ) ) {
-            remove_action( 'woocommerce_single_product_before_title', 'display_brand_and_filtered_category' );
-        }
     }
 
     /**

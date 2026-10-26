@@ -44,6 +44,7 @@ spl_autoload_register( function( $class ) {
         'BRZ_BI_Exporter'                => 'modules/bi-exporter/class-brz-bi-exporter.php',
         'BRZ_Firewall'                   => 'modules/http-firewall/class-brz-firewall.php',
         'BRZ_Firewall_Validator'         => 'modules/http-firewall/class-brz-firewall-validator.php',
+        'BRZ_Speed_Optimizer'            => 'modules/speed-optimizer/class-brz-speed-optimizer.php',
         'BRZ_Static_Controller'          => 'modules/static-controller/class-brz-static-controller.php',
         'BRZ_Static_Page_Detector'       => 'modules/static-controller/class-brz-static-page-detector.php',
         'BRZ_Static_Map_Generator'       => 'modules/static-controller/class-brz-static-map-generator.php',
@@ -82,6 +83,9 @@ spl_autoload_register( function( $class ) {
         'BRZ_Product_Media'              => 'modules/product-media/class-brz-product-media.php',
         'BRZ_Rank_Math_Bridge'           => 'modules/editorial/class-brz-rank-math-bridge.php',
         'BRZ_Product_Brand_Cat_Header'   => 'modules/product-brand-cat-header/class-brz-product-brand-cat-header.php',
+        'BRZ_Shipping_Bridge'            => 'modules/shipping-bridge/class-brz-shipping-bridge.php',
+        'BRZ_Link_Nexus_REST'            => 'integration/class-brz-link-nexus-rest.php',
+        'BRZ_Smart_Telemetry'            => 'modules/smart-telemetry/class-brz-smart-telemetry.php',
     );
 
     $map = apply_filters( 'brz/autoload_map', $map );

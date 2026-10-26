@@ -1310,7 +1310,8 @@ namespace Buyruz\Tests\Unit {
             \BRZ_Product_Guarantee_Tab::print_tab_icon_css();
             $css_output = ob_get_clean();
 
-            $this->assertStringContainsString( 'order: 8 !important;', $css_output );
+            $this->assertStringContainsString( 'brzRelocateMobileGuarantee', $css_output );
+            $this->assertStringContainsString( '#tab-guarantee', $css_output );
             $this->assertStringContainsString( 'min-height: 42px !important;', $css_output );
             $this->assertStringContainsString( 'padding: 10px 14px !important;', $css_output );
             $this->assertStringContainsString( 'border: 1px solid var(--brz-border, #E2E8F0) !important;', $css_output );

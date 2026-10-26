@@ -40,6 +40,13 @@ class BRZ_Modules {
                 'category'    => 'universal',
                 'requires_wc' => false,
             ),
+            'speed_optimizer' => array(
+                'label'       => 'بهینه‌ساز سرعت و فونت',
+                'description' => 'پچ هوشمند و خودبازنشسته‌شونده خنثی‌سازی فونت‌های زائد المنتور و بهینه‌سازی بارگذاری استایل‌ها.',
+                'class'       => 'BRZ_Speed_Optimizer',
+                'category'    => 'universal',
+                'requires_wc' => false,
+            ),
             'order_processor' => array(
                 'label'       => 'پردازش سفارش',
                 'description' => 'REST API پردازش سفارشات از گوگل شیت',
@@ -208,6 +215,20 @@ class BRZ_Modules {
                 'category'    => 'shop',
                 'requires_wc' => true,
             ),
+            'shipping_bridge' => array(
+                'label'       => 'پل همگام‌ساز آدرس و تاپین (حل خطای روش‌های ارسال)',
+                'description' => 'تطبیق و نگاشت هوشمند نام و کدینگ شهرهای آدرس‌پلاس با کدهای تاپین (پست پیشتاز، پست ویژه و تیپاکس) برای رفع خطای «هیچ گزینه‌ای برای ارسال در دسترس نیست».',
+                'class'       => 'BRZ_Shipping_Bridge',
+                'category'    => 'shop',
+                'requires_wc' => true,
+            ),
+            'smart_telemetry' => array(
+                'label'       => 'ره‌گیری و آنالیتیکس هوشمند',
+                'description' => 'موتور جامع ره‌گیری GA4، یکتانت، مایکروسافت کلاریتی و تبدیل ترب/ایمالز با لود تعاملی صفر ثانیه و سازگاری کامل ادپتیو.',
+                'class'       => 'BRZ_Smart_Telemetry',
+                'category'    => 'universal',
+                'requires_wc' => false,
+            ),
         );
     }
 
@@ -248,6 +269,9 @@ class BRZ_Modules {
         $states = self::get_states();
         $states[ $slug ] = $enabled ? 1 : 0;
         update_option( BRZ_OPTION, wp_parse_args( array( 'modules' => $states ), get_option( BRZ_OPTION, array() ) ), false );
+        if ( class_exists( 'BRZ_Settings' ) && method_exists( 'BRZ_Settings', 'reset_cache' ) ) {
+            BRZ_Settings::reset_cache();
+        }
     }
 
     public static function active_classes() {
@@ -287,6 +311,9 @@ class BRZ_Modules {
         if ( ! array_key_exists( 'static_controller', $states ) ) {
             $states['static_controller'] = 1;
         }
+        if ( ! array_key_exists( 'speed_optimizer', $states ) ) {
+            $states['speed_optimizer'] = 1;
+        }
         if ( ! array_key_exists( 'product_video', $states ) ) {
             $states['product_video'] = 1;
         }
@@ -298,6 +325,9 @@ class BRZ_Modules {
         }
         if ( ! array_key_exists( 'product_brand_cat_header', $states ) ) {
             $states['product_brand_cat_header'] = 1;
+        }
+        if ( ! array_key_exists( 'shipping_bridge', $states ) ) {
+            $states['shipping_bridge'] = 1;
         }
         if ( class_exists( 'BRZ_Profile' ) && BRZ_Profile::is_magazine() ) {
             $states['mag_tools'] = 1;

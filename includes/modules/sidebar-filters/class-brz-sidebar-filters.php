@@ -433,22 +433,22 @@ class BRZ_Sidebar_Filters {
                         $alias_min = $alias . '_min';
                         $alias_max = $alias . '_max';
 
-                        $clauses['join']  .= " INNER JOIN {$table} AS {$alias_min} ON {$wpdb->posts}.ID = {$alias_min}.product_id ";
-                        $clauses['where'] .= $wpdb->prepare( " AND {$alias_min}.meta_key = %s AND {$alias_min}.value_num <= %f ", $key . '_min', floatval( $exact_val ) );
+                        $clauses['join']  .= " INNER JOIN {$table} AS `{$alias_min}` ON {$wpdb->posts}.ID = `{$alias_min}`.product_id ";
+                        $clauses['where'] .= $wpdb->prepare( " AND `{$alias_min}`.meta_key = %s AND `{$alias_min}`.value_num <= %f ", $key . '_min', floatval( $exact_val ) );
 
-                        $clauses['join']  .= " INNER JOIN {$table} AS {$alias_max} ON {$wpdb->posts}.ID = {$alias_max}.product_id ";
-                        $clauses['where'] .= $wpdb->prepare( " AND {$alias_max}.meta_key = %s AND {$alias_max}.value_num >= %f ", $key . '_max', floatval( $exact_val ) );
+                        $clauses['join']  .= " INNER JOIN {$table} AS `{$alias_max}` ON {$wpdb->posts}.ID = `{$alias_max}`.product_id ";
+                        $clauses['where'] .= $wpdb->prepare( " AND `{$alias_max}`.meta_key = %s AND `{$alias_max}`.value_num >= %f ", $key . '_max', floatval( $exact_val ) );
                     } else {
                         // Bounds logic
                         if ( $min_val !== '' ) {
                             $alias_min = $alias . '_min';
-                            $clauses['join']  .= " INNER JOIN {$table} AS {$alias_min} ON {$wpdb->posts}.ID = {$alias_min}.product_id ";
-                            $clauses['where'] .= $wpdb->prepare( " AND {$alias_min}.meta_key = %s AND {$alias_min}.value_num >= %f ", $key . '_min', floatval( $min_val ) );
+                            $clauses['join']  .= " INNER JOIN {$table} AS `{$alias_min}` ON {$wpdb->posts}.ID = `{$alias_min}`.product_id ";
+                            $clauses['where'] .= $wpdb->prepare( " AND `{$alias_min}`.meta_key = %s AND `{$alias_min}`.value_num >= %f ", $key . '_min', floatval( $min_val ) );
                         }
                         if ( $max_val !== '' ) {
                             $alias_max = $alias . '_max';
-                            $clauses['join']  .= " INNER JOIN {$table} AS {$alias_max} ON {$wpdb->posts}.ID = {$alias_max}.product_id ";
-                            $clauses['where'] .= $wpdb->prepare( " AND {$alias_max}.meta_key = %s AND {$alias_max}.value_num <= %f ", $key . '_max', floatval( $max_val ) );
+                            $clauses['join']  .= " INNER JOIN {$table} AS `{$alias_max}` ON {$wpdb->posts}.ID = `{$alias_max}`.product_id ";
+                            $clauses['where'] .= $wpdb->prepare( " AND `{$alias_max}`.meta_key = %s AND `{$alias_max}`.value_num <= %f ", $key . '_max', floatval( $max_val ) );
                         }
                     }
                 }
@@ -466,10 +466,10 @@ class BRZ_Sidebar_Filters {
                         $has_filter = true;
                         $alias      = 'brz_f_' . sanitize_key( $key );
 
-                        $clauses['join'] .= " INNER JOIN {$table} AS {$alias} ON {$wpdb->posts}.ID = {$alias}.product_id ";
+                        $clauses['join'] .= " INNER JOIN {$table} AS `{$alias}` ON {$wpdb->posts}.ID = `{$alias}`.product_id ";
                         $placeholders     = implode( ',', array_fill( 0, count( $vals ), '%s' ) );
-                        $in_clause        = $wpdb->prepare( "{$alias}.value_char IN ($placeholders)", $vals );
-                        $clauses['where'] .= $wpdb->prepare( " AND {$alias}.meta_key = %s AND ({$in_clause}) ", $key );
+                        $in_clause        = $wpdb->prepare( "`{$alias}`.value_char IN ($placeholders)", $vals );
+                        $clauses['where'] .= $wpdb->prepare( " AND `{$alias}`.meta_key = %s AND ({$in_clause}) ", $key );
                     }
                 }
             } elseif ( 'boolean' === $type ) {
@@ -479,8 +479,8 @@ class BRZ_Sidebar_Filters {
                     $alias      = 'brz_f_' . sanitize_key( $key );
                     $bool_val   = ( $val === '1' || $val === 'true' || $val === 'yes' ) ? 1 : 0;
 
-                    $clauses['join']  .= " INNER JOIN {$table} AS {$alias} ON {$wpdb->posts}.ID = {$alias}.product_id ";
-                    $clauses['where'] .= $wpdb->prepare( " AND {$alias}.meta_key = %s AND {$alias}.value_num = %d ", $key, $bool_val );
+                    $clauses['join']  .= " INNER JOIN {$table} AS `{$alias}` ON {$wpdb->posts}.ID = `{$alias}`.product_id ";
+                    $clauses['where'] .= $wpdb->prepare( " AND `{$alias}`.meta_key = %s AND `{$alias}`.value_num = %d ", $key, $bool_val );
                 }
             } elseif ( 'integer' === $type || 'decimal' === $type ) {
                 $min_val = isset( $_GET[ $key . '_min' ] ) ? sanitize_text_field( wp_unslash( $_GET[ $key . '_min' ] ) ) : '';
@@ -491,17 +491,17 @@ class BRZ_Sidebar_Filters {
                     $has_filter = true;
                     $alias      = 'brz_f_' . sanitize_key( $key );
 
-                    $clauses['join']  .= " INNER JOIN {$table} AS {$alias} ON {$wpdb->posts}.ID = {$alias}.product_id ";
-                    $clauses['where'] .= $wpdb->prepare( " AND {$alias}.meta_key = %s ", $key );
+                    $clauses['join']  .= " INNER JOIN {$table} AS `{$alias}` ON {$wpdb->posts}.ID = `{$alias}`.product_id ";
+                    $clauses['where'] .= $wpdb->prepare( " AND `{$alias}`.meta_key = %s ", $key );
 
                     if ( $exact_val !== '' ) {
-                        $clauses['where'] .= $wpdb->prepare( " AND {$alias}.value_num = %f ", floatval( $exact_val ) );
+                        $clauses['where'] .= $wpdb->prepare( " AND `{$alias}`.value_num = %f ", floatval( $exact_val ) );
                     } else {
                         if ( $min_val !== '' ) {
-                            $clauses['where'] .= $wpdb->prepare( " AND {$alias}.value_num >= %f ", floatval( $min_val ) );
+                            $clauses['where'] .= $wpdb->prepare( " AND `{$alias}`.value_num >= %f ", floatval( $min_val ) );
                         }
                         if ( $max_val !== '' ) {
-                            $clauses['where'] .= $wpdb->prepare( " AND {$alias}.value_num <= %f ", floatval( $max_val ) );
+                            $clauses['where'] .= $wpdb->prepare( " AND `{$alias}`.value_num <= %f ", floatval( $max_val ) );
                         }
                     }
                 }
@@ -524,10 +524,10 @@ class BRZ_Sidebar_Filters {
                         if ( ! empty( $vals ) ) {
                             $has_filter = true;
                             $alias = 'brz_f_tax_' . sanitize_key( $tax_name );
-                            $clauses['join'] .= " INNER JOIN {$table} AS {$alias} ON {$wpdb->posts}.ID = {$alias}.product_id ";
+                            $clauses['join'] .= " INNER JOIN {$table} AS `{$alias}` ON {$wpdb->posts}.ID = `{$alias}`.product_id ";
                             $placeholders = implode( ',', array_fill( 0, count( $vals ), '%s' ) );
-                            $in_clause = $wpdb->prepare( "{$alias}.value_char IN ($placeholders)", $vals );
-                            $clauses['where'] .= $wpdb->prepare( " AND {$alias}.meta_key = %s AND ({$in_clause}) ", $tax_name );
+                            $in_clause = $wpdb->prepare( "`{$alias}`.value_char IN ($placeholders)", $vals );
+                            $clauses['where'] .= $wpdb->prepare( " AND `{$alias}`.meta_key = %s AND ({$in_clause}) ", $tax_name );
                         }
                     }
                 }

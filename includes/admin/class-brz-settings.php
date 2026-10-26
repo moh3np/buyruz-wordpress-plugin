@@ -124,6 +124,10 @@ class BRZ_Settings {
         return isset( $opts[ $key ] ) ? $opts[ $key ] : $default;
     }
 
+    public static function reset_cache() {
+        self::$options_cache = null;
+    }
+
     public static function init() {
         add_action( 'admin_menu', array( __CLASS__, 'page' ), 11 );
         add_action( 'admin_init', array( __CLASS__, 'register' ) );
@@ -1287,6 +1291,11 @@ class BRZ_Settings {
                 return;
             }
 
+            if ( 'smart_telemetry' === $module_slug && $active ) {
+                BRZ_Smart_Telemetry::render_admin_page();
+                return;
+            }
+
             if ( 'mag_tools' === $module_slug && $active ) {
                 $mag_tools = isset( $opts['mag_tools'] ) && is_array( $opts['mag_tools'] ) ? $opts['mag_tools'] : array();
                 $auto_hero   = ! isset( $mag_tools['auto_article_hero'] ) || ! empty( $mag_tools['auto_article_hero'] );
@@ -1366,6 +1375,13 @@ class BRZ_Settings {
                 </div>
                 <?php
                 return;
+            }
+
+            if ( 'speed_optimizer' === $module_slug && $active ) {
+                if ( class_exists( 'BRZ_Speed_Optimizer' ) && method_exists( 'BRZ_Speed_Optimizer', 'render_admin_page' ) ) {
+                    BRZ_Speed_Optimizer::render_admin_page();
+                    return;
+                }
             }
 
             if ( 'cross_bridge' === $module_slug && $active ) {
@@ -2072,6 +2088,17 @@ class BRZ_Settings {
                     'default_source_rel'     => ! empty( $mt['default_source_rel'] ) && 'dofollow' === $mt['default_source_rel'] ? 'dofollow' : 'nofollow',
                 ) );
                 unset( $input['mag_tools'] );
+            }
+        }
+
+        // Speed Optimizer settings
+        if ( 'speed_optimizer' === $context || isset( $input['speed_optimizer'] ) ) {
+            if ( isset( $input['speed_optimizer'] ) && is_array( $input['speed_optimizer'] ) ) {
+                $so = $input['speed_optimizer'];
+                $output['speed_optimizer'] = array(
+                    'product_css_optimizer' => ! empty( $so['product_css_optimizer'] ) ? 1 : 0,
+                );
+                unset( $input['speed_optimizer'] );
             }
         }
 

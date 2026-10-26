@@ -189,238 +189,115 @@ class BRZ_Product_Desc_Optimizer {
             return $html;
         }
 
-        // 1. Scroll to top button (a#scrollUp) - Desktop and Mobile
+        // Unified High-Speed Server-Side Accessible Names on Icon Links (One single pass instead of 15 redundant document scans)
         $html = preg_replace_callback(
-            '/<a([^>]*?(?:id=["\']scrollUp["\']|class=["\'][^"\']*?scrollup[^"\']*?["\'])[^>]*?)>/i',
+            '/<a(\s+[^>]*?)>/i',
             function( $matches ) {
                 $tag = $matches[1];
                 if ( false !== stripos( $tag, 'aria-label' ) ) {
                     return $matches[0];
                 }
-                return '<a aria-label="بازگشت به بالای صفحه" title="بازگشت به بالای صفحه"' . $tag . '>';
-            },
-            $html
-        );
 
-        // 2. Wishlist icon links (single product, carousels, category loops)
-        $html = preg_replace_callback(
-            '/<a([^>]*?(?:class=["\'][^"\']*?(?:addtowishlist|icon-love|bakala-wishlist)[^"\']*?["\']|data-product-id)[^>]*?)>/i',
-            function( $matches ) {
-                $tag = $matches[1];
-                if ( false !== stripos( $tag, 'aria-label' ) || false !== stripos( $tag, 'single_add_to_cart_button' ) ) {
-                    return $matches[0];
+                $tag_lower = mb_strtolower( $tag );
+
+                // 1. Scroll to top button (a#scrollUp)
+                if ( false !== strpos( $tag_lower, 'scrollup' ) ) {
+                    return '<a aria-label="بازگشت به بالای صفحه" title="بازگشت به بالای صفحه"' . $tag . '>';
                 }
-                if ( false !== stripos( $tag, 'wishlist' ) || false !== stripos( $tag, 'icon-love' ) ) {
+
+                // 2. Wishlist icon links (single product, carousels, category loops)
+                if ( ( false !== strpos( $tag_lower, 'addtowishlist' ) || false !== strpos( $tag_lower, 'icon-love' ) || false !== strpos( $tag_lower, 'bakala-wishlist' ) ) && false === strpos( $tag_lower, 'single_add_to_cart_button' ) ) {
                     return '<a aria-label="افزودن به علاقه‌مندی‌ها" title="افزودن به علاقه‌مندی‌ها"' . $tag . '>';
                 }
-                return $matches[0];
-            },
-            $html
-        );
 
-        // 3. Notification icon links ("مرا مطلع کن" - Desktop and Mobile)
-        $html = preg_replace_callback(
-            '/<a([^>]*?(?:class=["\'][^"\']*?(?:icon-notification|icon-notif)[^"\']*?["\']|data-bs-target=["\']#bakala_product_notify["\'])[^>]*?)>/i',
-            function( $matches ) {
-                $tag = $matches[1];
-                if ( false !== stripos( $tag, 'aria-label' ) ) {
-                    return $matches[0];
+                // 3. Notification icon links ("مرا مطلع کن")
+                if ( false !== strpos( $tag_lower, 'icon-notification' ) || false !== strpos( $tag_lower, 'icon-notif' ) || false !== strpos( $tag_lower, '#bakala_product_notify' ) ) {
+                    return '<a aria-label="مرا مطلع کن" title="مرا مطلع کن"' . $tag . '>';
                 }
-                return '<a aria-label="مرا مطلع کن" title="مرا مطلع کن"' . $tag . '>';
-            },
-            $html
-        );
 
-        // 4. Price statistics / chart links ("نمودار قیمت")
-        $html = preg_replace_callback(
-            '/<a([^>]*?(?:class=["\'][^"\']*?(?:icon-statistics|icon-chart)[^"\']*?["\']|data-bs-target=["\']#bakala_price_change["\'])[^>]*?)>/i',
-            function( $matches ) {
-                $tag = $matches[1];
-                if ( false !== stripos( $tag, 'aria-label' ) ) {
-                    return $matches[0];
+                // 4. Price statistics / chart links ("نمودار تغییرات قیمت")
+                if ( false !== strpos( $tag_lower, 'icon-statistics' ) || false !== strpos( $tag_lower, 'icon-chart' ) || false !== strpos( $tag_lower, '#bakala_price_change' ) ) {
+                    return '<a aria-label="نمودار تغییرات قیمت" title="نمودار تغییرات قیمت"' . $tag . '>';
                 }
-                return '<a aria-label="نمودار تغییرات قیمت" title="نمودار تغییرات قیمت"' . $tag . '>';
-            },
-            $html
-        );
 
-        // 5. Compare icon links ("مقایسه محصول" - Desktop and Mobile)
-        $html = preg_replace_callback(
-            '/<a([^>]*?(?:class=["\'][^"\']*?icon-compare[^"\']*?["\']|href=["\'][^"\']*?\/compare\/\?products=[^"\']*?["\'])[^>]*?)>/i',
-            function( $matches ) {
-                $tag = $matches[1];
-                if ( false !== stripos( $tag, 'aria-label' ) ) {
-                    return $matches[0];
+                // 5. Compare icon links ("مقایسه محصول")
+                if ( false !== strpos( $tag_lower, 'icon-compare' ) || false !== strpos( $tag_lower, '/compare/?products=' ) || false !== strpos( $tag_lower, 'compare-button' ) ) {
+                    return '<a aria-label="مقایسه محصول" title="مقایسه محصول"' . $tag . '>';
                 }
-                return '<a aria-label="مقایسه محصول" title="مقایسه محصول"' . $tag . '>';
-            },
-            $html
-        );
 
-        // 6. Compare button wrapper in product page
-        $html = preg_replace_callback(
-            '/<div([^>]*?compare-button[^>]*?)>\s*<a(?![^>]*?aria-label)([^>]*?)>/i',
-            function( $m ) {
-                return '<div' . $m[1] . '><a aria-label="مقایسه محصول" title="مقایسه محصول"' . $m[2] . '>';
-            },
-            $html
-        );
+                // 6. Share icon links ("اشتراک‌گذاری محصول")
+                if ( false !== strpos( $tag_lower, 'icon-share' ) || false !== strpos( $tag_lower, 'productsocialshareform' ) || false !== strpos( $tag_lower, '#bakala_sharebtn' ) ) {
+                    return '<a aria-label="اشتراک‌گذاری محصول" title="اشتراک‌گذاری محصول"' . $tag . '>';
+                }
 
-        // 7. Share icon links ("اشتراک‌گذاری محصول")
-        $html = preg_replace_callback(
-            '/<a([^>]*?(?:class=["\'][^"\']*?icon-share[^"\']*?["\']|id=["\']ProductSocialShareForm["\']|data-bs-target=["\']#bakala_sharebtn["\'])[^>]*?)>/i',
-            function( $matches ) {
-                $tag = $matches[1];
-                if ( false !== stripos( $tag, 'aria-label' ) ) {
-                    return $matches[0];
+                // 7. Video modal link in product gallery
+                if ( false !== strpos( $tag_lower, '#modal-product-gallery' ) ) {
+                    return '<a aria-label="مشاهده ویدیوی محصول" title="مشاهده ویدیوی محصول"' . $tag . '>';
                 }
-                return '<a aria-label="اشتراک‌گذاری محصول" title="اشتراک‌گذاری محصول"' . $tag . '>';
-            },
-            $html
-        );
 
-        // 8. Video modal link in product gallery
-        $html = preg_replace_callback(
-            '/<a([^>]*?data-bs-target=["\']#modal-product-gallery["\'][^>]*?)>/i',
-            function( $matches ) {
-                $tag = $matches[1];
-                if ( false !== stripos( $tag, 'aria-label' ) ) {
-                    return $matches[0];
+                // 8. Header user dropdown toggle button ("منوی حساب کاربری")
+                if ( false !== strpos( $tag_lower, 'c-header__btn-user' ) ) {
+                    return '<a aria-label="منوی حساب کاربری" title="منوی حساب کاربری"' . $tag . '>';
                 }
-                return '<a aria-label="مشاهده ویدیوی محصول" title="مشاهده ویدیوی محصول"' . $tag . '>';
-            },
-            $html
-        );
 
-        // 9. Header user dropdown toggle button ("منوی حساب کاربری")
-        $html = preg_replace_callback(
-            '/<a([^>]*?class=["\'][^"\']*?c-header__btn-user[^"\']*?["\'][^>]*?)>/i',
-            function( $matches ) {
-                $tag = $matches[1];
-                if ( false !== stripos( $tag, 'aria-label' ) ) {
-                    return $matches[0];
+                // 9. Notification bar ("اعلان")
+                if ( false !== strpos( $tag_lower, 'notifbar' ) ) {
+                    return '<a aria-label="اعلان" title="اعلان"' . $tag . '>';
                 }
-                return '<a aria-label="منوی حساب کاربری" title="منوی حساب کاربری"' . $tag . '>';
-            },
-            $html
-        );
 
-        // 10. Notification bar ("اعلان")
-        $html = preg_replace_callback(
-            '/<a([^>]*?class=["\'][^"\']*?notifBar[^"\']*?["\'][^>]*?)>/i',
-            function( $matches ) {
-                $tag = $matches[1];
-                if ( false !== stripos( $tag, 'aria-label' ) ) {
-                    return $matches[0];
+                // 10. Header FAQ / Phone Call link
+                if ( false !== strpos( $tag_lower, 'c-header__faq' ) ) {
+                    return '<a aria-label="تماس با پشتیبانی بایروز" title="تماس با پشتیبانی بایروز"' . $tag . '>';
                 }
-                return '<a aria-label="اعلان" title="اعلان"' . $tag . '>';
-            },
-            $html
-        );
 
-        // 11. Header FAQ / Phone Call link (Mobile header phone icon)
-        $html = preg_replace_callback(
-            '/<a([^>]*?class=["\'][^"\']*?c-header__faq[^"\']*?["\'][^>]*?)>/i',
-            function( $matches ) {
-                $tag = $matches[1];
-                if ( false !== stripos( $tag, 'aria-label' ) ) {
-                    return $matches[0];
+                // 11. Mobile Bottom Navigation Bar Items
+                if ( false !== strpos( $tag_lower, 'mobile-bottom-nav__item-content' ) ) {
+                    $label = 'منوی دسترسی سریع';
+                    if ( false !== strpos( $tag_lower, 'search_modal' ) || false !== strpos( $tag_lower, '#search' ) ) {
+                        $label = 'جستجوی محصولات';
+                    } elseif ( false !== strpos( $tag_lower, '/cart' ) ) {
+                        $label = 'سبد خرید';
+                    } elseif ( false !== strpos( $tag_lower, '/products-list' ) ) {
+                        $label = 'دسته‌بندی محصولات';
+                    } elseif ( false !== strpos( $tag_lower, '/my-account' ) ) {
+                        $label = 'حساب کاربری';
+                    } else {
+                        $label = 'صفحه اصلی';
+                    }
+                    return '<a aria-label="' . esc_attr( $label ) . '" title="' . esc_attr( $label ) . '"' . $tag . '>';
                 }
-                return '<a aria-label="تماس با پشتیبانی بایروز" title="تماس با پشتیبانی بایروز"' . $tag . '>';
-            },
-            $html
-        );
 
-        // 12. Mobile Bottom Navigation Bar Items (Home, Search, Cart, Categories, Account)
-        $html = preg_replace_callback(
-            '/<a([^>]*?class=["\'][^"\']*?mobile-bottom-nav__item-content[^"\']*?["\'][^>]*?)>/i',
-            function( $matches ) {
-                $tag = $matches[1];
-                if ( false !== stripos( $tag, 'aria-label' ) ) {
-                    return $matches[0];
+                // 12. Footer Social Links
+                if ( false !== strpos( $tag_lower, 'instagram.com' ) ) {
+                    return '<a aria-label="اینستاگرام بایروز" title="اینستاگرام بایروز"' . $tag . '>';
+                } elseif ( false !== strpos( $tag_lower, 't.me' ) || false !== strpos( $tag_lower, 'telegram.me' ) ) {
+                    return '<a aria-label="کانال تلگرام بایروز" title="کانال تلگرام بایروز"' . $tag . '>';
+                } elseif ( false !== strpos( $tag_lower, 'aparat.com' ) ) {
+                    return '<a aria-label="کانال آپارات بایروز" title="کانال آپارات بایروز"' . $tag . '>';
+                } elseif ( false !== strpos( $tag_lower, 'twitter.com' ) || false !== strpos( $tag_lower, 'x.com' ) ) {
+                    return '<a aria-label="توییتر بایروز" title="توییتر بایروز"' . $tag . '>';
+                } elseif ( false !== strpos( $tag_lower, 'facebook.com' ) ) {
+                    return '<a aria-label="فیسبوک بایروز" title="فیسبوک بایروز"' . $tag . '>';
+                } elseif ( false !== strpos( $tag_lower, 'pinterest.com' ) ) {
+                    return '<a aria-label="پینترست بایروز" title="پینترست بایروز"' . $tag . '>';
+                } elseif ( false !== strpos( $tag_lower, 'youtube.com' ) ) {
+                    return '<a aria-label="یوتیوب بایروز" title="یوتیوب بایروز"' . $tag . '>';
                 }
-                $label = 'منوی دسترسی سریع';
-                if ( false !== stripos( $tag, 'search_modal' ) || false !== stripos( $tag, '#search' ) ) {
-                    $label = 'جستجوی محصولات';
-                } elseif ( false !== stripos( $tag, '/cart' ) ) {
-                    $label = 'سبد خرید';
-                } elseif ( false !== stripos( $tag, '/products-list' ) ) {
-                    $label = 'دسته‌بندی محصولات';
-                } elseif ( false !== stripos( $tag, '/my-account' ) ) {
-                    $label = 'حساب کاربری';
-                } else {
-                    $label = 'صفحه اصلی';
-                }
-                return '<a aria-label="' . esc_attr( $label ) . '" title="' . esc_attr( $label ) . '"' . $tag . '>';
-            },
-            $html
-        );
 
-        // 13. Footer Social Links (Instagram, Telegram, Aparat, Twitter/X, Facebook, Pinterest, YouTube)
-        $html = preg_replace_callback(
-            '/<a([^>]*?href=["\'][^"\']*?(?:instagram|t\.me|telegram|aparat|twitter|x\.com|facebook|pinterest|youtube)[^"\']*?["\'][^>]*?)>/i',
-            function( $matches ) {
-                $tag = $matches[1];
-                if ( false !== stripos( $tag, 'aria-label' ) ) {
-                    return $matches[0];
-                }
-                $label = 'شبکه اجتماعی';
-                $tag_lower = mb_strtolower( $tag );
-                if ( false !== strpos( $tag_lower, 'instagram' ) ) {
-                    $label = 'اینستاگرام بایروز';
-                } elseif ( false !== strpos( $tag_lower, 't.me' ) || false !== strpos( $tag_lower, 'telegram' ) ) {
-                    $label = 'کانال تلگرام بایروز';
-                } elseif ( false !== strpos( $tag_lower, 'aparat' ) ) {
-                    $label = 'کانال آپارات بایروز';
-                } elseif ( false !== strpos( $tag_lower, 'twitter' ) || false !== strpos( $tag_lower, 'x.com' ) ) {
-                    $label = 'توییتر بایروز';
-                } elseif ( false !== strpos( $tag_lower, 'facebook' ) ) {
-                    $label = 'فیسبوک بایروز';
-                } elseif ( false !== strpos( $tag_lower, 'pinterest' ) ) {
-                    $label = 'پینترست بایروز';
-                } elseif ( false !== strpos( $tag_lower, 'youtube' ) ) {
-                    $label = 'یوتیوب بایروز';
-                }
-                return '<a aria-label="' . esc_attr( $label ) . '" title="' . esc_attr( $label ) . '"' . $tag . '>';
-            },
-            $html
-        );
-
-        // 14. Mobile Header icons (showMoreIcons, icon-account, icon-search, close-menu-button, back-button)
-        $html = preg_replace_callback(
-            '/<a([^>]*?class=["\'][^"\']*?(?:icon-more|icon-account|icon-search|close-menu-button|back-button)[^"\']*?["\'][^>]*?)>/i',
-            function( $matches ) {
-                $tag = $matches[1];
-                if ( false !== stripos( $tag, 'aria-label' ) ) {
-                    return $matches[0];
-                }
-                $label = 'دکمه منو';
-                $tag_lower = mb_strtolower( $tag );
+                // 13. Mobile Header icons
                 if ( false !== strpos( $tag_lower, 'icon-more' ) ) {
-                    $label = 'نمایش گزینه‌های بیشتر';
+                    return '<a aria-label="نمایش گزینه‌های بیشتر" title="نمایش گزینه‌های بیشتر"' . $tag . '>';
                 } elseif ( false !== strpos( $tag_lower, 'icon-account' ) ) {
-                    $label = 'حساب کاربری';
+                    return '<a aria-label="حساب کاربری" title="حساب کاربری"' . $tag . '>';
                 } elseif ( false !== strpos( $tag_lower, 'icon-search' ) ) {
-                    $label = 'جستجو در سایت';
+                    return '<a aria-label="جستجو در سایت" title="جستجو در سایت"' . $tag . '>';
                 } elseif ( false !== strpos( $tag_lower, 'close-menu-button' ) ) {
-                    $label = 'بستن منو';
+                    return '<a aria-label="بستن منو" title="بستن منو"' . $tag . '>';
                 } elseif ( false !== strpos( $tag_lower, 'back-button' ) ) {
-                    $label = 'بازگشت به صفحه قبل';
+                    return '<a aria-label="بازگشت به صفحه قبل" title="بازگشت به صفحه قبل"' . $tag . '>';
                 }
-                return '<a aria-label="' . esc_attr( $label ) . '" title="' . esc_attr( $label ) . '"' . $tag . '>';
-            },
-            $html
-        );
 
-        // 15. LiteSpeed Admin Bar Icon Link
-        $html = preg_replace_callback(
-            '/<a([^>]*?href=["\'][^"\']*?admin\.php\?page=litespeed[^"\']*?["\'][^>]*?)>/i',
-            function( $matches ) {
-                $tag = $matches[1];
-                if ( false !== stripos( $tag, 'aria-label' ) ) {
-                    return $matches[0];
-                }
-                return '<a aria-label="مدیریت کش لایت‌اسپید" title="مدیریت کش لایت‌اسپید"' . $tag . '>';
+                return $matches[0];
             },
             $html
         );
