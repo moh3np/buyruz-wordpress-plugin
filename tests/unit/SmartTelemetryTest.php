@@ -102,5 +102,14 @@ namespace Buyruz\Tests\Unit {
 
             $this->assertEmpty( trim( $output ) );
         }
+
+        public function test_search_event_output() {
+            global $wp_query;
+            // When not search, output is empty
+            ob_start();
+            BRZ_Smart_Telemetry::inject_search_event();
+            $output = ob_get_clean();
+            $this->assertEmpty( trim( $output ) );
+        }
     }
 }

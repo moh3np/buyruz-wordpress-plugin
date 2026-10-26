@@ -85,10 +85,19 @@ class BRZ_Smart_Telemetry {
         // 2. Base Telemetry Scripts & Inline Loader
         add_action( 'wp_head', array( __CLASS__, 'inject_telemetry_scripts' ), 2 );
 
-        // 3. E-commerce Hooks for WooCommerce (Only if WooCommerce is active)
+        // 3. Search Telemetry (Store & Mag)
+        add_action( 'wp_head', array( __CLASS__, 'inject_search_event' ), 15 );
+
+        // 4. E-commerce Hooks for WooCommerce (Only if WooCommerce is active)
         if ( class_exists( 'WooCommerce' ) ) {
             // View Item (Single Product Page)
             add_action( 'wp_head', array( __CLASS__, 'inject_view_item_event' ), 20 );
+
+            // View Cart (Cart Page)
+            add_action( 'wp_head', array( __CLASS__, 'inject_view_cart_event' ), 21 );
+
+            // View Item List (Shop and Product Taxonomy Archives)
+            add_action( 'wp_head', array( __CLASS__, 'inject_view_item_list_event' ), 22 );
 
             // Begin Checkout
             add_action( 'woocommerce_before_checkout_form', array( __CLASS__, 'inject_begin_checkout_event' ), 1 );
@@ -96,11 +105,11 @@ class BRZ_Smart_Telemetry {
             // Purchase Conversion (Thank You Page)
             add_action( 'woocommerce_thankyou', array( __CLASS__, 'inject_purchase_event' ), 10, 1 );
 
-            // AJAX Add to Cart listener in footer
-            add_action( 'wp_footer', array( __CLASS__, 'inject_ajax_add_to_cart_listener' ), 99 );
+            // Cart Interaction Listeners in footer (AJAX Add to Cart & Remove from Cart)
+            add_action( 'wp_footer', array( __CLASS__, 'inject_cart_interaction_listeners' ), 99 );
         }
 
-        // 4. Admin AJAX settings handler
+        // 5. Admin AJAX settings handler
         if ( is_admin() ) {
             add_action( 'wp_ajax_brz_save_smart_telemetry', array( __CLASS__, 'ajax_save_settings' ) );
         }
@@ -202,6 +211,7 @@ class BRZ_Smart_Telemetry {
 
         $lazy_load   = ! empty( $opts['lazy_load'] );
         $is_thankyou = self::is_thank_you_page();
+        $user_id_hash = function_exists( 'is_user_logged_in' ) && is_user_logged_in() && function_exists( 'get_current_user_id' ) ? hash( 'sha256', (string) get_current_user_id() ) : '';
 
         // On thank-you page, bypass lazy-load to guarantee immediate transaction telemetry
         $should_lazy = $lazy_load && ! $is_thankyou;
@@ -224,6 +234,7 @@ gtag('js', new Date());
   var yektaId = '<?php echo $yekta_id; ?>';
   var clarityId = '<?php echo $clarity_id; ?>';
   var gtmId = '<?php echo $gtm_id; ?>';
+  var userId = '<?php echo esc_js( $user_id_hash ); ?>';
 
   function initTelemetry() {
     if (telemetryLoaded) return;
@@ -235,7 +246,11 @@ gtag('js', new Date());
       s.async = true;
       s.src = 'https://www.googletagmanager.com/gtag/js?id=' + ga4Id;
       document.head.appendChild(s);
-      gtag('config', ga4Id, { 'send_page_view': true });
+      var gaConfig = { 'send_page_view': true };
+      if (userId) {
+        gaConfig['user_id'] = userId;
+      }
+      gtag('config', ga4Id, gaConfig);
     }
 
     // 2. Google Tag Manager (GTM)
@@ -516,16 +531,143 @@ window.emalls.push({
     }
 
     /**
-     * Injects the AJAX add-to-cart listener in footer for WooCommerce.
+     * Injects the GA4 search event on search query results pages.
      */
-    public static function inject_ajax_add_to_cart_listener(): void {
+    public static function inject_search_event(): void {
+        if ( ! function_exists( 'is_search' ) || ! is_search() ) {
+            return;
+        }
+        if ( ! function_exists( 'get_search_query' ) ) {
+            return;
+        }
+        $query = get_search_query();
+        if ( empty( $query ) ) {
+            return;
+        }
+        ?>
+<script id="brz-telemetry-search">
+window.dataLayer = window.dataLayer || [];
+window.dataLayer.push({
+  event: 'search',
+  search_term: '<?php echo esc_js( $query ); ?>'
+});
+</script>
+<?php
+    }
+
+    /**
+     * Injects the GA4 view_cart event on the WooCommerce cart page.
+     */
+    public static function inject_view_cart_event(): void {
+        if ( ! function_exists( 'is_cart' ) || ! is_cart() || ( function_exists( 'is_checkout' ) && is_checkout() ) ) {
+            return;
+        }
+
+        if ( ! function_exists( 'WC' ) || ! WC()->cart || WC()->cart->is_empty() ) {
+            return;
+        }
+
+        $items    = array();
+        $currency = self::get_currency_code();
+        $total    = self::normalize_amount( WC()->cart->get_total( 'edit' ) );
+
+        foreach ( WC()->cart->get_cart() as $cart_item_key => $cart_item ) {
+            $product = $cart_item['data'];
+            if ( ! $product ) {
+                continue;
+            }
+            $product_id = $product->get_id();
+            $items[] = array(
+                'item_id'       => (string) $product_id,
+                'item_name'     => $product->get_name(),
+                'price'         => self::normalize_amount( $product->get_price() ),
+                'quantity'      => $cart_item['quantity'],
+                'item_category' => wp_strip_all_tags( wc_get_product_category_list( $product_id, ', ' ) ),
+            );
+        }
+
+        ?>
+<script id="brz-telemetry-view-cart">
+window.dataLayer = window.dataLayer || [];
+window.dataLayer.push({
+  event: 'view_cart',
+  ecommerce: {
+    currency: '<?php echo esc_js( $currency ); ?>',
+    value: <?php echo floatval( $total ); ?>,
+    items: <?php echo wp_json_encode( $items ); ?>
+  }
+});
+</script>
+<?php
+    }
+
+    /**
+     * Injects the GA4 view_item_list event on shop and product archive pages.
+     */
+    public static function inject_view_item_list_event(): void {
+        if ( ! function_exists( 'is_shop' ) ) {
+            return;
+        }
+        if ( ! is_shop() && ! is_product_taxonomy() ) {
+            return;
+        }
+
+        $list_name = is_shop() ? 'فروشگاه' : single_term_title( '', false );
+        $currency  = self::get_currency_code();
+        $items     = array();
+
+        global $wp_query;
+        if ( $wp_query && ! empty( $wp_query->posts ) ) {
+            $count = 0;
+            foreach ( $wp_query->posts as $post ) {
+                if ( $count >= 8 ) {
+                    break;
+                }
+                $product = function_exists( 'wc_get_product' ) ? wc_get_product( $post->ID ) : null;
+                if ( ! $product ) {
+                    continue;
+                }
+                $items[] = array(
+                    'item_id'       => (string) $product->get_id(),
+                    'item_name'     => $product->get_name(),
+                    'price'         => self::normalize_amount( $product->get_price() ),
+                    'item_category' => $list_name,
+                    'index'         => ++$count,
+                );
+            }
+        }
+
+        if ( empty( $items ) ) {
+            return;
+        }
+        ?>
+<script id="brz-telemetry-view-item-list">
+window.dataLayer = window.dataLayer || [];
+window.dataLayer.push({
+  event: 'view_item_list',
+  ecommerce: {
+    item_list_name: '<?php echo esc_js( $list_name ); ?>',
+    currency: '<?php echo esc_js( $currency ); ?>',
+    items: <?php echo wp_json_encode( $items ); ?>
+  }
+});
+</script>
+<?php
+    }
+
+    /**
+     * Injects footer listeners for add_to_cart (AJAX) and remove_from_cart interactions.
+     */
+    public static function inject_cart_interaction_listeners(): void {
         if ( is_admin() ) {
             return;
         }
         ?>
-<script id="brz-telemetry-ajax-cart">
+<script id="brz-telemetry-cart-listeners">
 (function() {
   if (typeof window.jQuery === 'undefined') return;
+
+  // 1. AJAX Add to Cart Listener
   window.jQuery(document.body).on('added_to_cart', function(event, fragments, cart_hash, $button) {
     if (!$button || !$button.length) return;
     var productId = $button.data('product_id') || $button.attr('data-product_id');
@@ -550,6 +692,25 @@ window.emalls.push({
         count: parseInt(qty, 10) || 1
       });
     }
+  });
+
+  // 2. Remove From Cart Listener
+  window.jQuery(document.body).on('click', '.woocommerce-cart-form .product-remove a.remove', function() {
+    var $link = window.jQuery(this);
+    var productId = $link.data('product_id') || $link.attr('data-product_id');
+    if (!productId) return;
+
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      event: 'remove_from_cart',
+      ecommerce: {
+        currency: '<?php echo esc_js( self::get_currency_code() ); ?>',
+        items: [{
+          item_id: String(productId),
+          quantity: 1
+        }]
+      }
+    });
   });
 })();
 </script>
