@@ -229,6 +229,13 @@ class BRZ_Modules {
                 'category'    => 'universal',
                 'requires_wc' => false,
             ),
+            'smart_comments' => array(
+                'label'       => 'دیدگاه‌های هوشمند و ضداسپم مگ',
+                'description' => 'سیستم ضداسپم نفوذناپذیر، هانی‌پات نامرئی، فیلتر زبان فارسی، فیلد اختیاری موبایل و ارسال ایجکس دیدگاه‌ها.',
+                'class'       => 'BRZ_Smart_Comments',
+                'category'    => 'magazine',
+                'requires_wc' => false,
+            ),
         );
     }
 

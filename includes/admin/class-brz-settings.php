@@ -1296,6 +1296,11 @@ class BRZ_Settings {
                 return;
             }
 
+            if ( 'smart_comments' === $module_slug && $active ) {
+                BRZ_Smart_Comments::render_admin_page();
+                return;
+            }
+
             if ( 'mag_tools' === $module_slug && $active ) {
                 $mag_tools = isset( $opts['mag_tools'] ) && is_array( $opts['mag_tools'] ) ? $opts['mag_tools'] : array();
                 $auto_hero   = ! isset( $mag_tools['auto_article_hero'] ) || ! empty( $mag_tools['auto_article_hero'] );

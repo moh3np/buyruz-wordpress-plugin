@@ -86,6 +86,7 @@ spl_autoload_register( function( $class ) {
         'BRZ_Shipping_Bridge'            => 'modules/shipping-bridge/class-brz-shipping-bridge.php',
         'BRZ_Link_Nexus_REST'            => 'integration/class-brz-link-nexus-rest.php',
         'BRZ_Smart_Telemetry'            => 'modules/smart-telemetry/class-brz-smart-telemetry.php',
+        'BRZ_Smart_Comments'             => 'modules/smart-comments/class-brz-smart-comments.php',
     );
 
     $map = apply_filters( 'brz/autoload_map', $map );
