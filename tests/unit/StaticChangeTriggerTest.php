@@ -859,11 +859,11 @@ class StaticChangeTriggerTest extends TestCase {
         @unlink( $tmpFile );
     }
 
-    public function testStaticControllerDefaultsToEnabledInModuleStates(): void {
+    public function testStaticControllerDefaultsToDisabledInModuleStates(): void {
         update_option( 'brz_options', [ 'modules' => [ 'compare_table' => 1 ] ] );
         $states = \BRZ_Modules::get_states();
         $this->assertArrayHasKey( 'static_controller', $states );
-        $this->assertEquals( 1, $states['static_controller'] );
+        $this->assertEquals( 0, $states['static_controller'] );
     }
 
     public function testOnPriceChangeDispatchesImmediateQueueEvent(): void {

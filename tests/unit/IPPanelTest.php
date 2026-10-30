@@ -97,5 +97,120 @@ namespace Buyruz\Tests\Unit {
             // WooCommerce Persian SMS filter rewrite
             $this->assertEquals( '09127166487', BRZ_IPPanel::filter_pwoosms_test_mobile( '09359876543' ) );
         }
+
+        public function test_get_pattern_status_success() {
+            global $wp_test_remote_responses;
+            putenv( 'IPPANEL_API_KEY=test_valid_api_key' );
+
+            $wp_test_remote_responses['/patterns/qhsejgejaovq913'] = array(
+                'response' => array( 'code' => 200 ),
+                'body'     => json_encode( array(
+                    'data' => array(
+                        'pattern_code'      => 'qhsejgejaovq913',
+                        'pattern_status'    => 'active',
+                        'pattern_status_fa' => 'فعال',
+                        'pattern_message'   => '%name% عزیز، کارشناس بایروز به پرسش شما در «%post%» پاسخ داد.\nمشاهده:\n%url%\nبایروز مگ',
+                    ),
+                ) ),
+            );
+
+            $res = BRZ_IPPanel::get_pattern_status( 'qhsejgejaovq913' );
+
+            $this->assertTrue( $res['success'] );
+            $this->assertEquals( 'active', $res['status'] );
+            $this->assertEquals( 'فعال', $res['status_fa'] );
+            $this->assertEquals( 'qhsejgejaovq913', $res['code'] );
+
+            putenv( 'IPPANEL_API_KEY' );
+            unset( $wp_test_remote_responses['/patterns/qhsejgejaovq913'] );
+        }
+
+        public function test_create_pattern_success() {
+            global $wp_test_remote_responses;
+            putenv( 'IPPANEL_API_KEY=test_valid_api_key' );
+
+            $wp_test_remote_responses['/sms/pattern/normal/store'] = array(
+                'response' => array( 'code' => 200 ),
+                'body'     => json_encode( array(
+                    'data' => array(
+                        array( 'code' => 'new_pattern_999' ),
+                    ),
+                ) ),
+            );
+
+            $res = BRZ_IPPanel::create_pattern(
+                '%name% عزیز، پاسخ شما ثبت شد: %url%',
+                'توضیحات الگوی تست',
+                array( 'name' => 'string', 'url' => 'string' )
+            );
+
+            $this->assertTrue( $res['success'] );
+            $this->assertEquals( 'new_pattern_999', $res['code'] );
+            $this->assertEquals( 'pending', $res['status'] );
+
+            putenv( 'IPPANEL_API_KEY' );
+            unset( $wp_test_remote_responses['/sms/pattern/normal/store'] );
+        }
+
+        public function test_update_pattern_success() {
+            global $wp_test_remote_responses;
+            putenv( 'IPPANEL_API_KEY=test_valid_api_key' );
+
+            $wp_test_remote_responses['/patterns/normal/qhsejgejaovq913'] = array(
+                'response' => array( 'code' => 200 ),
+                'body'     => json_encode( array(
+                    'data' => array( 'pattern_code' => 'qhsejgejaovq913' ),
+                ) ),
+            );
+
+            $res = BRZ_IPPanel::update_pattern(
+                'qhsejgejaovq913',
+                '%name% عزیز، پاسخ جدید ثبت شد.',
+                'ویرایش الگوی تست',
+                array( 'name' => 'string' )
+            );
+
+            $this->assertTrue( $res['success'] );
+            $this->assertEquals( 'qhsejgejaovq913', $res['code'] );
+            $this->assertEquals( 'pending', $res['status'] );
+
+            putenv( 'IPPANEL_API_KEY' );
+            unset( $wp_test_remote_responses['/patterns/normal/qhsejgejaovq913'] );
+        }
+
+        public function test_sync_or_register_pattern_with_existing_code() {
+            global $wp_test_remote_responses;
+            putenv( 'IPPANEL_API_KEY=test_valid_api_key' );
+
+            // Mock get_pattern_status returns 200 success
+            $wp_test_remote_responses['/patterns/qhsejgejaovq913'] = array(
+                'response' => array( 'code' => 200 ),
+                'body'     => json_encode( array(
+                    'data' => array( 'pattern_code' => 'qhsejgejaovq913', 'pattern_status' => 'active' ),
+                ) ),
+            );
+
+            // Mock update_pattern returns 200
+            $wp_test_remote_responses['/patterns/normal/qhsejgejaovq913'] = array(
+                'response' => array( 'code' => 200 ),
+                'body'     => json_encode( array(
+                    'data' => array( 'pattern_code' => 'qhsejgejaovq913' ),
+                ) ),
+            );
+
+            $res = BRZ_IPPanel::sync_or_register_pattern(
+                '%name% عزیز، پاسخ جدید.',
+                'به‌روزرسانی الگو',
+                array( 'name' => 'string' ),
+                'qhsejgejaovq913'
+            );
+
+            $this->assertTrue( $res['success'] );
+            $this->assertEquals( 'qhsejgejaovq913', $res['code'] );
+
+            putenv( 'IPPANEL_API_KEY' );
+            unset( $wp_test_remote_responses['/patterns/qhsejgejaovq913'] );
+            unset( $wp_test_remote_responses['/patterns/normal/qhsejgejaovq913'] );
+        }
     }
 }

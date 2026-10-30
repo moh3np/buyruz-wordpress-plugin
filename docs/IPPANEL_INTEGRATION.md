@@ -106,7 +106,28 @@ if ( $message_id ) {
 }
 ```
 
-### ج) ارسال پیامک متنی مستقیم (Standard SMS):
+### ج) ثبت، ویرایش و مدیریت چرخه حیات پترن‌ها از طریق API (Pattern Lifecycle & Management):
+بر خلاف تصورات سنتی، آی‌پی‌پنل دارای API کامل جهت ثبت، ویرایش و استعلام پترن‌ها است:
+
+1. **ایجاد پترن جدید (Create Pattern):**
+   - **اندپوینت:** `POST https://api2.ippanel.com/api/v1/sms/pattern/normal/store`
+   - **هدرها:** `apikey: <KEY>` و `Content-Type: application/json`
+   - **بدنه:** `message` (شامل متغیرهای `%var%`)، `description`، `is_share: false`، `variable: [{"name": "var", "type": "string"}]`.
+   - **پاسخ:** شناسه کد پترن (مانند `t2cfmnyo0c`).
+
+2. **ویرایش پترن موجود (Update Pattern):**
+   - **اندپوینت:** `PUT https://edge.ippanel.com/v1/api/patterns/normal/{pattern_code}`
+   - **هدرها:** `Authorization: <KEY>` و `Content-Type: application/json`
+   - **نکته بسیار مهم:** به محض ارسال ویرایش یا تغییر متن در پنل وب، وضعیت پترن به `pending` برمی‌گردد تا مجدداً توسط ناظر تایید شود.
+
+3. **استعلام وضعیت زنده و متن تاییدشده (Get Pattern Status):**
+   - **اندپوینت:** `GET https://edge.ippanel.com/v1/api/patterns/{pattern_code}`
+   - **خروجی کلیدی:** `pattern_status` (مقادیر: `active`، `pending`، `rejected`)، `pattern_message` (متن دقیق تاییدشده)، `admin_comment` (دلیل تایید یا رد ناظر).
+
+4. **لیست کردن پترن‌ها (List Patterns):**
+   - **اندپوینت:** `GET https://edge.ippanel.com/v1/api/patterns?page=1&per_page=20`
+
+### د) ارسال پیامک متنی مستقیم (Standard SMS):
 ```php
 $mobile  = '09123456789';
 $message = 'سفارش شما با موفقیت ثبت شد. فروشگاه بایروز';

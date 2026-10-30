@@ -49,6 +49,11 @@ class BRZ_IPPanel {
     const API_ENDPOINT = 'https://api2.ippanel.com/api/v1';
 
     /**
+     * نشانی پایگاه وب‌سرویس لبه آی‌پی‌پنل (Edge API)
+     */
+    const EDGE_API_ENDPOINT = 'https://edge.ippanel.com/v1/api';
+
+    /**
      * دریافت کلید دسترسی وب‌سرویس به صورت پویا و بدون هاردکد
      *
      * سلسله‌مراتب تقدم:
@@ -309,11 +314,21 @@ class BRZ_IPPanel {
         $sender_line = ! empty( $sender ) ? $sender : self::get_sender();
         $url = self::API_ENDPOINT . '/sms/pattern/normal/send';
 
+        // تضمین رعایت محدودیت طول متغیرها (حداکثر ۴۰ کاراکتر جهت جلوگیری از خطای وب‌سرویس)
+        $safe_variables = array();
+        foreach ( $variables as $k => $v ) {
+            if ( is_string( $v ) && function_exists( 'mb_strlen' ) && mb_strlen( $v, 'UTF-8' ) > 40 ) {
+                $safe_variables[ $k ] = mb_substr( $v, 0, 39, 'UTF-8' );
+            } else {
+                $safe_variables[ $k ] = $v;
+            }
+        }
+
         $payload = array(
             'code'      => (string) $pattern_code,
             'sender'    => (string) $sender_line,
             'recipient' => (string) $clean_recipient,
-            'variable'  => (object) $variables,
+            'variable'  => (object) $safe_variables,
         );
 
         $response = wp_remote_post( $url, array(
@@ -340,6 +355,292 @@ class BRZ_IPPanel {
         }
 
         return null;
+    }
+
+    /**
+     * ایجاد پترن/الگوی جدید در وب‌سرویس آی‌پی‌پنل
+     *
+     * @param string $pattern     متن پترن همراه با متغیرهای %var%
+     * @param string $description توضیح کاربرد الگو برای اپراتور بررسی‌کننده
+     * @param array  $variables   آرایه متغیرها، مثلاً ['name' => 'string', 'post' => 'string']
+     * @param bool   $is_share    آیا الگو با زیرکاربران به اشتراک گذاشته شود
+     * @return array نتیجه عملیات شامل ['success' => bool, 'code' => string, 'message' => string, 'data' => mixed]
+     */
+    public static function create_pattern( string $pattern, string $description, array $variables = array(), bool $is_share = false ): array {
+        $api_key = self::get_api_key();
+        if ( empty( $api_key ) ) {
+            return array(
+                'success' => false,
+                'code'    => '',
+                'message' => 'کلید وب‌سرویس آی‌پی‌پنل تنظیم نشده است.',
+            );
+        }
+
+        $var_list = array();
+        foreach ( $variables as $k => $v ) {
+            $name = is_numeric( $k ) && is_array( $v ) ? ( $v['name'] ?? '' ) : (string) $k;
+            $type = is_array( $v ) ? ( $v['type'] ?? 'string' ) : (string) $v;
+            $len  = is_array( $v ) ? intval( $v['len'] ?? 40 ) : 40;
+            if ( $len > 40 || $len <= 0 ) {
+                $len = 40;
+            }
+
+            if ( ! empty( $name ) ) {
+                $var_list[] = array(
+                    'name' => trim( $name ),
+                    'type' => $type,
+                    'len'  => $len,
+                );
+            }
+        }
+
+        $payload = array(
+            'message'     => $pattern,
+            'delimiter'   => '%',
+            'description' => $description,
+            'variable'    => $var_list,
+            'is_share'    => (bool) $is_share,
+        );
+
+        $url = self::API_ENDPOINT . '/sms/pattern/normal/store';
+
+        $response = wp_remote_post( $url, array(
+            'timeout'  => 15,
+            'blocking' => true,
+            'headers'  => array(
+                'apikey'       => $api_key,
+                'Content-Type' => 'application/json',
+                'Accept'       => 'application/json',
+                'User-Agent'   => 'BuyruzSMSGateway/1.0; ' . home_url(),
+            ),
+            'body'     => wp_json_encode( $payload ),
+        ) );
+
+        if ( is_wp_error( $response ) ) {
+            return array(
+                'success' => false,
+                'code'    => '',
+                'message' => $response->get_error_message(),
+            );
+        }
+
+        $status = wp_remote_retrieve_response_code( $response );
+        $body   = wp_remote_retrieve_body( $response );
+        $json   = json_decode( $body, true );
+
+        if ( ( 200 === $status || 201 === $status ) && ! empty( $json['data'] ) ) {
+            $code = '';
+            if ( is_array( $json['data'] ) ) {
+                $code = $json['data'][0]['code'] ?? ( $json['data']['code'] ?? '' );
+            }
+            return array(
+                'success' => true,
+                'code'    => (string) $code,
+                'status'  => 'pending',
+                'message' => 'پترن با موفقیت در آی‌پی‌پنل ثبت شد و در انتظار تایید اپراتور است.',
+                'data'    => $json['data'],
+            );
+        }
+
+        $err_msg = 'خطا در ثبت پترن';
+        if ( ! empty( $json['error_message'] ) ) {
+            if ( is_array( $json['error_message'] ) ) {
+                $err_parts = array();
+                foreach ( $json['error_message'] as $msgs ) {
+                    $err_parts[] = is_array( $msgs ) ? implode( ' ', $msgs ) : (string) $msgs;
+                }
+                $err_msg = implode( ' | ', $err_parts );
+            } else {
+                $err_msg = (string) $json['error_message'];
+            }
+        } elseif ( ! empty( $json['message'] ) ) {
+            $err_msg = (string) $json['message'];
+        }
+
+        return array(
+            'success' => false,
+            'code'    => '',
+            'message' => $err_msg,
+            'data'    => $json,
+        );
+    }
+
+    /**
+     * ویرایش پترن موجود در وب‌سرویس لبه آی‌پی‌پنل
+     *
+     * @param string $pattern_code کد پترن موجود
+     * @param string $pattern      متن جدید الگو
+     * @param string $description  توضیحات به‌روزرسانی
+     * @param array  $variables    آرایه متغیرها
+     * @param bool   $is_share     اشتراک‌گذاری
+     * @param string $title        عنوان الگو
+     * @return array
+     */
+    public static function update_pattern( string $pattern_code, string $pattern, string $description, array $variables = array(), bool $is_share = false, string $title = '' ): array {
+        $api_key = self::get_api_key();
+        if ( empty( $api_key ) ) {
+            return array(
+                'success' => false,
+                'code'    => $pattern_code,
+                'message' => 'کلید وب‌سرویس آی‌پی‌پنل تنظیم نشده است.',
+            );
+        }
+
+        $var_list = array();
+        foreach ( $variables as $k => $v ) {
+            $name = is_numeric( $k ) && is_array( $v ) ? ( $v['name'] ?? '' ) : (string) $k;
+            $type = is_array( $v ) ? ( $v['type'] ?? 'string' ) : (string) $v;
+            $len  = is_array( $v ) ? intval( $v['len'] ?? 40 ) : 40;
+            if ( $len > 40 || $len <= 0 ) {
+                $len = 40;
+            }
+
+            if ( ! empty( $name ) ) {
+                $var_list[] = array(
+                    'name' => trim( $name ),
+                    'type' => $type,
+                    'len'  => $len,
+                );
+            }
+        }
+
+        $payload = array(
+            'title'       => ! empty( $title ) ? $title : 'Buyruz Mag Notification',
+            'description' => $description,
+            'is_share'    => (bool) $is_share,
+            'message'     => $pattern,
+            'variable'    => $var_list,
+        );
+
+        $url = self::EDGE_API_ENDPOINT . '/patterns/normal/' . rawurlencode( $pattern_code );
+
+        $response = wp_remote_request( $url, array(
+            'method'   => 'PUT',
+            'timeout'  => 15,
+            'blocking' => true,
+            'headers'  => array(
+                'Authorization' => $api_key,
+                'Content-Type'  => 'application/json',
+                'Accept'        => 'application/json',
+                'User-Agent'    => 'BuyruzSMSGateway/1.0; ' . home_url(),
+            ),
+            'body'     => wp_json_encode( $payload ),
+        ) );
+
+        if ( is_wp_error( $response ) ) {
+            return array(
+                'success' => false,
+                'code'    => $pattern_code,
+                'message' => $response->get_error_message(),
+            );
+        }
+
+        $status = wp_remote_retrieve_response_code( $response );
+        $body   = wp_remote_retrieve_body( $response );
+        $json   = json_decode( $body, true );
+
+        if ( 200 === $status || 201 === $status ) {
+            return array(
+                'success' => true,
+                'code'    => $pattern_code,
+                'status'  => 'pending',
+                'message' => 'پترن با موفقیت ویرایش شد و برای بازبینی مجدد ارسال گردید.',
+                'data'    => $json['data'] ?? array(),
+            );
+        }
+
+        $err_msg = $json['meta']['message'] ?? ( $json['message'] ?? 'خطا در ویرایش پترن' );
+
+        return array(
+            'success' => false,
+            'code'    => $pattern_code,
+            'message' => $err_msg,
+            'data'    => $json,
+        );
+    }
+
+    /**
+     * استعلام وضعیت زنده و متن تاییدشده پترن از وب‌سرویس آی‌پی‌پنل
+     *
+     * @param string $pattern_code کد پترن
+     * @return array اطلاعات وضعیت شامل ['success' => bool, 'status' => string, 'pattern_message' => string, 'admin_comment' => string, 'reject_text' => string]
+     */
+    public static function get_pattern_status( string $pattern_code ): array {
+        $api_key = self::get_api_key();
+        if ( empty( $api_key ) || empty( $pattern_code ) ) {
+            return array(
+                'success' => false,
+                'status'  => 'unknown',
+                'message' => 'کلید وب‌سرویس یا کد پترن خالی است.',
+            );
+        }
+
+        $url = self::EDGE_API_ENDPOINT . '/patterns/' . rawurlencode( $pattern_code );
+
+        $response = wp_remote_get( $url, array(
+            'timeout'  => 10,
+            'blocking' => true,
+            'headers'  => array(
+                'Authorization' => $api_key,
+                'Content-Type'  => 'application/json',
+                'Accept'        => 'application/json',
+                'User-Agent'    => 'BuyruzSMSGateway/1.0; ' . home_url(),
+            ),
+        ) );
+
+        if ( is_wp_error( $response ) ) {
+            return array(
+                'success' => false,
+                'status'  => 'unknown',
+                'message' => $response->get_error_message(),
+            );
+        }
+
+        $status = wp_remote_retrieve_response_code( $response );
+        $body   = wp_remote_retrieve_body( $response );
+        $json   = json_decode( $body, true );
+
+        if ( 200 === $status && ! empty( $json['data'] ) ) {
+            $data = $json['data'];
+            return array(
+                'success'         => true,
+                'code'            => $data['pattern_code'] ?? $pattern_code,
+                'status'          => $data['pattern_status'] ?? 'unknown', // 'active', 'pending', 'inactive', 'rejected'
+                'status_fa'       => $data['pattern_status_fa'] ?? '',
+                'pattern_message' => $data['pattern_message'] ?? '',
+                'admin_comment'   => $data['admin_comment'] ?? '',
+                'reject_text'     => $data['reject_text'] ?? '',
+                'variables'       => $data['variable'] ?? array(),
+                'raw'             => $data,
+            );
+        }
+
+        return array(
+            'success' => false,
+            'status'  => 'not_found',
+            'message' => $json['meta']['message'] ?? ( $json['message'] ?? 'پترن یافت نشد.' ),
+        );
+    }
+
+    /**
+     * همگام‌سازی یا ثبت هوشمند الگو در آی‌پی‌پنل
+     * در صورت وجود کد پترن معتبر ویرایش می‌کند، در غیر این صورت پترن جدید ثبت می‌کند.
+     *
+     * @param string      $pattern      متن الگو
+     * @param string      $description  توضیحات الگو
+     * @param array       $variables    متغیرها
+     * @param string|null $current_code کد فعلی (اختیاری)
+     * @return array
+     */
+    public static function sync_or_register_pattern( string $pattern, string $description, array $variables = array(), ?string $current_code = null ): array {
+        if ( ! empty( $current_code ) ) {
+            $existing = self::get_pattern_status( $current_code );
+            if ( ! empty( $existing['success'] ) ) {
+                return self::update_pattern( $current_code, $pattern, $description, $variables );
+            }
+        }
+
+        return self::create_pattern( $pattern, $description, $variables );
     }
 
     /**

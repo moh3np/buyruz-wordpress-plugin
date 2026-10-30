@@ -241,7 +241,7 @@ class BRZ_Modules {
 
     public static function default_states() {
         $states = array();
-        $disabled_by_default = array( 'outbound_guard', 'label_overrides', 'ai_schema', 'product_guarantee_tab', 'sso_portal', 'live_debugger' );
+        $disabled_by_default = array( 'static_controller', 'outbound_guard', 'label_overrides', 'ai_schema', 'product_guarantee_tab', 'sso_portal', 'live_debugger' );
         $is_magazine = class_exists( 'BRZ_Profile' ) && BRZ_Profile::is_magazine();
 
         foreach ( self::registry() as $slug => $meta ) {
@@ -314,9 +314,9 @@ class BRZ_Modules {
             $opts = array();
         }
         $states = isset( $opts['modules'] ) && is_array( $opts['modules'] ) ? $opts['modules'] : array();
-        // Default static_controller to enabled if not explicitly set
+        // Static controller is officially retired and disabled by default
         if ( ! array_key_exists( 'static_controller', $states ) ) {
-            $states['static_controller'] = 1;
+            $states['static_controller'] = 0;
         }
         if ( ! array_key_exists( 'speed_optimizer', $states ) ) {
             $states['speed_optimizer'] = 1;

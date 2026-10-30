@@ -209,5 +209,65 @@ namespace Buyruz\Tests\Unit {
             $this->assertStringContainsString( 'utm_campaign=expert_response', $message );
             $this->assertStringContainsString( 'بایروز مگ', $message );
         }
+
+        public function test_dispatch_sms_routes_to_pattern_when_active() {
+            global $wp_test_remote_responses;
+            putenv( 'IPPANEL_API_KEY=test_valid_api_key' );
+
+            // Mock pattern status: active
+            $wp_test_remote_responses['/patterns/qhsejgejaovq913'] = array(
+                'response' => array( 'code' => 200 ),
+                'body'     => json_encode( array(
+                    'data' => array( 'pattern_code' => 'qhsejgejaovq913', 'pattern_status' => 'active' ),
+                ) ),
+            );
+
+            // Mock pattern send: 200
+            $wp_test_remote_responses['/sms/pattern/normal/send'] = array(
+                'response' => array( 'code' => 200 ),
+                'body'     => json_encode( array(
+                    'data' => array( 'message_id' => 123456 ),
+                ) ),
+            );
+
+            $vars = array( 'name' => 'تست', 'post' => 'مقاله تست', 'url' => 'https://buyruz.com/mag/test' );
+            $sent = BRZ_Smart_Comments::dispatch_sms_via_ippanel( '09127166487', 'متن پیامک تست', $vars );
+
+            $this->assertTrue( $sent );
+
+            putenv( 'IPPANEL_API_KEY' );
+            unset( $wp_test_remote_responses['/patterns/qhsejgejaovq913'] );
+            unset( $wp_test_remote_responses['/sms/pattern/normal/send'] );
+        }
+
+        public function test_dispatch_sms_falls_back_to_direct_when_pattern_pending() {
+            global $wp_test_remote_responses;
+            putenv( 'IPPANEL_API_KEY=test_valid_api_key' );
+
+            // Mock pattern status: pending
+            $wp_test_remote_responses['/patterns/qhsejgejaovq913'] = array(
+                'response' => array( 'code' => 200 ),
+                'body'     => json_encode( array(
+                    'data' => array( 'pattern_code' => 'qhsejgejaovq913', 'pattern_status' => 'pending' ),
+                ) ),
+            );
+
+            // Mock send_sms (direct): 200
+            $wp_test_remote_responses['/sms/send/webservice/single'] = array(
+                'response' => array( 'code' => 200 ),
+                'body'     => json_encode( array(
+                    'data' => array( 'message_id' => 789101 ),
+                ) ),
+            );
+
+            $vars = array( 'name' => 'تست', 'post' => 'مقاله تست', 'url' => 'https://buyruz.com/mag/test' );
+            $sent = BRZ_Smart_Comments::dispatch_sms_via_ippanel( '09127166487', 'متن پیامک کمکی تست', $vars );
+
+            $this->assertTrue( $sent );
+
+            putenv( 'IPPANEL_API_KEY' );
+            unset( $wp_test_remote_responses['/patterns/qhsejgejaovq913'] );
+            unset( $wp_test_remote_responses['/sms/send/webservice/single'] );
+        }
     }
 }

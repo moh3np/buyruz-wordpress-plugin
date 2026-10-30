@@ -78,7 +78,7 @@ class BRZ_Smart_Comments {
             'sms_username'               => 'mohsenpazhoohiyani',
             'sms_password'               => 't8L-jP^7Z0£2Q60O',
             'sms_sender'                 => '3000505',
-            'sms_pattern_code'           => '',
+            'sms_pattern_code'           => 'qhsejgejaovq913',
 
             // دسته اول: پاسخ کارشناس / مدیر
             'enable_expert_reply_sms'    => 1,
@@ -504,8 +504,26 @@ class BRZ_Smart_Comments {
         // آماده‌سازی متن پیامک
         $sms_text = self::format_sms_message( $parent, $reply, $reply_type, $opts );
 
-        // ارسال به درگاه پیامک
-        $sent = self::dispatch_sms_via_ippanel( $recipient_mobile, $sms_text );
+        $post       = get_post( $reply->comment_post_ID );
+        $post_title = $post ? wp_trim_words( $post->post_title, 5, '...' ) : 'مقاله بایروز';
+        $target_url = get_comment_link( $reply->comment_ID );
+        if ( ! empty( $opts['enable_utm_tags'] ) ) {
+            $campaign = ! empty( $opts['utm_campaign'] ) ? sanitize_key( $opts['utm_campaign'] ) : 'expert_response';
+            $target_url = add_query_arg( array(
+                'utm_source'   => 'sms',
+                'utm_medium'   => 'comment_reply',
+                'utm_campaign' => $campaign,
+            ), $target_url );
+        }
+
+        $pattern_vars = array(
+            'name' => ! empty( $parent->comment_author ) ? $parent->comment_author : 'کاربر گرامی',
+            'post' => $post_title,
+            'url'  => $target_url,
+        );
+
+        // ارسال به درگاه پیامک با اولویت الگوی پرسرعت و سپس پیامک کمکی مستقیم
+        $sent = self::dispatch_sms_via_ippanel( $recipient_mobile, $sms_text, $pattern_vars );
 
         if ( $sent ) {
             // ثبت وضعیت در پاسخ
@@ -553,9 +571,15 @@ class BRZ_Smart_Comments {
 
         $replacements = array(
             '{name}'         => $parent_name,
+            '{post}'         => $post_title,
             '{post_title}'   => $post_title,
             '{url}'          => $target_url,
             '{reply_author}' => ! empty( $reply->comment_author ) ? $reply->comment_author : 'کاربر بایروز',
+            '%name%'         => $parent_name,
+            '%post%'         => $post_title,
+            '%post_title%'   => $post_title,
+            '%url%'          => $target_url,
+            '%reply_author%' => ! empty( $reply->comment_author ) ? $reply->comment_author : 'کاربر بایروز',
         );
 
         return str_replace( array_keys( $replacements ), array_values( $replacements ), $template );
@@ -563,14 +587,39 @@ class BRZ_Smart_Comments {
 
     /**
      * ارسال پیامک از طریق وب‌سرویس مستقیم و ایمن IPPanel
+     * در صورت وجود پترن فعال و تاییدشده، ارسال الگویی انجام می‌شود.
+     * در غیر این صورت به عنوان سپر ایمنی، پیامک به صورت مستقیم با خط کمکی ارسال می‌گردد.
      *
      * @param string $mobile
      * @param string $text
+     * @param array  $pattern_vars
      * @return bool
      */
-    protected static function dispatch_sms_via_ippanel( string $mobile, string $text ): bool {
+    public static function dispatch_sms_via_ippanel( string $mobile, string $text, array $pattern_vars = array() ): bool {
         $opts = self::get_options();
+        $pattern_code = ! empty( $opts['sms_pattern_code'] ) ? trim( (string) $opts['sms_pattern_code'] ) : '';
 
+        // ۱. تلاش برای ارسال الگویی (Pattern / OTP) از طریق BRZ_IPPanel در صورت تنظیم بودن
+        if ( ! empty( $pattern_code ) && ! empty( $pattern_vars ) && class_exists( 'BRZ_IPPanel' ) ) {
+            $status_info = BRZ_IPPanel::get_pattern_status( $pattern_code );
+            if ( ! empty( $status_info['success'] ) && 'active' === $status_info['status'] ) {
+                $msg_id = BRZ_IPPanel::send_pattern( $pattern_code, $mobile, $pattern_vars );
+                if ( $msg_id ) {
+                    return true;
+                }
+            }
+        }
+
+        // ۲. ارسال پیامک مستقیم کمکی (Direct SMS Fallback) از طریق BRZ_IPPanel
+        if ( class_exists( 'BRZ_IPPanel' ) ) {
+            $sender = ! empty( $opts['sms_sender'] ) ? $opts['sms_sender'] : BRZ_IPPanel::get_sender();
+            $msg_id = BRZ_IPPanel::send_sms( $mobile, $text, $sender );
+            if ( $msg_id ) {
+                return true;
+            }
+        }
+
+        // ۳. لایه احتیاطی عقب‌رو به وب‌سرویس مستقیم قدیمی
         $username = ! empty( $opts['sms_username'] ) ? $opts['sms_username'] : 'mohsenpazhoohiyani';
         $password = ! empty( $opts['sms_password'] ) ? $opts['sms_password'] : 't8L-jP^7Z0£2Q60O';
         $sender   = ! empty( $opts['sms_sender'] ) ? $opts['sms_sender'] : '3000505';
@@ -822,6 +871,42 @@ class BRZ_Smart_Comments {
             );
             update_option( self::OPTION_KEY, $opts );
             echo '<div class="notice notice-success is-dismissible"><p>تنظیمات جامع دیدگاه‌های هوشمند با موفقیت ذخیره شد.</p></div>';
+        } elseif ( isset( $_POST['action_check_pattern'] ) && check_admin_referer( 'brz_smart_comments_verify' ) ) {
+            $pattern_code = sanitize_text_field( $_POST['sms_pattern_code'] ?? '' );
+            if ( empty( $pattern_code ) ) {
+                echo '<div class="notice notice-warning is-dismissible"><p>لطفاً ابتدا کد الگو را وارد نمایید.</p></div>';
+            } elseif ( class_exists( 'BRZ_IPPanel' ) ) {
+                $status_info = BRZ_IPPanel::get_pattern_status( $pattern_code );
+                if ( ! empty( $status_info['success'] ) ) {
+                    $status_fa = ! empty( $status_info['status_fa'] ) ? $status_info['status_fa'] : $status_info['status'];
+                    echo '<div class="notice notice-info is-dismissible"><p><strong>نتیجه استعلام برخط از آی‌پی‌پنل:</strong> وضعیت الگو: <strong>' . esc_html( $status_fa ) . '</strong> (' . esc_html( $status_info['status'] ) . ') | متن تاییدشده: <code>' . esc_html( $status_info['pattern_message'] ?? '-' ) . '</code></p></div>';
+                } else {
+                    echo '<div class="notice notice-error is-dismissible"><p>خطا در استعلام از آی‌پی‌پنل: ' . esc_html( $status_info['message'] ?? 'خطای نامشخص' ) . '</p></div>';
+                }
+            }
+        } elseif ( isset( $_POST['action_sync_pattern'] ) && check_admin_referer( 'brz_smart_comments_verify' ) ) {
+            $pattern_code = sanitize_text_field( $_POST['sms_pattern_code'] ?? '' );
+            $pattern_text = "%name% عزیز، کارشناس بایروز به پرسش شما در «%post%» پاسخ داد.\nمشاهده:\n%url%\nبایروز مگ";
+            $description  = 'ارسال پیامک اطلاع‌رسانی پاسخ کارشناس به دیدگاه کاربر در مقالات مجله بایروز';
+            $variables    = array(
+                'name' => array( 'name' => 'name', 'type' => 'string', 'len' => 40 ),
+                'post' => array( 'name' => 'post', 'type' => 'string', 'len' => 40 ),
+                'url'  => array( 'name' => 'url',  'type' => 'string', 'len' => 40 ),
+            );
+
+            if ( class_exists( 'BRZ_IPPanel' ) ) {
+                $sync_res = BRZ_IPPanel::sync_or_register_pattern( $pattern_text, $description, $variables, ! empty( $pattern_code ) ? $pattern_code : null );
+                if ( ! empty( $sync_res['success'] ) ) {
+                    if ( ! empty( $sync_res['code'] ) ) {
+                        $opts = self::get_options();
+                        $opts['sms_pattern_code'] = $sync_res['code'];
+                        update_option( self::OPTION_KEY, $opts );
+                    }
+                    echo '<div class="notice notice-success is-dismissible"><p><strong>موفقیت‌آمیز:</strong> ' . esc_html( $sync_res['message'] ) . ' (کد الگو: <code>' . esc_html( $sync_res['code'] ) . '</code>)</p></div>';
+                } else {
+                    echo '<div class="notice notice-error is-dismissible"><p>خطا در همگام‌سازی الگو با آی‌پی‌پنل: ' . esc_html( $sync_res['message'] ) . '</p></div>';
+                }
+            }
         }
 
         $opts = self::get_options();
@@ -876,7 +961,7 @@ class BRZ_Smart_Comments {
                                 <strong>فعال‌سازی سیستم ارسال پیامک اطلاع‌رسانی دیدگاه‌ها</strong>
                             </label>
                         </div>
-                        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;">
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;margin-bottom:16px;">
                             <div>
                                 <label style="display:block;margin-bottom:6px;font-weight:600;">نام کاربری سامانه پیامک:</label>
                                 <input type="text" name="sms_username" value="<?php echo esc_attr( $opts['sms_username'] ); ?>" style="width:100%;" dir="ltr" />
@@ -889,6 +974,44 @@ class BRZ_Smart_Comments {
                                 <label style="display:block;margin-bottom:6px;font-weight:600;">شماره خط اختصاصی ارسال‌کننده:</label>
                                 <input type="text" name="sms_sender" value="<?php echo esc_attr( $opts['sms_sender'] ); ?>" style="width:100%;" dir="ltr" />
                             </div>
+                        </div>
+
+                        <!-- مدیریت الگوی پرسرعت خدماتی (IPPanel Pattern) -->
+                        <div style="background:#f1f5f9;padding:14px;border-radius:8px;border:1px solid #e2e8f0;">
+                            <label style="display:block;margin-bottom:6px;font-weight:600;">کد الگوی وب‌سرویس پترن آی‌پی‌پنل (Pattern Code):</label>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <input type="text" name="sms_pattern_code" value="<?php echo esc_attr( $opts['sms_pattern_code'] ); ?>" style="max-width:220px;" dir="ltr" placeholder="مثلاً: qhsejgejaovq913" />
+                                <button type="submit" name="action_check_pattern" class="button button-secondary" style="white-space:nowrap;">استعلام برخط وضعیت الگو</button>
+                                <button type="submit" name="action_sync_pattern" class="button button-secondary" style="white-space:nowrap;">ثبت / به‌روزرسانی در آی‌پی‌پنل</button>
+                            </div>
+                            <span style="display:block;font-size:12px;color:#64748b;margin-top:6px;">کد پترن اختصاصی ثبت‌شده در آی‌پی‌پنل جهت ارسال فوق‌سریع و عبور قطعی از بلک‌لیست مخابراتی.</span>
+
+                            <?php
+                            if ( ! empty( $opts['sms_pattern_code'] ) && class_exists( 'BRZ_IPPanel' ) ) {
+                                $pat_stat = BRZ_IPPanel::get_pattern_status( $opts['sms_pattern_code'] );
+                                if ( ! empty( $pat_stat['success'] ) ) {
+                                    $st = $pat_stat['status'];
+                                    if ( 'active' === $st ) {
+                                        echo '<div style="margin-top:10px;padding:10px 14px;background:#ecfdf5;border:1px solid #10b981;border-radius:8px;color:#065f46;font-size:13px;display:flex;align-items:center;gap:8px;">';
+                                        echo '<span>✅ <strong>الگوی فعال و تایید شده:</strong> پیامک‌های اطلاع‌رسانی دیدگاه‌ها با حداکثر سرعت و عبور قطعی از بلک‌لیست از طریق پترن اختصاصی ارسال می‌شوند.</span>';
+                                        echo '</div>';
+                                    } elseif ( 'pending' === $st ) {
+                                        echo '<div style="margin-top:10px;padding:10px 14px;background:#fefce8;border:1px solid #f59e0b;border-radius:8px;color:#92400e;font-size:13px;display:flex;align-items:center;gap:8px;">';
+                                        echo '<span>⏳ <strong>الگو در انتظار تایید اپراتور آی‌پی‌پنل:</strong> (وضعیت: در انتظار بررسی). به عنوان سپر ایمنی هوشمند، تمامی پیامک‌ها بدون تاخیر و وقفه از طریق خط خدماتی کمکی <code>۳۰۰۰۵۰۵</code> به صورت مستقیم ارسال می‌گردند.</span>';
+                                        echo '</div>';
+                                    } elseif ( 'rejected' === $st ) {
+                                        $reason = ! empty( $pat_stat['reject_text'] ) ? $pat_stat['reject_text'] : ( ! empty( $pat_stat['admin_comment'] ) ? $pat_stat['admin_comment'] : 'علت توسط اپراتور درج نشده است.' );
+                                        echo '<div style="margin-top:10px;padding:10px 14px;background:#fef2f2;border:1px solid #ef4444;border-radius:8px;color:#991b1b;font-size:13px;display:flex;align-items:center;gap:8px;">';
+                                        echo '<span>❌ <strong>الگو توسط اپراتور رد شده است:</strong> ' . esc_html( $reason ) . ' — سیستم به صورت خودکار از خط خدماتی ۳۰۰۰۵۰۵ استفاده می‌کند.</span>';
+                                        echo '</div>';
+                                    } else {
+                                        echo '<div style="margin-top:10px;padding:10px 14px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;color:#475569;font-size:13px;">';
+                                        echo '<span>وضعیت الگو در آی‌پی‌پنل: ' . esc_html( $st ) . '</span>';
+                                        echo '</div>';
+                                    }
+                                }
+                            }
+                            ?>
                         </div>
                     </div>
 
