@@ -948,6 +948,73 @@ class BRZ_Settings {
                         </form>
                     </div>
                 </div>
+
+                <div class="brz-card">
+                    <div class="brz-card__header">
+                        <h3>📱 تنظیمات درگاه پیامک آی‌پی‌پنل و شماره اختصاصی تست (IPPanel SMS & Dedicated Test Phone)</h3>
+                    </div>
+                    <div class="brz-card__body">
+                        <p>مدیریت یکپارچه درگاه پیامک IPPanel، شماره خط فرستنده، شماره اختصاصی تست برای تمامی ایجنت‌ها و آزمون‌های سیستم، و سوئیچ حالت ایزوله سندباکس.</p>
+                        <?php
+                        $ip_opts          = get_option( 'buyruz_ippanel_settings', array() );
+                        $active_api_key   = class_exists( 'BRZ_IPPanel' ) ? BRZ_IPPanel::get_api_key() : '';
+                        $active_sender    = class_exists( 'BRZ_IPPanel' ) ? BRZ_IPPanel::get_sender() : '3000505';
+                        $active_test      = class_exists( 'BRZ_IPPanel' ) ? BRZ_IPPanel::get_test_phone() : '09127166487';
+                        $is_sandbox       = class_exists( 'BRZ_IPPanel' ) && BRZ_IPPanel::is_sandbox();
+                        $is_configured    = class_exists( 'BRZ_IPPanel' ) && BRZ_IPPanel::is_configured();
+                        $credit           = $is_configured ? BRZ_IPPanel::get_credit() : null;
+                        $masked_key       = ! empty( $active_api_key ) ? substr( $active_api_key, 0, 6 ) . '...' . substr( $active_api_key, -4 ) : '';
+                        ?>
+
+                        <?php if ( $is_configured ) : ?>
+                            <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:12px;margin-bottom:14px;color:#065f46;font-size:13px;">
+                                <strong>✅ اتصال وب‌سرویس پیامکی برقرار است.</strong>
+                                <span>کلید فعال: <code><?php echo esc_html( $masked_key ); ?></code></span>
+                                <?php if ( null !== $credit ) : ?>
+                                    <span style="margin-right:15px;">مانده اعتبار آنلاین: <strong><?php echo esc_html( number_format( (int) $credit ) ); ?> ریال</strong></span>
+                                <?php endif; ?>
+                            </div>
+                        <?php else : ?>
+                            <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:14px;color:#92400e;font-size:13px;">
+                                <strong>⚠️ کلید وب‌سرویس پیامکی هنوز تنظیم نشده است.</strong>
+                            </div>
+                        <?php endif; ?>
+
+                        <form method="post" action="options.php" class="brz-settings-form" data-context="ippanel">
+                            <?php settings_fields( 'brz_group' ); ?>
+                            <input type="hidden" name="<?php echo BRZ_OPTION; ?>[brz_form_context]" value="ippanel" />
+
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:15px;margin-bottom:15px;">
+                                <div>
+                                    <label style="display:block;font-weight:600;margin-bottom:5px;">کلید دسترسی وب‌سرویس (API Key):</label>
+                                    <input type="password" name="<?php echo BRZ_OPTION; ?>[ippanel][api_key]" value="<?php echo esc_attr( $ip_opts['api_key'] ?? '' ); ?>" placeholder="<?php echo $is_configured ? 'تنظیم‌شده' : 'QMC2T7N_...'; ?>" class="regular-text" style="width:100%;" dir="ltr" />
+                                    <p class="description">کلید API بدون هاردکد. در صورت تعریف ثابت <code>BRZ_IPPANEL_API_KEY</code> در wp-config.php، مقدار سرور حاکم خواهد بود.</p>
+                                </div>
+                                <div>
+                                    <label style="display:block;font-weight:600;margin-bottom:5px;">شماره خط فرستنده پیامک:</label>
+                                    <input type="text" name="<?php echo BRZ_OPTION; ?>[ippanel][sender]" value="<?php echo esc_attr( $active_sender ); ?>" class="regular-text" style="width:100%;" dir="ltr" />
+                                    <p class="description">شماره خط خدماتی یا اختصاصی (پیش‌فرض: 3000505).</p>
+                                </div>
+                                <div>
+                                    <label style="display:block;font-weight:600;margin-bottom:5px;color:#05593D;">🎯 شماره موبایل اختصاصی تست‌های پیامکی:</label>
+                                    <input type="text" name="<?php echo BRZ_OPTION; ?>[ippanel][test_phone]" value="<?php echo esc_attr( $active_test ); ?>" class="regular-text" style="width:100%;font-weight:bold;color:#05593D;" dir="ltr" />
+                                    <p class="description">شماره رسمی و غیر هاردکد برای کلیه آزمون‌های سیستم، ایجنت‌ها، سفارشات تستی و پترن‌ها.</p>
+                                </div>
+                            </div>
+
+                            <div style="background:#f8fafc;padding:12px 16px;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:15px;">
+                                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                                    <input type="checkbox" name="<?php echo BRZ_OPTION; ?>[ippanel][sandbox_mode]" value="1" <?php checked( true, $is_sandbox ); ?> />
+                                    <span><strong>فعال‌سازی حالت ایزوله سندباکس (SMS Sandbox Mode)</strong> — ریدایرکت خودکار تمامی پیامک‌های خروجی و فیلترهای ووکامرس به شماره تست بالا جهت جلوگیری از هرگونه ارسال تصادفی به مشتریان واقعی.</span>
+                                </label>
+                            </div>
+
+                            <div class="brz-save-bar">
+                                <?php submit_button( 'ذخیره تنظیمات درگاه پیامک', 'primary', 'submit', false ); ?>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
             <?php
         } );
@@ -2104,6 +2171,40 @@ class BRZ_Settings {
                     'product_css_optimizer' => ! empty( $so['product_css_optimizer'] ) ? 1 : 0,
                 );
                 unset( $input['speed_optimizer'] );
+            }
+        }
+
+        // IPPanel SMS Gateway & Testing Settings
+        if ( 'ippanel' === $context || isset( $input['ippanel'] ) ) {
+            if ( isset( $input['ippanel'] ) && is_array( $input['ippanel'] ) ) {
+                $ip = $input['ippanel'];
+                $existing_ip = isset( $output['ippanel'] ) && is_array( $output['ippanel'] ) ? $output['ippanel'] : array();
+
+                $api_key    = ! empty( $ip['api_key'] ) ? sanitize_text_field( trim( (string) $ip['api_key'] ) ) : ( $existing_ip['api_key'] ?? '' );
+                $sender     = ! empty( $ip['sender'] ) ? sanitize_text_field( trim( (string) $ip['sender'] ) ) : ( $existing_ip['sender'] ?? '3000505' );
+                $raw_test   = ! empty( $ip['test_phone'] ) ? sanitize_text_field( trim( (string) $ip['test_phone'] ) ) : ( $existing_ip['test_phone'] ?? '09127166487' );
+                $test_phone = class_exists( 'BRZ_IPPanel' ) ? BRZ_IPPanel::normalize_mobile( $raw_test ) : $raw_test;
+                if ( empty( $test_phone ) ) {
+                    $test_phone = '09127166487';
+                }
+                $sandbox    = ! empty( $ip['sandbox_mode'] ) ? 1 : 0;
+
+                $output['ippanel'] = array(
+                    'api_key'      => $api_key,
+                    'sender'       => $sender,
+                    'test_phone'   => $test_phone,
+                    'sandbox_mode' => $sandbox,
+                );
+
+                // همگام‌سازی فوری با جدول مستقل buyruz_ippanel_settings
+                update_option( 'buyruz_ippanel_settings', array(
+                    'api_key'      => $api_key,
+                    'sender'       => $sender,
+                    'test_phone'   => $test_phone,
+                    'sandbox_mode' => $sandbox,
+                ) );
+
+                unset( $input['ippanel'] );
             }
         }
 

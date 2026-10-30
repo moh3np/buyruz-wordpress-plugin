@@ -52,6 +52,49 @@ function delete_option( string $key ): bool {
 
 // ─── WordPress utility function mocks ──────────────────────────────────────────
 
+global $wp_test_posts;
+$wp_test_posts = array();
+
+if ( ! function_exists( 'get_post' ) ) {
+    function get_post( $post = null ) {
+        global $wp_test_posts;
+        if ( is_object( $post ) ) {
+            return $post;
+        }
+        $id = (int) $post;
+        return $wp_test_posts[ $id ] ?? null;
+    }
+}
+
+if ( ! function_exists( 'get_comment_link' ) ) {
+    function get_comment_link( $comment_id = 0 ) {
+        return "https://buyruz.com/mag/sample-post/#comment-{$comment_id}";
+    }
+}
+
+if ( ! function_exists( 'wp_trim_words' ) ) {
+    function wp_trim_words( $text, $num_words = 55, $more = null ) {
+        return (string) $text;
+    }
+}
+
+if ( ! function_exists( 'add_query_arg' ) ) {
+    function add_query_arg( ...$args ) {
+        if ( count( $args ) === 2 && is_array( $args[0] ) ) {
+            $url = $args[1];
+            $query = http_build_query( $args[0] );
+            $sep = ( strpos( $url, '?' ) !== false ) ? '&' : '?';
+            return $url . $sep . $query;
+        }
+        if ( count( $args ) === 3 ) {
+            $url = $args[2];
+            $sep = ( strpos( $url, '?' ) !== false ) ? '&' : '?';
+            return $url . $sep . $args[0] . '=' . $args[1];
+        }
+        return '';
+    }
+}
+
 function wp_parse_url( string $url, int $component = -1 ) {
     if ( $component === -1 ) {
         return parse_url( $url );

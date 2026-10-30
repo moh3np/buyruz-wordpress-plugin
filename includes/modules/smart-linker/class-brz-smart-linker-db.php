@@ -30,6 +30,13 @@ class BRZ_Smart_Linker_DB {
     }
 
     /**
+     * Alias for pending links table name for backward-compatibility.
+     */
+    public static function table() {
+        return self::pending_links_table();
+    }
+
+    /**
      * Create or upgrade all tables.
      * Uses dbDelta to stay compatible across environments.
      * v3.1: Only creates v3.0 tables (content_index, pending_links)
@@ -386,7 +393,7 @@ class BRZ_Smart_Linker_DB {
             return false;
         }
 
-        $table = self::table();
+        $table = self::pending_links_table();
 
         $existing_id = $wpdb->get_var(
             $wpdb->prepare(
@@ -435,7 +442,7 @@ class BRZ_Smart_Linker_DB {
      */
     public static function get_by_status( array $statuses ) {
         global $wpdb;
-        $table = self::table();
+        $table = self::pending_links_table();
         $where = implode( ',', array_fill( 0, count( $statuses ), '%s' ) );
 
         $sql = "SELECT * FROM {$table} WHERE status IN ({$where}) ORDER BY created_at ASC";
@@ -453,7 +460,7 @@ class BRZ_Smart_Linker_DB {
      */
     public static function get_for_post( $post_id, array $statuses ) {
         global $wpdb;
-        $table = self::table();
+        $table = self::pending_links_table();
         $where = implode( ',', array_fill( 0, count( $statuses ), '%s' ) );
 
         $sql = "SELECT * FROM {$table} WHERE post_id = %d AND status IN ({$where})";
@@ -478,7 +485,7 @@ class BRZ_Smart_Linker_DB {
         }
 
         global $wpdb;
-        $table   = self::table();
+        $table   = self::pending_links_table();
         $status  = self::normalize_status( $status );
 
         $ids_clean = array_map( 'intval', $ids );
@@ -501,7 +508,7 @@ class BRZ_Smart_Linker_DB {
             return;
         }
 
-        $table  = self::table();
+        $table  = self::pending_links_table();
         $status = self::normalize_status( $status );
 
         $placeholders = implode( ',', array_fill( 0, count( $fingerprints ), '%s' ) );

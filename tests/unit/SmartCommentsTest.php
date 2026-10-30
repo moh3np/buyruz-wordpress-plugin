@@ -17,6 +17,9 @@ namespace Buyruz\Tests\Unit {
     use PHPUnit\Framework\TestCase;
     use BRZ_Smart_Comments;
     use BRZ_Modules;
+    use DateTime;
+    use DateTimeZone;
+    use stdClass;
 
     class SmartCommentsTest extends TestCase {
 
@@ -43,7 +46,13 @@ namespace Buyruz\Tests\Unit {
             $this->assertEquals( 1, $opts['enable_honeypot'] );
             $this->assertEquals( 1, $opts['remove_url_field'] );
             $this->assertEquals( 1, $opts['enable_mobile_field'] );
-            $this->assertEquals( 1, $opts['enable_sms_reply'] );
+            $this->assertEquals( 1, $opts['enable_sms_system'] );
+            $this->assertEquals( 1, $opts['enable_expert_reply_sms'] );
+            $this->assertEquals( 1, $opts['enable_peer_reply_sms'] );
+            $this->assertEquals( 1, $opts['quiet_hours_enabled'] );
+            $this->assertEquals( '22:30', $opts['quiet_hours_start'] );
+            $this->assertEquals( '08:30', $opts['quiet_hours_end'] );
+            $this->assertEquals( '09:00', $opts['quiet_hours_dispatch'] );
             $this->assertEquals( '3000505', $opts['sms_sender'] );
         }
 
@@ -95,6 +104,110 @@ namespace Buyruz\Tests\Unit {
 
             $this->assertStringContainsString( 'brz-hp-wrapper', $injected );
             $this->assertStringContainsString( 'brz_hp_phone', $injected );
+        }
+
+        public function test_calculate_dispatch_timestamp_daytime() {
+            $tz = new DateTimeZone( 'Asia/Tehran' );
+            $base_time = new DateTime( '2026-10-30 14:00:00', $tz );
+
+            $dispatch = BRZ_Smart_Comments::calculate_dispatch_timestamp(
+                15,
+                true,
+                '22:30',
+                '08:30',
+                '09:00',
+                $base_time
+            );
+
+            // Candidate is 14:15, daytime, so it should be exactly 14:15
+            $expected = ( new DateTime( '2026-10-30 14:15:00', $tz ) )->getTimestamp();
+            $this->assertEquals( $expected, $dispatch );
+        }
+
+        public function test_calculate_dispatch_timestamp_night_quiet_hours() {
+            $tz = new DateTimeZone( 'Asia/Tehran' );
+            // 23:00 at night
+            $base_time = new DateTime( '2026-10-30 23:00:00', $tz );
+
+            $dispatch = BRZ_Smart_Comments::calculate_dispatch_timestamp(
+                15,
+                true,
+                '22:30',
+                '08:30',
+                '09:00',
+                $base_time
+            );
+
+            // Candidate is 23:15, falls in quiet hours. Should dispatch next day at 09:00 AM
+            $expected = ( new DateTime( '2026-10-31 09:00:00', $tz ) )->getTimestamp();
+            $this->assertEquals( $expected, $dispatch );
+        }
+
+        public function test_calculate_dispatch_timestamp_early_morning_quiet_hours() {
+            $tz = new DateTimeZone( 'Asia/Tehran' );
+            // 04:00 in the morning
+            $base_time = new DateTime( '2026-10-30 04:00:00', $tz );
+
+            $dispatch = BRZ_Smart_Comments::calculate_dispatch_timestamp(
+                15,
+                true,
+                '22:30',
+                '08:30',
+                '09:00',
+                $base_time
+            );
+
+            // Candidate is 04:15, falls in quiet hours. Should dispatch today at 09:00 AM
+            $expected = ( new DateTime( '2026-10-30 09:00:00', $tz ) )->getTimestamp();
+            $this->assertEquals( $expected, $dispatch );
+        }
+
+        public function test_calculate_dispatch_timestamp_quiet_disabled() {
+            $tz = new DateTimeZone( 'Asia/Tehran' );
+            // 23:00 at night, but quiet hours disabled
+            $base_time = new DateTime( '2026-10-30 23:00:00', $tz );
+
+            $dispatch = BRZ_Smart_Comments::calculate_dispatch_timestamp(
+                15,
+                false, // Quiet hours disabled
+                '22:30',
+                '08:30',
+                '09:00',
+                $base_time
+            );
+
+            // Should dispatch at candidate time 23:15 regardless
+            $expected = ( new DateTime( '2026-10-30 23:15:00', $tz ) )->getTimestamp();
+            $this->assertEquals( $expected, $dispatch );
+        }
+
+        public function test_format_sms_message() {
+            global $wp_test_posts;
+            $post = new stdClass();
+            $post->ID = 789;
+            $post->post_title = 'راهنمای انتخاب عطر بایروز';
+            $wp_test_posts[789] = $post;
+
+            $parent = new stdClass();
+            $parent->comment_author = 'علی محمدی';
+
+            $reply = new stdClass();
+            $reply->comment_ID = 456;
+            $reply->comment_post_ID = 789;
+            $reply->comment_author = 'کارشناس عطر';
+
+            $opts = BRZ_Smart_Comments::get_options();
+            $opts['enable_utm_tags'] = 1;
+            $opts['utm_campaign'] = 'expert_response';
+
+            $message = BRZ_Smart_Comments::format_sms_message( $parent, $reply, 'expert', $opts );
+
+            $this->assertStringContainsString( 'علی محمدی', $message );
+            $this->assertStringContainsString( 'راهنمای انتخاب عطر بایروز', $message );
+            $this->assertStringContainsString( 'https://buyruz.com/mag/sample-post/#comment-456', $message );
+            $this->assertStringContainsString( 'utm_source=sms', $message );
+            $this->assertStringContainsString( 'utm_campaign=expert_response', $message );
+            $this->assertStringContainsString( 'بایروز مگ', $message );
         }
     }
 }

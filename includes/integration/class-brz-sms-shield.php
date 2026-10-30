@@ -334,22 +334,32 @@ class BRZ_SMS_Shield {
         $balance_rial = null;
         $gateway_name = 'نامشخص';
 
-        // روش ۱: IPPanel از طریق افزونه اختصاصی
-        if ( function_exists( 'ippanelsms_getCredit' ) ) {
-            $credit = ippanelsms_getCredit();
-            if ( is_numeric( $credit ) ) {
-                $balance_rial = (float) $credit;
-                $gateway_name = 'IPPanel';
-            }
-        }
-
-        // روش ۲: گیت‌وی‌های شیءگرا در persian-woocommerce-sms
-        if ( $balance_rial === null && function_exists( 'PWSMS' ) ) {
+        // روش ۱: درگاه مدرن IPPanelToken در persian-woocommerce-sms (Edge API)
+        if ( function_exists( 'PWSMS' ) ) {
             try {
                 $gateway_obj = PWSMS()->get_sms_gateway();
                 if ( is_object( $gateway_obj ) ) {
                     $gateway_name = method_exists( $gateway_obj, 'name' ) ? $gateway_obj->name() : get_class( $gateway_obj );
-                    if ( method_exists( $gateway_obj, 'get_credit' ) ) {
+                    if ( $gateway_obj instanceof \PW\PWSMS\Gateways\IPPanelToken || method_exists( $gateway_obj, 'get_token' ) ) {
+                        $token = method_exists( $gateway_obj, 'get_token' ) ? $gateway_obj->get_token() : '';
+                        if ( ! empty( $token ) ) {
+                            $res = wp_remote_get( 'https://edge.ippanel.com/v1/api/payment/credit/mine', [
+                                'timeout' => 5,
+                                'headers' => [
+                                    'Authorization' => $token,
+                                    'Accept'        => 'application/json',
+                                ],
+                            ] );
+                            if ( ! is_wp_error( $res ) && wp_remote_retrieve_response_code( $res ) === 200 ) {
+                                $body = json_decode( wp_remote_retrieve_body( $res ), true );
+                                if ( isset( $body['data']['credit'] ) && is_numeric( $body['data']['credit'] ) ) {
+                                    $balance_rial = (float) $body['data']['credit'];
+                                    $gateway_name = 'IPPanel (Edge API)';
+                                }
+                            }
+                        }
+                    }
+                    if ( $balance_rial === null && method_exists( $gateway_obj, 'get_credit' ) ) {
                         $c = $gateway_obj->get_credit();
                         if ( is_numeric( $c ) ) {
                             $balance_rial = (float) $c;
@@ -358,6 +368,15 @@ class BRZ_SMS_Shield {
                 }
             } catch ( Exception $e ) {
                 // نادیده گرفتن خطا
+            }
+        }
+
+        // روش ۲: افزونه سنتی IPPanel
+        if ( $balance_rial === null && function_exists( 'ippanelsms_getCredit' ) ) {
+            $credit = ippanelsms_getCredit();
+            if ( is_numeric( $credit ) ) {
+                $balance_rial = (float) $credit;
+                $gateway_name = 'IPPanel';
             }
         }
 

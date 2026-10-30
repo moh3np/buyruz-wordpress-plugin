@@ -119,6 +119,10 @@ class BRZ_Plugin {
             BRZ_Media_Placeholder_Cleaner::init();
         }
 
+        if ( class_exists( 'BRZ_IPPanel' ) ) {
+            BRZ_IPPanel::init();
+        }
+
         // Link Nexus REST endpoints (Shop & Magazine)
         if ( class_exists( 'BRZ_Link_Nexus_REST' ) ) {
             add_action( 'rest_api_init', array( 'BRZ_Link_Nexus_REST', 'register_routes' ) );
