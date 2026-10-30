@@ -337,7 +337,8 @@ class BRZ_Modules {
             $states['shipping_bridge'] = 1;
         }
         if ( class_exists( 'BRZ_Profile' ) && BRZ_Profile::is_magazine() ) {
-            $states['mag_tools'] = 1;
+            $states['mag_tools']      = 1;
+            $states['smart_comments'] = 1;
         }
         return wp_parse_args( $states, self::default_states() );
     }

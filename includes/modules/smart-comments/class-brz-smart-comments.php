@@ -40,6 +40,7 @@ class BRZ_Smart_Comments {
 
         // ۱. سفارشی‌سازی فیلدهای فرم دیدگاه (حذف وب‌سایت، افزودن هانی‌پات و شماره موبایل)
         add_filter( 'comment_form_default_fields', array( __CLASS__, 'filter_comment_fields' ), 99 );
+        add_filter( 'comment_form_fields', array( __CLASS__, 'filter_comment_fields' ), 99 );
         add_filter( 'comment_form_field_comment', array( __CLASS__, 'inject_honeypot_to_textarea' ), 99 );
 
         // ۲. اعتبارسنجی سبک و عمیق پیش از درج در دیتابیس (سد ضداسپم و زبان فارسی)
@@ -124,7 +125,7 @@ class BRZ_Smart_Comments {
         }
 
         // افزودن فیلد تله نامرئی هانی‌پات
-        if ( ! empty( $opts['enable_honeypot'] ) ) {
+        if ( ! empty( $opts['enable_honeypot'] ) && ! isset( $fields['brz_hp_phone'] ) ) {
             $fields['brz_hp_phone'] = '<p class="brz-hp-field" style="display:none !important; visibility:hidden !important; position:absolute !important; left:-9999px !important; top:-9999px !important; opacity:0 !important; width:0 !important; height:0 !important; z-index:-1 !important;" aria-hidden="true">' .
                 '<label for="brz_hp_phone">اگر انسان هستید این فیلد را خالی بگذارید</label>' .
                 '<input id="brz_hp_phone" name="brz_hp_phone" type="text" value="" tabindex="-1" autocomplete="off" />' .
@@ -132,7 +133,7 @@ class BRZ_Smart_Comments {
         }
 
         // افزودن فیلد اختیاری شماره تلفن همراه
-        if ( ! empty( $opts['enable_mobile_field'] ) ) {
+        if ( ! empty( $opts['enable_mobile_field'] ) && ! isset( $fields['brz_author_mobile'] ) ) {
             $fields['brz_author_mobile'] = '<p class="comment-form-mobile brz-comment-form-mobile">' .
                 '<label for="brz_author_mobile">' . esc_html__( 'شماره موبایل', 'buyruz-settings' ) . ' <span class="optional" style="font-size:12px;color:#64748b;font-weight:normal;">(اختیاری - جهت اطلاع‌رسانی پیامکی هنگام انتشار پاسخ کارشناس)</span></label>' .
                 '<input id="brz_author_mobile" name="brz_author_mobile" type="tel" value="" placeholder="۰۹xxxxxxxxx" dir="ltr" maxlength="11" class="brz-input-mobile" />' .
