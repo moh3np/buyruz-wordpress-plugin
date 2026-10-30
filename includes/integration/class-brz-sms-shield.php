@@ -66,6 +66,11 @@ class BRZ_SMS_Shield {
         // ثبت خودکار یادداشت سفارش هنگام ارسال پیامک دعوت به ثبت نظر قالب باکالا
         add_action( 'added_post_meta', [ __CLASS__, 'on_bakala_review_reminder_sms' ], 10, 4 );
         add_action( 'updated_post_meta', [ __CLASS__, 'on_bakala_review_reminder_sms' ], 10, 4 );
+
+        // راه‌اندازی مسیریاب هوشمند تفکیک پیامک‌های ارسال (پست و تیپاکس)
+        if ( class_exists( 'BRZ_Shipping_SMS_Router' ) ) {
+            BRZ_Shipping_SMS_Router::init();
+        }
     }
 
     /**
