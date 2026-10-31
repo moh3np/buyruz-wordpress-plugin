@@ -1368,6 +1368,13 @@ class BRZ_Settings {
                 return;
             }
 
+            if ( 'sms_management' === $module_slug && $active ) {
+                if ( class_exists( 'BRZ_Shipping_SMS_Router' ) && method_exists( 'BRZ_Shipping_SMS_Router', 'render_admin_page' ) ) {
+                    BRZ_Shipping_SMS_Router::render_admin_page();
+                    return;
+                }
+            }
+
             if ( 'mag_tools' === $module_slug && $active ) {
                 $mag_tools = isset( $opts['mag_tools'] ) && is_array( $opts['mag_tools'] ) ? $opts['mag_tools'] : array();
                 $auto_hero   = ! isset( $mag_tools['auto_article_hero'] ) || ! empty( $mag_tools['auto_article_hero'] );
@@ -2205,6 +2212,33 @@ class BRZ_Settings {
                 ) );
 
                 unset( $input['ippanel'] );
+            }
+        }
+
+        // SMS Management & Router Settings
+        if ( 'sms_management' === $context || isset( $input['sms_management'] ) ) {
+            if ( isset( $input['sms_management'] ) && is_array( $input['sms_management'] ) ) {
+                $sm = $input['sms_management'];
+                $prev_sm = isset( $output['sms_management'] ) && is_array( $output['sms_management'] ) ? $output['sms_management'] : array();
+                $output['sms_management'] = array_merge( $prev_sm, array(
+                    'enable_shipping_split'      => ! empty( $sm['enable_shipping_split'] ) ? 1 : 0,
+                    'post_pattern'               => sanitize_text_field( trim( $sm['post_pattern'] ?? '4tm5wmb9l6a8ptb' ) ),
+                    'tipax_pattern'              => sanitize_text_field( trim( $sm['tipax_pattern'] ?? '29q4boyn78jr0my' ) ),
+                    'enable_fallback_plain'      => ! empty( $sm['enable_fallback_plain'] ) ? 1 : 0,
+                    'fallback_sender'            => sanitize_text_field( trim( $sm['fallback_sender'] ?? '3000505' ) ),
+                    'override_wc_gateway'        => ! empty( $sm['override_wc_gateway'] ) ? 1 : 0,
+                    'enable_woo_sms_ui'          => ! empty( $sm['enable_woo_sms_ui'] ) ? 1 : 0,
+                    'enable_bakala_sms_ui'       => ! empty( $sm['enable_bakala_sms_ui'] ) ? 1 : 0,
+                    'enable_bakala_review_guard' => ! empty( $sm['enable_bakala_review_guard'] ) ? 1 : 0,
+                    'bakala_review_pattern'      => sanitize_text_field( trim( $sm['bakala_review_pattern'] ?? '43bte8qr368bkp7' ) ),
+                    'tpl_post_backup'            => sanitize_textarea_field( $sm['tpl_post_backup'] ?? '' ),
+                    'tpl_tipax_backup'           => sanitize_textarea_field( $sm['tpl_tipax_backup'] ?? '' ),
+                    'tpl_otp_backup'             => sanitize_textarea_field( $sm['tpl_otp_backup'] ?? '' ),
+                    'tpl_review_backup'          => sanitize_textarea_field( $sm['tpl_review_backup'] ?? '' ),
+                    'tpl_cart_backup'            => sanitize_textarea_field( $sm['tpl_cart_backup'] ?? '' ),
+                    'tpl_reply_backup'           => sanitize_textarea_field( $sm['tpl_reply_backup'] ?? '' ),
+                ) );
+                unset( $input['sms_management'] );
             }
         }
 

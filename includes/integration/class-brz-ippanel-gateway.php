@@ -51,6 +51,12 @@ if ( class_exists( '\PW\PWSMS\Gateways\IPPanelToken' ) ) {
          * @return mixed
          */
         public static function filter_active_gateway( $settings ) {
+            if ( class_exists( '\BRZ_Shipping_SMS_Router' ) ) {
+                if ( ! \BRZ_Shipping_SMS_Router::is_module_active() || ! \BRZ_Shipping_SMS_Router::get_option( 'override_wc_gateway', 1 ) ) {
+                    return $settings;
+                }
+            }
+
             if ( is_array( $settings ) && isset( $settings['sms_gateway'] ) ) {
                 $current = (string) $settings['sms_gateway'];
                 if ( $current === 'PW\PWSMS\Gateways\IPPanelToken' || $current === 'ippanel-token' ) {
@@ -83,7 +89,16 @@ if ( class_exists( '\PW\PWSMS\Gateways\IPPanelToken' ) ) {
                 $this->failed_numbers = array();
             }
 
-            // ۳. در صورت عدم موفقیت پترن: اجرای فال‌بک خودکار به متن ساده
+            // ۳. بررسی فعال بودن سپر فال‌بک از تنظیمات ماژولار
+            $fallback_enabled = class_exists( '\BRZ_Shipping_SMS_Router' )
+                ? (bool) \BRZ_Shipping_SMS_Router::get_option( 'enable_fallback_plain', 1 )
+                : true;
+
+            if ( ! $fallback_enabled ) {
+                return false;
+            }
+
+            // ۴. در صورت عدم موفقیت پترن: اجرای فال‌بک خودکار به متن ساده
             return $this->execute_normal_fallback();
         }
 
@@ -126,7 +141,8 @@ if ( class_exists( '\PW\PWSMS\Gateways\IPPanelToken' ) ) {
             // ارسال پیامک به تک‌تک گیرندگان از طریق موتور مستقیم آی‌پی‌پنل
             $all_success = true;
             $failed_msgs = array();
-            $sender      = ! empty( $this->senderNumber ) ? $this->senderNumber : '3000505';
+            $custom_sender = class_exists( '\BRZ_Shipping_SMS_Router' ) ? \BRZ_Shipping_SMS_Router::get_option( 'fallback_sender', '3000505' ) : '3000505';
+            $sender        = ! empty( $custom_sender ) ? $custom_sender : ( ! empty( $this->senderNumber ) ? $this->senderNumber : '3000505' );
 
             foreach ( (array) $this->mobile as $recipient ) {
                 $msg_id = null;
@@ -172,7 +188,14 @@ if ( class_exists( '\PW\PWSMS\Gateways\IPPanelToken' ) ) {
                 }
             }
 
-            // ۳. الگوهای پشتیبان مطمئن در صورت قطعی یا عدم پاسخگویی موقت سرور
+            // ۳. الگوهای پشتیبان مطمئن در صورت قطعی یا عدم پاسخگویی موقت سرور (از تنظیمات ماژولار بایروز)
+            if ( class_exists( '\BRZ_Shipping_SMS_Router' ) ) {
+                $tpl = \BRZ_Shipping_SMS_Router::get_backup_template( $code );
+                if ( ! empty( $tpl ) ) {
+                    return $tpl;
+                }
+            }
+
             if ( $code === '4tm5wmb9l6a8ptb' ) {
                 return "%name% عزیز\nسفارش %order_id% تحویل شرکت پست شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین (فعال‌سازی تا عصر):\nhttps://tracking.post.ir\nبایروز";
             }

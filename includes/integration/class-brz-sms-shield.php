@@ -582,26 +582,46 @@ class BRZ_SMS_Shield {
             return;
         }
 
+        // بررسی فعال بودن ماژول مدیریت هوشمند پیامک و سپر نظرسنجی باکالا
+        if ( class_exists( 'BRZ_Shipping_SMS_Router' ) ) {
+            if ( ! BRZ_Shipping_SMS_Router::is_module_active() || ! BRZ_Shipping_SMS_Router::get_option( 'enable_bakala_review_guard', 1 ) ) {
+                return;
+            }
+        }
+
         $phone = $order->get_billing_phone();
         $display_phone = ! empty( $phone ) ? esc_html( $phone ) : 'مشتری';
 
         // بررسی وضعیت الگو در آی‌پی‌پنل
-        $pattern_code = '43bte8qr368bkp7';
+        $pattern_code = class_exists( 'BRZ_Shipping_SMS_Router' )
+            ? BRZ_Shipping_SMS_Router::get_option( 'bakala_review_pattern', '43bte8qr368bkp7' )
+            : '43bte8qr368bkp7';
         $is_active    = class_exists( 'BRZ_Shipping_SMS_Router' ) ? BRZ_Shipping_SMS_Router::is_pattern_active( $pattern_code ) : true;
 
         if ( ! $is_active && ! empty( $phone ) ) {
             // سپر فال‌بک ضد ضربه: الگوی باکالا در انتظار تایید یا ناموفق است، ارسال بلادرنگ با متن ساده
-            $name  = trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() );
-            $short = home_url( '/s/r' . $order->get_id() );
-            $plain = sprintf(
-                "%s عزیز\nتجربه‌تون از سفارش %s چطور بود؟\nبرای ثبت نظر و امتیاز، همین حالا به لینک زیر سر بزنید:\n%s\nبایروز",
-                ! empty( $name ) ? $name : 'مشتری',
-                $order->get_id(),
-                $short
-            );
+            $name   = trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() );
+            $short  = home_url( '/s/r' . $order->get_id() );
+            $tpl    = class_exists( 'BRZ_Shipping_SMS_Router' ) ? BRZ_Shipping_SMS_Router::get_backup_template( $pattern_code ) : '';
+
+            if ( empty( $tpl ) ) {
+                $plain = sprintf(
+                    "%s عزیز\nتجربه‌تون از سفارش %s چطور بود؟\nبرای ثبت نظر و امتیاز، همین حالا به لینک زیر سر بزنید:\n%s\nبایروز",
+                    ! empty( $name ) ? $name : 'مشتری',
+                    $order->get_id(),
+                    $short
+                );
+            } else {
+                $plain = str_ireplace( '%name%', ! empty( $name ) ? $name : 'مشتری', $tpl );
+                $plain = str_ireplace( '%order_id%', (string) $order->get_id(), $plain );
+                $plain = str_ireplace( '%product_link%', $short, $plain );
+                $plain = preg_replace( '/%[a-zA-Z0-9_-]+%/', '', $plain );
+            }
+
+            $sender = class_exists( 'BRZ_Shipping_SMS_Router' ) ? BRZ_Shipping_SMS_Router::get_option( 'fallback_sender', '3000505' ) : '3000505';
 
             if ( class_exists( 'BRZ_IPPanel' ) ) {
-                \BRZ_IPPanel::send_sms( $phone, $plain, '3000505' );
+                \BRZ_IPPanel::send_sms( $phone, $plain, $sender );
             }
 
             $order->add_order_note( sprintf(

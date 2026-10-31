@@ -82,5 +82,43 @@ namespace Buyruz\Tests\Unit {
             $tipax = BRZ_Shipping_SMS_Router::get_backup_template( '29q4boyn78jr0my' );
             $this->assertStringContainsString( 'تیپاکس', $tipax );
         }
+
+        public function test_get_default_options_has_all_modular_keys() {
+            $defaults = BRZ_Shipping_SMS_Router::get_default_options();
+
+            $this->assertIsArray( $defaults );
+            $this->assertArrayHasKey( 'enable_shipping_split', $defaults );
+            $this->assertArrayHasKey( 'post_pattern', $defaults );
+            $this->assertArrayHasKey( 'tipax_pattern', $defaults );
+            $this->assertArrayHasKey( 'enable_fallback_plain', $defaults );
+            $this->assertArrayHasKey( 'fallback_sender', $defaults );
+            $this->assertArrayHasKey( 'override_wc_gateway', $defaults );
+            $this->assertArrayHasKey( 'enable_woo_sms_ui', $defaults );
+            $this->assertArrayHasKey( 'enable_bakala_sms_ui', $defaults );
+            $this->assertArrayHasKey( 'enable_bakala_review_guard', $defaults );
+            $this->assertArrayHasKey( 'bakala_review_pattern', $defaults );
+            $this->assertArrayHasKey( 'tpl_post_backup', $defaults );
+            $this->assertArrayHasKey( 'tpl_tipax_backup', $defaults );
+            $this->assertArrayHasKey( 'tpl_otp_backup', $defaults );
+            $this->assertArrayHasKey( 'tpl_review_backup', $defaults );
+            $this->assertArrayHasKey( 'tpl_cart_backup', $defaults );
+            $this->assertArrayHasKey( 'tpl_reply_backup', $defaults );
+
+            $this->assertSame( 1, $defaults['enable_shipping_split'] );
+            $this->assertSame( '3000505', $defaults['fallback_sender'] );
+        }
+
+        public function test_get_option_retrieves_specific_key_or_default() {
+            $val = BRZ_Shipping_SMS_Router::get_option( 'fallback_sender' );
+            $this->assertSame( '3000505', $val );
+
+            $missing = BRZ_Shipping_SMS_Router::get_option( 'non_existing_key', 'fallback_val' );
+            $this->assertSame( 'fallback_val', $missing );
+        }
+
+        public function test_is_module_active_returns_boolean() {
+            $active = BRZ_Shipping_SMS_Router::is_module_active();
+            $this->assertIsBool( $active );
+        }
     }
 }

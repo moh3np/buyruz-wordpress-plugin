@@ -222,6 +222,13 @@ class BRZ_Modules {
                 'category'    => 'shop',
                 'requires_wc' => true,
             ),
+            'sms_management' => array(
+                'label'       => 'مدیریت هوشمند پیامک و الگوها',
+                'description' => 'تفکیک هوشمند روش‌های ارسال (پست و تیپاکس)، درگاه ضد ضربه و تاب‌آور IPPanel، رابط کاربری تعاملی ۱۰ از ۱۰ و سپرهای فال‌بک باکالا.',
+                'class'       => 'BRZ_Shipping_SMS_Router',
+                'category'    => 'shop',
+                'requires_wc' => true,
+            ),
             'smart_telemetry' => array(
                 'label'       => 'ره‌گیری و آنالیتیکس هوشمند',
                 'description' => 'موتور جامع ره‌گیری GA4، یکتانت، مایکروسافت کلاریتی و تبدیل ترب/ایمالز با لود تعاملی صفر ثانیه و سازگاری کامل ادپتیو.',
@@ -335,6 +342,9 @@ class BRZ_Modules {
         }
         if ( ! array_key_exists( 'shipping_bridge', $states ) ) {
             $states['shipping_bridge'] = 1;
+        }
+        if ( ! array_key_exists( 'sms_management', $states ) ) {
+            $states['sms_management'] = 1;
         }
         if ( class_exists( 'BRZ_Profile' ) && BRZ_Profile::is_magazine() ) {
             $states['mag_tools']      = 1;
