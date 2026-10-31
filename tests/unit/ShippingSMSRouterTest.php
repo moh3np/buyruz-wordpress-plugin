@@ -22,6 +22,11 @@ namespace Buyruz\Tests\Unit {
 
     class ShippingSMSRouterTest extends TestCase {
 
+        protected function setUp(): void {
+            parent::setUp();
+            brz_test_reset_state();
+        }
+
         public function test_inject_buyer_settings_adds_custom_fields() {
             $settings = array(
                 array(
@@ -104,8 +109,24 @@ namespace Buyruz\Tests\Unit {
             $this->assertArrayHasKey( 'tpl_cart_backup', $defaults );
             $this->assertArrayHasKey( 'tpl_reply_backup', $defaults );
 
+            // Pulse Suite 3.0 Enterprise keys
+            $this->assertArrayHasKey( 'enable_dashboard_widget', $defaults );
+            $this->assertArrayHasKey( 'low_balance_threshold', $defaults );
+            $this->assertArrayHasKey( 'enable_quiet_hours', $defaults );
+            $this->assertArrayHasKey( 'quiet_hours_start', $defaults );
+            $this->assertArrayHasKey( 'quiet_hours_end', $defaults );
+            $this->assertArrayHasKey( 'enable_idempotency_shield', $defaults );
+            $this->assertArrayHasKey( 'enable_url_compressor', $defaults );
+
             $this->assertSame( 1, $defaults['enable_shipping_split'] );
             $this->assertSame( '3000505', $defaults['fallback_sender'] );
+            $this->assertSame( 1, $defaults['enable_dashboard_widget'] );
+            $this->assertSame( 500000, $defaults['low_balance_threshold'] );
+            $this->assertSame( 1, $defaults['enable_quiet_hours'] );
+            $this->assertSame( '22:00', $defaults['quiet_hours_start'] );
+            $this->assertSame( '08:30', $defaults['quiet_hours_end'] );
+            $this->assertSame( 1, $defaults['enable_idempotency_shield'] );
+            $this->assertSame( 1, $defaults['enable_url_compressor'] );
         }
 
         public function test_get_option_retrieves_specific_key_or_default() {
@@ -119,6 +140,117 @@ namespace Buyruz\Tests\Unit {
         public function test_is_module_active_returns_boolean() {
             $active = BRZ_Shipping_SMS_Router::is_module_active();
             $this->assertIsBool( $active );
+        }
+
+        public function test_quiet_hours_detection_logic() {
+            global $wp_options, $wp_test_current_time;
+
+            // 1. When disabled -> always false
+            $wp_options[ BRZ_OPTION ] = array(
+                'sms_management' => array(
+                    'enable_quiet_hours' => 0,
+                    'quiet_hours_start'  => '22:00',
+                    'quiet_hours_end'    => '08:30',
+                ),
+            );
+            if ( class_exists( 'BRZ_Settings' ) ) {
+                \BRZ_Settings::reset_cache();
+            }
+
+            $wp_test_current_time['H:i'] = '23:30';
+            $this->assertFalse( BRZ_Shipping_SMS_Router::is_quiet_hours_active() );
+
+            // 2. When enabled overnight: 22:00 to 08:30
+            $wp_options[ BRZ_OPTION ]['sms_management']['enable_quiet_hours'] = 1;
+            if ( class_exists( 'BRZ_Settings' ) ) {
+                \BRZ_Settings::reset_cache();
+            }
+
+            // 23:00 is inside quiet hours
+            $wp_test_current_time['H:i'] = '23:00';
+            $this->assertTrue( BRZ_Shipping_SMS_Router::is_quiet_hours_active() );
+
+            // 03:15 is inside quiet hours
+            $wp_test_current_time['H:i'] = '03:15';
+            $this->assertTrue( BRZ_Shipping_SMS_Router::is_quiet_hours_active() );
+
+            // 08:29 is inside quiet hours
+            $wp_test_current_time['H:i'] = '08:29';
+            $this->assertTrue( BRZ_Shipping_SMS_Router::is_quiet_hours_active() );
+
+            // 08:30 is outside quiet hours
+            $wp_test_current_time['H:i'] = '08:30';
+            $this->assertFalse( BRZ_Shipping_SMS_Router::is_quiet_hours_active() );
+
+            // 14:00 is outside quiet hours
+            $wp_test_current_time['H:i'] = '14:00';
+            $this->assertFalse( BRZ_Shipping_SMS_Router::is_quiet_hours_active() );
+
+            // 21:59 is outside quiet hours
+            $wp_test_current_time['H:i'] = '21:59';
+            $this->assertFalse( BRZ_Shipping_SMS_Router::is_quiet_hours_active() );
+
+            // 22:00 is inside quiet hours
+            $wp_test_current_time['H:i'] = '22:00';
+            $this->assertTrue( BRZ_Shipping_SMS_Router::is_quiet_hours_active() );
+        }
+
+        public function test_idempotency_lock_acquisition_and_release() {
+            global $wp_options;
+
+            $wp_options[ BRZ_OPTION ] = array(
+                'sms_management' => array(
+                    'enable_idempotency_shield' => 1,
+                ),
+            );
+            if ( class_exists( 'BRZ_Settings' ) ) {
+                \BRZ_Settings::reset_cache();
+            }
+
+            // First acquisition should succeed
+            $first = BRZ_Shipping_SMS_Router::acquire_idempotency_lock( 'order_123_completed', 10 );
+            $this->assertTrue( $first );
+
+            // Immediate second acquisition should be blocked
+            $second = BRZ_Shipping_SMS_Router::acquire_idempotency_lock( 'order_123_completed', 10 );
+            $this->assertFalse( $second );
+
+            // A different event should be allowed
+            $diff = BRZ_Shipping_SMS_Router::acquire_idempotency_lock( 'order_456_completed', 10 );
+            $this->assertTrue( $diff );
+
+            // When disabled, always returns true
+            $wp_options[ BRZ_OPTION ]['sms_management']['enable_idempotency_shield'] = 0;
+            if ( class_exists( 'BRZ_Settings' ) ) {
+                \BRZ_Settings::reset_cache();
+            }
+            $this->assertTrue( BRZ_Shipping_SMS_Router::acquire_idempotency_lock( 'order_123_completed', 10 ) );
+        }
+
+        public function test_record_dispatch_ring_buffer() {
+            $initial = BRZ_Shipping_SMS_Router::get_recent_dispatches();
+            $this->assertEmpty( $initial );
+
+            // Record single dispatch and verify phone masking
+            BRZ_Shipping_SMS_Router::record_dispatch( 'test_order', '09127166487', 'pattern', 'msg_101', 'success' );
+            $recent = BRZ_Shipping_SMS_Router::get_recent_dispatches();
+
+            $this->assertCount( 1, $recent );
+            $this->assertSame( 'test_order', $recent[0]['event'] );
+            $this->assertSame( '0912***6487', $recent[0]['phone'] );
+            $this->assertSame( 'pattern', $recent[0]['method'] );
+            $this->assertSame( 'msg_101', $recent[0]['msg_id'] );
+            $this->assertSame( 'success', $recent[0]['status'] );
+
+            // Push 15 items to test 10-item Ring Buffer FIFO truncation
+            for ( $i = 1; $i <= 15; $i++ ) {
+                BRZ_Shipping_SMS_Router::record_dispatch( "event_$i", '09120000000', 'pattern', "msg_$i", 'success' );
+            }
+
+            $limited = BRZ_Shipping_SMS_Router::get_recent_dispatches();
+            $this->assertCount( 10, $limited, 'Ring buffer must not exceed 10 entries.' );
+            $this->assertSame( 'event_15', $limited[0]['event'], 'Most recent entry should be at index 0.' );
+            $this->assertSame( 'event_6', $limited[9]['event'], '10th entry should be event_6.' );
         }
     }
 }

@@ -151,6 +151,9 @@ if ( class_exists( '\PW\PWSMS\Gateways\IPPanelToken' ) ) {
                 }
 
                 if ( ! empty( $msg_id ) ) {
+                    if ( class_exists( '\BRZ_Shipping_SMS_Router' ) ) {
+                        \BRZ_Shipping_SMS_Router::record_dispatch( 'فال‌بک متن ساده ووکامرس (پترن: ' . $code . ')', (string) $recipient, 'fallback_plain', (string) $msg_id, 'delivered' );
+                    }
                     continue;
                 } else {
                     $all_success = false;

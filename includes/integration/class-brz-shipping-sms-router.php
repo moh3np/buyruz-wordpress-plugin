@@ -58,6 +58,13 @@ class BRZ_Shipping_SMS_Router {
             'enable_bakala_sms_ui'       => 1,
             'enable_bakala_review_guard' => 1,
             'bakala_review_pattern'      => self::DEFAULT_REVIEW_PATTERN,
+            'enable_dashboard_widget'    => 1,
+            'low_balance_threshold'      => 500000,
+            'enable_quiet_hours'         => 1,
+            'quiet_hours_start'          => '22:00',
+            'quiet_hours_end'            => '08:30',
+            'enable_idempotency_shield'  => 1,
+            'enable_url_compressor'      => 1,
             'tpl_post_backup'            => "%name% عزیز\nسفارش %order_id% تحویل شرکت پست شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین (فعال‌سازی تا عصر):\nhttps://tracking.post.ir\nبایروز",
             'tpl_tipax_backup'           => "%name% عزیز\nسفارش %order_id% تحویل تیپاکس شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین در سامانه تیپاکس:\nhttps://tipaxco.com/tracking\nبایروز",
             'tpl_otp_backup'             => "کد ورود شما: %code%\n@buyruz.com #%code%",
@@ -140,6 +147,263 @@ class BRZ_Shipping_SMS_Router {
             add_filter( 'option_sms_main_settings', array( __CLASS__, 'filter_active_gateway' ), 20 );
             add_filter( 'pwoosms_sms_gateways', array( __CLASS__, 'register_gateway' ), 20 );
         }
+
+        // ۵. ویجت اختصاصی نبض پیامک بایروز در پیشخوان وردپرس (Buyruz SMS Pulse Widget)
+        if ( is_admin() && ! empty( $opts['enable_dashboard_widget'] ) ) {
+            add_action( 'wp_dashboard_setup', array( __CLASS__, 'register_dashboard_widget' ) );
+        }
+
+        // ۶. مسیر اختصاصی ریدایرکت کوتاه برند بایروز (/r/{order_id})
+        if ( ! empty( $opts['enable_url_compressor'] ) ) {
+            add_action( 'template_redirect', array( __CLASS__, 'handle_short_url_redirect' ), 0 );
+        }
+    }
+
+    /**
+     * ثبت ویجت پیشخوان اصلی وردپرس
+     */
+    public static function register_dashboard_widget(): void {
+        if ( ! current_user_can( 'manage_woocommerce' ) && ! current_user_can( 'manage_options' ) ) {
+            return;
+        }
+
+        wp_add_dashboard_widget(
+            'brz_sms_pulse_widget',
+            '⚡ نبض سامانه پیامک و ره‌گیری بایروز (Buyruz SMS Pulse)',
+            array( __CLASS__, 'render_dashboard_widget' )
+        );
+    }
+
+    /**
+     * رندر محتوای سبک و بدون تاخیر ویجت پیشخوان اصلی وردپرس
+     */
+    public static function render_dashboard_widget(): void {
+        $opts        = self::get_options();
+        $is_conf     = class_exists( 'BRZ_IPPanel' ) && BRZ_IPPanel::is_configured();
+        $credit      = $is_conf ? BRZ_IPPanel::get_credit() : null;
+        $test_phone  = class_exists( 'BRZ_IPPanel' ) ? BRZ_IPPanel::get_test_phone() : '09127166487';
+        $threshold   = $opts['low_balance_threshold'] ?? 500000;
+        $is_low      = ( null !== $credit && (int) $credit < (int) $threshold );
+
+        // دریافت آخرین پیامک‌های شلیک‌شده
+        $history = self::get_recent_dispatches();
+        $last    = ! empty( $history ) ? reset( $history ) : null;
+        ?>
+        <div class="brz-pulse-widget-content" style="font-family:inherit;font-size:13px;color:#1e293b;">
+            <!-- وضعیت شارژ و اتصال -->
+            <div style="display:flex;align-items:center;justify-content:space-between;background:#f8fafc;padding:12px 14px;border-radius:10px;border:1px solid #e2e8f0;margin-bottom:12px;">
+                <div>
+                    <span style="display:block;font-size:11px;color:#64748b;margin-bottom:2px;">مانده شارژ آنلاین:</span>
+                    <strong style="font-size:15px;color:<?php echo $is_low ? '#dc2626' : '#05593D'; ?>;">
+                        <?php echo null !== $credit ? esc_html( number_format( (int) $credit ) ) . ' ریال' : 'استعلام آنلاین...'; ?>
+                    </strong>
+                    <?php if ( $is_low ) : ?>
+                        <span style="display:inline-block;background:#fee2e2;color:#991b1b;font-size:10px;font-weight:bold;padding:1px 6px;border-radius:4px;margin-right:4px;">کمبود شارژ</span>
+                    <?php endif; ?>
+                </div>
+                <div style="text-align:left;">
+                    <span style="display:inline-flex;align-items:center;gap:6px;background:<?php echo $is_conf ? '#ecfdf5' : '#fffbeb'; ?>;color:<?php echo $is_conf ? '#065f46' : '#92400e'; ?>;border:1px solid <?php echo $is_conf ? '#a7f3d0' : '#fde68a'; ?>;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;">
+                        <span style="width:7px;height:7px;border-radius:50%;background:<?php echo $is_conf ? '#10b981' : '#f59e0b'; ?>;"></span>
+                        <?php echo $is_conf ? 'وب‌سرویس متصل' : 'نیاز به API Key'; ?>
+                    </span>
+                </div>
+            </div>
+
+            <!-- وضعیت سپرهای حیاتی پیامک -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;">
+                    <span style="display:block;font-size:11px;color:#64748b;">سپر تفکیک ارسال:</span>
+                    <strong style="font-size:12px;color:#0f172a;"><?php echo ! empty( $opts['enable_shipping_split'] ) ? '🟢 فعال (پست و تیپاکس)' : '⚪ غیرفعال'; ?></strong>
+                </div>
+                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;">
+                    <span style="display:block;font-size:11px;color:#64748b;">سپر فال‌بک متن ساده:</span>
+                    <strong style="font-size:12px;color:#0f172a;"><?php echo ! empty( $opts['enable_fallback_plain'] ) ? '🛡️ فعال (ضد سوختن)' : '⚪ غیرفعال'; ?></strong>
+                </div>
+            </div>
+
+            <!-- آخرین پیامک شلیک‌شده -->
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin-bottom:12px;">
+                <span style="display:block;font-size:11px;color:#64748b;margin-bottom:2px;">آخرین شلیک پیامک سیستم:</span>
+                <?php if ( $last ) : ?>
+                    <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;">
+                        <span><?php echo esc_html( $last['event'] ); ?> (<?php echo esc_html( $last['phone'] ); ?>)</span>
+                        <span style="color:#64748b;font-size:11px;" dir="ltr"><?php echo esc_html( $last['time'] ); ?></span>
+                    </div>
+                <?php else : ?>
+                    <span style="color:#94a3b8;font-size:11px;">هنوز پیامکی در این نشست ثبت نشده است.</span>
+                <?php endif; ?>
+            </div>
+
+            <!-- لینک‌های اقدام سریع -->
+            <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid #f1f5f9;padding-top:10px;">
+                <a href="<?php echo esc_url( admin_url( 'admin.php?page=buyruz-module-sms_management' ) ); ?>" class="button button-secondary" style="font-size:12px;">
+                    🎛️ باز کردن هاب پیامک
+                </a>
+                <button type="button" class="button button-primary brz-pulse-widget-test-btn" style="background:#05593D;border-color:#05593D;font-size:12px;">
+                    🚀 تست شلیک به مدیر
+                </button>
+            </div>
+            <div class="brz-pulse-widget-res" style="display:none;margin-top:8px;font-size:11px;padding:6px 10px;border-radius:6px;"></div>
+
+            <script>
+            jQuery(document).ready(function($) {
+                $('.brz-pulse-widget-test-btn').on('click', function(e) {
+                    e.preventDefault();
+                    var $btn = $(this);
+                    var $res = $('.brz-pulse-widget-res');
+                    $btn.prop('disabled', true).text('در حال تست...');
+                    $res.hide();
+
+                    $.ajax({
+                        url: ajaxurl,
+                        type: 'POST',
+                        dataType: 'json',
+                        data: {
+                            action: 'brz_sms_test_send',
+                            nonce: '<?php echo esc_js( wp_create_nonce( 'brz_sms_admin_nonce' ) ); ?>',
+                            pattern_code: '<?php echo esc_js( $opts['post_pattern'] ); ?>'
+                        },
+                        success: function(resp) {
+                            $btn.prop('disabled', false).text('🚀 تست شلیک به مدیر');
+                            if (resp && resp.success) {
+                                $res.css({'background':'#ecfdf5','color':'#065f46','border':'1px solid #a7f3d0'})
+                                    .html('✅ پیامک تست با موفقیت ارسال شد.')
+                                    .slideDown();
+                            } else {
+                                $res.css({'background':'#fef2f2','color':'#991b1b','border':'1px solid #fecaca'})
+                                    .html('❌ خطا در ارسال تست')
+                                    .slideDown();
+                            }
+                        },
+                        error: function() {
+                            $btn.prop('disabled', false).text('🚀 تست شلیک به مدیر');
+                            $res.css({'background':'#fef2f2','color':'#991b1b','border':'1px solid #fecaca'})
+                                .html('❌ خطای ارتباط با سرور')
+                                .slideDown();
+                        }
+                    });
+                });
+            });
+            </script>
+        </div>
+        <?php
+    }
+
+    /**
+     * مسیر ریدایرکت کوتاه اختصاصی برند بایروز (/r/{order_id})
+     */
+    public static function handle_short_url_redirect(): void {
+        $uri = sanitize_text_field( $_SERVER['REQUEST_URI'] ?? '' );
+        if ( preg_match( '#^/r/([0-9]+)/?$#', $uri, $matches ) ) {
+            $order_id = absint( $matches[1] );
+            if ( $order_id > 0 && function_exists( 'wc_get_order' ) ) {
+                $order = wc_get_order( $order_id );
+                if ( $order instanceof WC_Order ) {
+                    $items = $order->get_items();
+                    if ( ! empty( $items ) ) {
+                        $first_item = reset( $items );
+                        $product_id = $first_item->get_product_id();
+                        $target_url = get_permalink( $product_id );
+                        if ( ! empty( $target_url ) ) {
+                            wp_safe_redirect( add_query_arg( array( 'order_review' => $order_id ), $target_url ), 302 );
+                            exit;
+                        }
+                    }
+                }
+            }
+            wp_safe_redirect( home_url(), 302 );
+            exit;
+        }
+    }
+
+    /**
+     * واکشی آخرین شلیک‌های پیامک از حافظه موقت حلقوی (Ring Buffer Transient)
+     *
+     * @return array
+     */
+    public static function get_recent_dispatches(): array {
+        $data = get_transient( 'brz_sms_recent_dispatches' );
+        return is_array( $data ) ? $data : array();
+    }
+
+    /**
+     * ثبت یک شلیک پیامک در حافظه حلقوی موقت (بدون ساخت جدول دیتابیس)
+     *
+     * @param string $event نام رویداد
+     * @param string $phone شماره گیرنده
+     * @param string $method متد ارسال (pattern / fallback_plain)
+     * @param string $msg_id شناسه پیامک
+     * @param string $status وضعیت تحویل
+     * @return void
+     */
+    public static function record_dispatch( string $event, string $phone, string $method, string $msg_id = '', string $status = 'success' ): void {
+        $history = self::get_recent_dispatches();
+        
+        $masked_phone = $phone;
+        if ( strlen( $phone ) >= 10 ) {
+            $masked_phone = substr( $phone, 0, 4 ) . '***' . substr( $phone, -4 );
+        }
+
+        $entry = array(
+            'time'   => current_time( 'H:i:s' ),
+            'date'   => current_time( 'Y/m/d' ),
+            'event'  => $event,
+            'phone'  => $masked_phone,
+            'method' => $method,
+            'msg_id' => $msg_id,
+            'status' => $status,
+        );
+
+        array_unshift( $history, $entry );
+        // نگهداری حداکثر ۱۰ آیتم (Ring Buffer)
+        $history = array_slice( $history, 0, 10 );
+
+        set_transient( 'brz_sms_recent_dispatches', $history, DAY_IN_SECONDS * 7 );
+    }
+
+    /**
+     * بررسی ساعات سکوت (Quiet Hours) برای پیامک‌های غیراضطراری نظرسنجی
+     *
+     * @return bool آیا در بازه سکوت قرار داریم؟
+     */
+    public static function is_quiet_hours_active(): bool {
+        $opts = self::get_options();
+        if ( empty( $opts['enable_quiet_hours'] ) ) {
+            return false;
+        }
+
+        $now   = current_time( 'H:i' );
+        $start = $opts['quiet_hours_start'] ?? '22:00';
+        $end   = $opts['quiet_hours_end'] ?? '08:30';
+
+        if ( $start > $end ) {
+            // بازه شبانه مانند ۲۲:۰۰ تا ۰۸:۳۰
+            return ( $now >= $start || $now < $end );
+        } else {
+            return ( $now >= $start && $now < $end );
+        }
+    }
+
+    /**
+     * قفل ضد ارسال تکراری (Idempotency Shield)
+     *
+     * @param string $key_suffix شناسه یکتا رویداد
+     * @param int $ttl مدت قفل بر حسب ثانیه (پیش‌فرض ۱۰ ثانیه)
+     * @return bool آیا این ارسال برای اولین بار انجام می‌شود؟ (true یعنی ارسال مجاز است، false یعنی تکراری است)
+     */
+    public static function acquire_idempotency_lock( string $key_suffix, int $ttl = 10 ): bool {
+        $opts = self::get_options();
+        if ( empty( $opts['enable_idempotency_shield'] ) ) {
+            return true;
+        }
+
+        $transient_key = 'brz_sms_lock_' . md5( $key_suffix );
+        if ( false !== get_transient( $transient_key ) ) {
+            return false; // رویداد تکراری مهار شد
+        }
+
+        set_transient( $transient_key, 1, $ttl );
+        return true;
     }
 
     /**
@@ -535,6 +799,9 @@ class BRZ_Shipping_SMS_Router {
         }
 
         if ( ! empty( $msg_id ) ) {
+            // ثبت در حافظه موقت حلقوی تله‌متری (Ring Buffer)
+            self::record_dispatch( 'تست پیامکی مدیر (' . ( $code ? $code : 'متن ساده' ) . ')', $test_phone, $method_used, (string) $msg_id, 'delivered' );
+
             $desc = ( $method_used === 'pattern' )
                 ? sprintf( 'پیامک با موفقیت از طریق الگوی خدماتی سریع ارسال شد. (شناسه پیامک: %s)', $msg_id )
                 : sprintf( 'سپر فال‌بک فعال شد: پترن در وضعیت انتظار بود، لذا پیامک با موفقیت به صورت متن ساده ارسال شد. (شناسه پیامک: %s)', $msg_id );
@@ -645,6 +912,12 @@ class BRZ_Shipping_SMS_Router {
 
         if ( ! self::is_module_active() || ! self::get_option( 'enable_shipping_split', 1 ) ) {
             return (string) $content;
+        }
+
+        // سپر ضد ارسال تکراری (Idempotency Shield)
+        $idempotency_key = 'shipping_' . $order->get_id() . '_' . $order->get_status();
+        if ( ! self::acquire_idempotency_lock( $idempotency_key, 15 ) ) {
+            return ''; // ارسال تکراری مهار شد
         }
 
         $opts_brz   = self::get_options();
@@ -885,6 +1158,50 @@ class BRZ_Shipping_SMS_Router {
                                 </div>
                             </label>
                         </div>
+
+                        <!-- سوئیچ ویجت نبض پیامک در پیشخوان وردپرس -->
+                        <div style="background:#f8fafc;border-radius:12px;padding:16px 18px;border:1px solid #e2e8f0;">
+                            <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
+                                <input type="checkbox" name="<?php echo BRZ_OPTION; ?>[sms_management][enable_dashboard_widget]" value="1" <?php checked( 1, $opts['enable_dashboard_widget'] ?? 1 ); ?> style="margin-top:3px;">
+                                <div>
+                                    <strong style="display:block;font-size:14px;color:#0f172a;margin-bottom:3px;">ویجت اختصاصی نبض پیامک در پیشخوان اصلی وردپرس</strong>
+                                    <span style="display:block;font-size:12px;color:#64748b;line-height:1.5;">نمایش وضعیت شارژ زنده، نبض سپرهای فعال و دکمه تست سریع در صفحه اول پیشخوان مدیریت وردپرس.</span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <!-- سوئیچ ساعات سکوت هوشمند -->
+                        <div style="background:#f8fafc;border-radius:12px;padding:16px 18px;border:1px solid #e2e8f0;">
+                            <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
+                                <input type="checkbox" name="<?php echo BRZ_OPTION; ?>[sms_management][enable_quiet_hours]" value="1" <?php checked( 1, $opts['enable_quiet_hours'] ?? 1 ); ?> style="margin-top:3px;">
+                                <div>
+                                    <strong style="display:block;font-size:14px;color:#0f172a;margin-bottom:3px;">ساعات سکوت هوشمند (Quiet Hours) برای نظرسنجی</strong>
+                                    <span style="display:block;font-size:12px;color:#64748b;line-height:1.5;">مهار پیامک‌های نظرسنجی در ساعات شبانه و جلوگیری از بیدار شدن و آزار مشتری (ارسال فوری کد رهگیری ۲۴ ساعته حفظ می‌شود).</span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <!-- سوئیچ سپر ضد ارسال تکراری -->
+                        <div style="background:#f8fafc;border-radius:12px;padding:16px 18px;border:1px solid #e2e8f0;">
+                            <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
+                                <input type="checkbox" name="<?php echo BRZ_OPTION; ?>[sms_management][enable_idempotency_shield]" value="1" <?php checked( 1, $opts['enable_idempotency_shield'] ?? 1 ); ?> style="margin-top:3px;">
+                                <div>
+                                    <strong style="display:block;font-size:14px;color:#0f172a;margin-bottom:3px;">سپر ضد ارسال تکراری (Idempotency Lock)</strong>
+                                    <span style="display:block;font-size:12px;color:#64748b;line-height:1.5;">جلوگیری قطعی از ارسال دوبل پیامک هنگام رفرش یا تریگر همزمان تغییر وضعیت سفارشات در زیر ۱۰ ثانیه.</span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <!-- سوئیچ کوتاه‌ساز هوشمند لینک -->
+                        <div style="background:#f8fafc;border-radius:12px;padding:16px 18px;border:1px solid #e2e8f0;">
+                            <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
+                                <input type="checkbox" name="<?php echo BRZ_OPTION; ?>[sms_management][enable_url_compressor]" value="1" <?php checked( 1, $opts['enable_url_compressor'] ?? 1 ); ?> style="margin-top:3px;">
+                                <div>
+                                    <strong style="display:block;font-size:14px;color:#0f172a;margin-bottom:3px;">کوتاه‌ساز هوشمند لینک برند بایروز (/r/{id})</strong>
+                                    <span style="display:block;font-size:12px;color:#64748b;line-height:1.5;">تبدیل خودکار لینک‌های طولانی به آدرس کوتاه جهت تضمین تک‌صفحه‌ای ماندن پیامک فارسی و کاهش ۵۰٪ هزینه.</span>
+                                </div>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -918,6 +1235,24 @@ class BRZ_Shipping_SMS_Router {
                             <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;">شماره خط فرستنده پیامک فال‌بک:</label>
                             <input type="text" name="<?php echo BRZ_OPTION; ?>[sms_management][fallback_sender]" value="<?php echo esc_attr( $opts['fallback_sender'] ); ?>" class="regular-text" style="width:100%;" dir="ltr" />
                             <p class="description">خط خدماتی یا عادی جهت ارسال متن ساده (پیش‌فرض: 3000505).</p>
+                        </div>
+
+                        <div>
+                            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;">آستانه هشدار کاهش شارژ (ریال):</label>
+                            <input type="number" name="<?php echo BRZ_OPTION; ?>[sms_management][low_balance_threshold]" value="<?php echo esc_attr( $opts['low_balance_threshold'] ?? 500000 ); ?>" class="regular-text" style="width:100%;" dir="ltr" step="50000" />
+                            <p class="description">هشدار زنده در پیشخوان و هاب هنگام رسیدن اعتبار به کمتر از این رقم (پیش‌فرض: ۵۰۰,۰۰۰ ریال).</p>
+                        </div>
+
+                        <div>
+                            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;">ساعت شروع سکوت شبانه:</label>
+                            <input type="text" name="<?php echo BRZ_OPTION; ?>[sms_management][quiet_hours_start]" value="<?php echo esc_attr( $opts['quiet_hours_start'] ?? '22:00' ); ?>" class="regular-text" style="width:100%;" dir="ltr" placeholder="22:00" />
+                            <p class="description">ساعت توقف پیامک‌های غیراضطراری نظرسنجی (پیش‌فرض: ۲۲:۰۰).</p>
+                        </div>
+
+                        <div>
+                            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;">ساعت پایان سکوت شبانه:</label>
+                            <input type="text" name="<?php echo BRZ_OPTION; ?>[sms_management][quiet_hours_end]" value="<?php echo esc_attr( $opts['quiet_hours_end'] ?? '08:30' ); ?>" class="regular-text" style="width:100%;" dir="ltr" placeholder="08:30" />
+                            <p class="description">ساعت آغاز مجدد ارسال در صبح فردا (پیش‌فرض: ۰۸:۳۰).</p>
                         </div>
                     </div>
                 </div>
@@ -1046,6 +1381,208 @@ class BRZ_Shipping_SMS_Router {
                                     .slideDown();
                             }
                         });
+                    });
+                });
+                </script>
+            </div>
+
+            <!-- کارت ۵: جدول ماتریس سلامت و ره‌گیری زنده الگوها (Health Matrix & Live Discovery) -->
+            <div class="brz-card" style="background:#fff;border-radius:16px;padding:26px 28px;box-shadow:0 4px 20px rgba(0,0,0,0.04);margin-top:24px;border:1px solid #eef2f5;">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;border-bottom:1px solid #f0f4f8;padding-bottom:14px;">
+                    <div>
+                        <h3 style="margin:0 0 4px;font-size:16px;color:#05593D;display:flex;align-items:center;gap:8px;">
+                            <span>📊</span> ماتریس یکپارچه و زنده الگوهای پیامکی فعال (Health Matrix)
+                        </h3>
+                        <p style="margin:0;font-size:12px;color:#64748b;">کاوش خودکار تمامی الگوهای فعال در این محیط، استعلام برخط وضعیت تایید از سرور و متغیرهای مجاز</p>
+                    </div>
+                    <div>
+                        <button type="button" id="brz_btn_matrix_refresh_all" class="button button-secondary" style="font-size:12px;display:flex;align-items:center;gap:6px;">
+                            <span>🔄</span> استعلام مجدد همه از آی‌پی‌پنل
+                        </button>
+                    </div>
+                </div>
+
+                <div style="overflow-x:auto;">
+                    <table class="wp-list-table widefat fixed striped" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;font-size:12px;">
+                        <thead>
+                            <tr style="background:#f8fafc;">
+                                <th style="font-weight:700;padding:12px 14px;">منبع و رویداد پیامک</th>
+                                <th style="font-weight:700;padding:12px 14px;width:150px;">کد پترن</th>
+                                <th style="font-weight:700;padding:12px 14px;width:140px;">وضعیت در سرور</th>
+                                <th style="font-weight:700;padding:12px 14px;width:130px;">سپر فال‌بک</th>
+                                <th style="font-weight:700;padding:12px 14px;">متغیرهای مجاز</th>
+                                <th style="font-weight:700;padding:12px 14px;width:140px;text-align:center;">عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- ردیف ۱: پست پیشتاز -->
+                            <tr>
+                                <td style="padding:12px 14px;">
+                                    <strong style="color:#0f172a;display:block;">ارسال سفارش با شرکت پست (پیشتاز و ویژه)</strong>
+                                    <span style="font-size:11px;color:#64748b;">[ووکامرس / تاپین] شلیک خودکار بارکد و لینک رهگیری</span>
+                                </td>
+                                <td style="padding:12px 14px;" dir="ltr"><code><?php echo esc_html( $opts['post_pattern'] ); ?></code></td>
+                                <td style="padding:12px 14px;">
+                                    <?php $st_post = self::is_pattern_active( $opts['post_pattern'] ); ?>
+                                    <span class="brz-badge <?php echo $st_post ? 'brz-badge-active' : 'brz-badge-pending'; ?>" style="font-size:11px;">
+                                        <?php echo $st_post ? '🟢 تاییدشده' : '🟡 در انتظار / نامشخص'; ?>
+                                    </span>
+                                </td>
+                                <td style="padding:12px 14px;"><span style="color:#05593D;font-weight:600;">🛡️ آماده شلیک</span></td>
+                                <td style="padding:12px 14px;"><code>%name%</code>, <code>%order_id%</code>, <code>%tapin_barcode%</code></td>
+                                <td style="padding:12px 14px;text-align:center;">
+                                    <button type="button" class="button button-small brz-quick-test-row" data-code="<?php echo esc_attr( $opts['post_pattern'] ); ?>" title="تست ارسال به مدیر">🚀 تست</button>
+                                </td>
+                            </tr>
+
+                            <!-- ردیف ۲: تیپاکس -->
+                            <tr>
+                                <td style="padding:12px 14px;">
+                                    <strong style="color:#0f172a;display:block;">ارسال سفارش با تیپاکس</strong>
+                                    <span style="font-size:11px;color:#64748b;">[ووکامرس / تفکیک بایروز] شلیک لینک سامانه رهگیری تیپاکس</span>
+                                </td>
+                                <td style="padding:12px 14px;" dir="ltr"><code><?php echo esc_html( $opts['tipax_pattern'] ); ?></code></td>
+                                <td style="padding:12px 14px;">
+                                    <?php $st_tipax = self::is_pattern_active( $opts['tipax_pattern'] ); ?>
+                                    <span class="brz-badge <?php echo $st_tipax ? 'brz-badge-active' : 'brz-badge-pending'; ?>" style="font-size:11px;">
+                                        <?php echo $st_tipax ? '🟢 تاییدشده' : '🟡 در انتظار / بررسی'; ?>
+                                    </span>
+                                </td>
+                                <td style="padding:12px 14px;"><span style="color:#05593D;font-weight:600;">🛡️ آماده شلیک</span></td>
+                                <td style="padding:12px 14px;"><code>%name%</code>, <code>%order_id%</code>, <code>%tapin_barcode%</code></td>
+                                <td style="padding:12px 14px;text-align:center;">
+                                    <button type="button" class="button button-small brz-quick-test-row" data-code="<?php echo esc_attr( $opts['tipax_pattern'] ); ?>" title="تست ارسال به مدیر">🚀 تست</button>
+                                </td>
+                            </tr>
+
+                            <!-- ردیف ۳: باکالا OTP -->
+                            <tr>
+                                <td style="padding:12px 14px;">
+                                    <strong style="color:#0f172a;display:block;">کد تایید ورود و احراز هویت پیامکی</strong>
+                                    <span style="font-size:11px;color:#64748b;">[پوسته باکالا] لاگین و ثبت‌نام سریع با شماره موبایل</span>
+                                </td>
+                                <td style="padding:12px 14px;" dir="ltr"><code>5wbbbl3thbu9pvc</code></td>
+                                <td style="padding:12px 14px;">
+                                    <?php $st_otp = self::is_pattern_active( '5wbbbl3thbu9pvc' ); ?>
+                                    <span class="brz-badge <?php echo $st_otp ? 'brz-badge-active' : 'brz-badge-pending'; ?>" style="font-size:11px;">
+                                        <?php echo $st_otp ? '🟢 تاییدشده' : '🟡 در انتظار'; ?>
+                                    </span>
+                                </td>
+                                <td style="padding:12px 14px;"><span style="color:#05593D;font-weight:600;">🛡️ آماده شلیک</span></td>
+                                <td style="padding:12px 14px;"><code>%code%</code></td>
+                                <td style="padding:12px 14px;text-align:center;">
+                                    <button type="button" class="button button-small brz-quick-test-row" data-code="5wbbbl3thbu9pvc" title="تست ارسال به مدیر">🚀 تست</button>
+                                </td>
+                            </tr>
+
+                            <!-- ردیف ۴: باکالا نظرسنجی -->
+                            <tr>
+                                <td style="padding:12px 14px;">
+                                    <strong style="color:#0f172a;display:block;">یادآوری ثبت نظر و امتیاز خرید</strong>
+                                    <span style="font-size:11px;color:#64748b;">[پوسته باکالا / ساعات سکوت] پس از تحویل و تکمیل سفارش</span>
+                                </td>
+                                <td style="padding:12px 14px;" dir="ltr"><code><?php echo esc_html( $opts['bakala_review_pattern'] ); ?></code></td>
+                                <td style="padding:12px 14px;">
+                                    <?php $st_rev = self::is_pattern_active( $opts['bakala_review_pattern'] ); ?>
+                                    <span class="brz-badge <?php echo $st_rev ? 'brz-badge-active' : 'brz-badge-pending'; ?>" style="font-size:11px;">
+                                        <?php echo $st_rev ? '🟢 تاییدشده' : '🟡 در انتظار'; ?>
+                                    </span>
+                                </td>
+                                <td style="padding:12px 14px;"><span style="color:#05593D;font-weight:600;">🛡️ آماده شلیک</span></td>
+                                <td style="padding:12px 14px;"><code>%name%</code>, <code>%order_id%</code>, <code>%product_link%</code></td>
+                                <td style="padding:12px 14px;text-align:center;">
+                                    <button type="button" class="button button-small brz-quick-test-row" data-code="<?php echo esc_attr( $opts['bakala_review_pattern'] ); ?>" title="تست ارسال به مدیر">🚀 تست</button>
+                                </td>
+                            </tr>
+
+                            <!-- ردیف ۵: باکالا سبد رهاشده -->
+                            <tr>
+                                <td style="padding:12px 14px;">
+                                    <strong style="color:#0f172a;display:block;">یادآوری سبد خرید رها شده</strong>
+                                    <span style="font-size:11px;color:#64748b;">[پوسته باکالا] بازگشت مشتری با تخفیف first</span>
+                                </td>
+                                <td style="padding:12px 14px;" dir="ltr"><code>b9yn4l0t11pz4w1</code></td>
+                                <td style="padding:12px 14px;">
+                                    <?php $st_cart = self::is_pattern_active( 'b9yn4l0t11pz4w1' ); ?>
+                                    <span class="brz-badge <?php echo $st_cart ? 'brz-badge-active' : 'brz-badge-pending'; ?>" style="font-size:11px;">
+                                        <?php echo $st_cart ? '🟢 تاییدشده' : '🟡 در انتظار'; ?>
+                                    </span>
+                                </td>
+                                <td style="padding:12px 14px;"><span style="color:#05593D;font-weight:600;">🛡️ آماده شلیک</span></td>
+                                <td style="padding:12px 14px;"><code>%name%</code>, <code>%link%</code></td>
+                                <td style="padding:12px 14px;text-align:center;">
+                                    <button type="button" class="button button-small brz-quick-test-row" data-code="b9yn4l0t11pz4w1" title="تست ارسال به مدیر">🚀 تست</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- کارت ۶: ویترین زنده آخرین ۱۰ شلیک پیامک (Telemetry Ring Buffer) -->
+            <div class="brz-card" style="background:#fff;border-radius:16px;padding:26px 28px;box-shadow:0 4px 20px rgba(0,0,0,0.04);margin-top:24px;border:1px solid #eef2f5;">
+                <h3 style="margin:0 0 8px;font-size:16px;color:#0f172a;display:flex;align-items:center;gap:8px;">
+                    <span>🛰️</span> ویترین ره‌گیری آخرین شلیک‌های پیامک سایت (Telemetry Ring Buffer)
+                </h3>
+                <p style="margin:0 0 16px;font-size:12px;color:#64748b;">پایش زنده ۱۰ پیامک اخیر شلیک‌شده با ذخیره‌سازی موقت در حافظه رم بدون اشغال پایگاه‌داده</p>
+
+                <?php $dispatches = self::get_recent_dispatches(); ?>
+                <?php if ( empty( $dispatches ) ) : ?>
+                    <div style="background:#f8fafc;padding:16px;border-radius:10px;text-align:center;color:#94a3b8;font-size:13px;border:1px dashed #cbd5e1;">
+                        هنوز رویداد پیامکی جدیدی در این نشست ثبت نشده است. با زدن دکمه «شلیک پیامک آزمایشی» عملکرد این بخش را ارزیابی نمایید.
+                    </div>
+                <?php else : ?>
+                    <div style="overflow-x:auto;">
+                        <table class="wp-list-table widefat fixed striped" style="font-size:12px;border:1px solid #e2e8f0;border-radius:10px;">
+                            <thead>
+                                <tr style="background:#f8fafc;">
+                                    <th style="font-weight:700;padding:10px 12px;width:110px;">زمان</th>
+                                    <th style="font-weight:700;padding:10px 12px;">رویداد</th>
+                                    <th style="font-weight:700;padding:10px 12px;width:130px;">شماره گیرنده</th>
+                                    <th style="font-weight:700;padding:10px 12px;width:130px;">روش ارسال</th>
+                                    <th style="font-weight:700;padding:10px 12px;width:130px;">شناسه پیامک</th>
+                                    <th style="font-weight:700;padding:10px 12px;width:110px;">وضعیت</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ( $dispatches as $d ) : ?>
+                                    <tr>
+                                        <td style="padding:10px 12px;" dir="ltr"><?php echo esc_html( $d['time'] ); ?></td>
+                                        <td style="padding:10px 12px;"><strong><?php echo esc_html( $d['event'] ); ?></strong></td>
+                                        <td style="padding:10px 12px;" dir="ltr"><?php echo esc_html( $d['phone'] ); ?></td>
+                                        <td style="padding:10px 12px;">
+                                            <?php if ( 'pattern' === $d['method'] ) : ?>
+                                                <span style="color:#05593D;font-weight:600;">🟢 پترن خدماتی</span>
+                                            <?php else : ?>
+                                                <span style="color:#d97706;font-weight:600;">🛡️ فال‌بک متن ساده</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td style="padding:10px 12px;" dir="ltr"><code><?php echo esc_html( $d['msg_id'] ); ?></code></td>
+                                        <td style="padding:10px 12px;"><span style="color:#10b981;font-weight:600;">تایید وب‌سرویس</span></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+
+                <script>
+                jQuery(document).ready(function($) {
+                    $('.brz-quick-test-row').on('click', function(e) {
+                        e.preventDefault();
+                        var code = $(this).data('code');
+                        $('#brz_admin_test_pattern_select').val(code);
+                        $('html, body').animate({
+                            scrollTop: $('#brz_admin_btn_run_test').offset().top - 120
+                        }, 400);
+                        $('#brz_admin_btn_run_test').trigger('click');
+                    });
+
+                    $('#brz_btn_matrix_refresh_all').on('click', function(e) {
+                        e.preventDefault();
+                        var $b = $(this);
+                        $b.prop('disabled', true).text('در حال استعلام...');
+                        location.reload();
                     });
                 });
                 </script>

@@ -20,6 +20,16 @@ if ( ! defined( 'BRZ_OPTION' ) ) {
     define( 'BRZ_OPTION', 'brz_options' );
 }
 
+if ( ! defined( 'DAY_IN_SECONDS' ) ) {
+    define( 'DAY_IN_SECONDS', 86400 );
+}
+if ( ! defined( 'HOUR_IN_SECONDS' ) ) {
+    define( 'HOUR_IN_SECONDS', 3600 );
+}
+if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+    define( 'MINUTE_IN_SECONDS', 60 );
+}
+
 // ─── In-memory options store ───────────────────────────────────────────────────
 
 global $wp_options;
@@ -49,6 +59,50 @@ function delete_option( string $key ): bool {
     global $wp_options;
     unset( $wp_options[ $key ] );
     return true;
+}
+
+// ─── In-memory transients store ────────────────────────────────────────────────
+
+global $wp_test_transients;
+$wp_test_transients = array();
+
+if ( ! function_exists( 'get_transient' ) ) {
+    function get_transient( string $transient ) {
+        global $wp_test_transients;
+        return array_key_exists( $transient, $wp_test_transients ) ? $wp_test_transients[ $transient ] : false;
+    }
+}
+
+if ( ! function_exists( 'set_transient' ) ) {
+    function set_transient( string $transient, $value, int $expiration = 0 ): bool {
+        global $wp_test_transients;
+        $wp_test_transients[ $transient ] = $value;
+        return true;
+    }
+}
+
+if ( ! function_exists( 'delete_transient' ) ) {
+    function delete_transient( string $transient ): bool {
+        global $wp_test_transients;
+        unset( $wp_test_transients[ $transient ] );
+        return true;
+    }
+}
+
+global $wp_test_current_time;
+$wp_test_current_time = array();
+
+if ( ! function_exists( 'current_time' ) ) {
+    function current_time( string $type, $gmt = 0 ) {
+        global $wp_test_current_time;
+        if ( isset( $wp_test_current_time[ $type ] ) ) {
+            return $wp_test_current_time[ $type ];
+        }
+        if ( 'timestamp' === $type ) {
+            return time();
+        }
+        return date( $type );
+    }
 }
 
 // ─── WordPress utility function mocks ──────────────────────────────────────────
@@ -460,8 +514,10 @@ if ( ! function_exists( 'str_ends_with' ) ) {
 // ─── Helper to reset global state between tests ────────────────────────────────
 
 function brz_test_reset_state(): void {
-    global $wp_options, $wp_test_filters, $wp_test_json_response, $wp_test_current_user_can, $wp_test_nonce_valid, $wp_test_queried_object_id, $wp_test_is_singular, $wp_test_revision_posts;
+    global $wp_options, $wp_test_transients, $wp_test_current_time, $wp_test_filters, $wp_test_json_response, $wp_test_current_user_can, $wp_test_nonce_valid, $wp_test_queried_object_id, $wp_test_is_singular, $wp_test_revision_posts;
     $wp_options                = array();
+    $wp_test_transients        = array();
+    $wp_test_current_time      = array();
     $wp_test_filters           = array();
     $wp_test_json_response     = null;
     $wp_test_current_user_can  = true;
@@ -469,6 +525,9 @@ function brz_test_reset_state(): void {
     $wp_test_queried_object_id = null;
     $wp_test_is_singular       = false;
     $wp_test_revision_posts    = array();
+    if ( class_exists( 'BRZ_Settings' ) ) {
+        BRZ_Settings::reset_cache();
+    }
 }
 
 if ( ! function_exists( 'get_queried_object_id' ) ) {

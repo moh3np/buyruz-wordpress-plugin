@@ -587,6 +587,19 @@ class BRZ_SMS_Shield {
             if ( ! BRZ_Shipping_SMS_Router::is_module_active() || ! BRZ_Shipping_SMS_Router::get_option( 'enable_bakala_review_guard', 1 ) ) {
                 return;
             }
+
+            // سپر ضد ارسال تکراری (Idempotency Shield)
+            if ( ! BRZ_Shipping_SMS_Router::acquire_idempotency_lock( 'review_reminder_' . $order->get_id(), 30 ) ) {
+                return;
+            }
+
+            // بررسی ساعات سکوت (Quiet Hours): جلوگیری از آزار مشتری در ساعات شبانه
+            if ( BRZ_Shipping_SMS_Router::is_quiet_hours_active() ) {
+                $order->add_order_note( '🌙 <strong>سپر ساعات سکوت بایروز:</strong> پیامک نظرسنجی سفارش به دلیل قرار داشتن در ساعات سکوت شبانه متوقف شد تا در ساعات آغازین صبح فردا شلیک شود.', 0, false );
+                $order->update_meta_data( '_brz_review_reminder_noted', 'yes' );
+                $order->save();
+                return;
+            }
         }
 
         $phone = $order->get_billing_phone();
@@ -601,7 +614,8 @@ class BRZ_SMS_Shield {
         if ( ! $is_active && ! empty( $phone ) ) {
             // سپر فال‌بک ضد ضربه: الگوی باکالا در انتظار تایید یا ناموفق است، ارسال بلادرنگ با متن ساده
             $name   = trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() );
-            $short  = home_url( '/s/r' . $order->get_id() );
+            $use_short = class_exists( 'BRZ_Shipping_SMS_Router' ) && BRZ_Shipping_SMS_Router::get_option( 'enable_url_compressor', 1 );
+            $short  = $use_short ? home_url( '/r/' . $order->get_id() ) : home_url( '/s/r' . $order->get_id() );
             $tpl    = class_exists( 'BRZ_Shipping_SMS_Router' ) ? BRZ_Shipping_SMS_Router::get_backup_template( $pattern_code ) : '';
 
             if ( empty( $tpl ) ) {

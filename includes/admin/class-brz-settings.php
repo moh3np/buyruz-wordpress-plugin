@@ -577,6 +577,10 @@ class BRZ_Settings {
                 'title'       => 'بهینه‌ساز llms.txt',
                 'description' => 'مدیریت استاندارد فایل llms.txt، سیستم پرامپت هوش مصنوعی، رفع خطاهای CORS و تزریق تگ Discovery.',
             ),
+            'buyruz-module-sms_management' => array(
+                'title'       => 'مرکز هوشمند پیامک و ره‌گیری (Pulse Suite)',
+                'description' => 'ماتریس سلامت زنده الگوهای پیامک، تفکیک پست و تیپاکس، ساعات سکوت، سپر فال‌بک ضد ضربه و ویجت پیشخوان.',
+            ),
         );
 
         return isset( $meta[ $active_slug ] ) ? $meta[ $active_slug ] : array(
@@ -2231,6 +2235,13 @@ class BRZ_Settings {
                     'enable_bakala_sms_ui'       => ! empty( $sm['enable_bakala_sms_ui'] ) ? 1 : 0,
                     'enable_bakala_review_guard' => ! empty( $sm['enable_bakala_review_guard'] ) ? 1 : 0,
                     'bakala_review_pattern'      => sanitize_text_field( trim( $sm['bakala_review_pattern'] ?? '43bte8qr368bkp7' ) ),
+                    'enable_dashboard_widget'    => ! empty( $sm['enable_dashboard_widget'] ) ? 1 : 0,
+                    'low_balance_threshold'      => isset( $sm['low_balance_threshold'] ) ? absint( $sm['low_balance_threshold'] ) : 500000,
+                    'enable_quiet_hours'         => ! empty( $sm['enable_quiet_hours'] ) ? 1 : 0,
+                    'quiet_hours_start'          => sanitize_text_field( trim( $sm['quiet_hours_start'] ?? '22:00' ) ),
+                    'quiet_hours_end'            => sanitize_text_field( trim( $sm['quiet_hours_end'] ?? '08:30' ) ),
+                    'enable_idempotency_shield'  => ! empty( $sm['enable_idempotency_shield'] ) ? 1 : 0,
+                    'enable_url_compressor'      => ! empty( $sm['enable_url_compressor'] ) ? 1 : 0,
                     'tpl_post_backup'            => sanitize_textarea_field( $sm['tpl_post_backup'] ?? '' ),
                     'tpl_tipax_backup'           => sanitize_textarea_field( $sm['tpl_tipax_backup'] ?? '' ),
                     'tpl_otp_backup'             => sanitize_textarea_field( $sm['tpl_otp_backup'] ?? '' ),
