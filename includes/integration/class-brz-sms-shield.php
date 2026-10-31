@@ -585,10 +585,37 @@ class BRZ_SMS_Shield {
         $phone = $order->get_billing_phone();
         $display_phone = ! empty( $phone ) ? esc_html( $phone ) : 'مشتری';
 
-        $order->add_order_note( sprintf(
-            '🌟 پیامک دعوت به ثبت نظر و بررسی سفارش با موفقیت به شماره %s ارسال شد (الگوی باکالا).',
-            $display_phone
-        ), 0, false );
+        // بررسی وضعیت الگو در آی‌پی‌پنل
+        $pattern_code = '43bte8qr368bkp7';
+        $is_active    = class_exists( 'BRZ_Shipping_SMS_Router' ) ? BRZ_Shipping_SMS_Router::is_pattern_active( $pattern_code ) : true;
+
+        if ( ! $is_active && ! empty( $phone ) ) {
+            // سپر فال‌بک ضد ضربه: الگوی باکالا در انتظار تایید یا ناموفق است، ارسال بلادرنگ با متن ساده
+            $name  = trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() );
+            $short = home_url( '/s/r' . $order->get_id() );
+            $plain = sprintf(
+                "%s عزیز\nتجربه‌تون از سفارش %s چطور بود؟\nبرای ثبت نظر و امتیاز، همین حالا به لینک زیر سر بزنید:\n%s\nبایروز",
+                ! empty( $name ) ? $name : 'مشتری',
+                $order->get_id(),
+                $short
+            );
+
+            if ( class_exists( 'BRZ_IPPanel' ) ) {
+                \BRZ_IPPanel::send_sms( $phone, $plain, '3000505' );
+            }
+
+            $order->add_order_note( sprintf(
+                '🛡️ <strong>سپر فال‌بک بایروز:</strong> به دلیل عدم تایید پترن «%s»، پیامک نظرسنجی با موفقیت به صورت متن ساده به شماره %s ارسال گردید.',
+                esc_html( $pattern_code ),
+                $display_phone
+            ), 0, false );
+        } else {
+            $order->add_order_note( sprintf(
+                '🌟 پیامک دعوت به ثبت نظر و بررسی سفارش با موفقیت به شماره %s ارسال شد (الگوی باکالا: %s).',
+                $display_phone,
+                esc_html( $pattern_code )
+            ), 0, false );
+        }
 
         $order->update_meta_data( '_brz_review_reminder_noted', 'yes' );
         $order->save();

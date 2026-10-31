@@ -70,5 +70,17 @@ namespace Buyruz\Tests\Unit {
 
             $this->assertArrayHasKey( 'Buyruz\Integration\BRZ_IPPanel_Gateway', $registered );
         }
+
+        public function test_get_backup_template_returns_correct_content() {
+            $otp = BRZ_Shipping_SMS_Router::get_backup_template( '5wbbbl3thbu9pvc' );
+            $this->assertStringContainsString( '%code%', $otp );
+
+            $review = BRZ_Shipping_SMS_Router::get_backup_template( '43bte8qr368bkp7' );
+            $this->assertStringContainsString( '%order_id%', $review );
+            $this->assertStringContainsString( 'بایروز', $review );
+
+            $tipax = BRZ_Shipping_SMS_Router::get_backup_template( '29q4boyn78jr0my' );
+            $this->assertStringContainsString( 'تیپاکس', $tipax );
+        }
     }
 }

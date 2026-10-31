@@ -95,7 +95,7 @@ class BRZ_Shipping_SMS_Router {
      */
     public static function enqueue_admin_assets( $hook ): void {
         $page = sanitize_text_field( $_GET['page'] ?? '' );
-        if ( $page !== 'persian-woocommerce-sms-pro' ) {
+        if ( $page !== 'persian-woocommerce-sms-pro' && $page !== 'bakala_options' ) {
             return;
         }
 
@@ -165,11 +165,19 @@ class BRZ_Shipping_SMS_Router {
             wp_send_json_error( array( 'message' => 'متن الگو خالی است.' ) );
         }
 
-        preg_match_all( '/\{([a-zA-Z0-9_-]+)\}/', $raw_text, $matches );
+        preg_match_all( '/[%\{]([a-zA-Z0-9_-]+)[\%\}]/', $raw_text, $matches );
         $variables = array_unique( $matches[1] ?? array() );
 
-        $desc = 'الگوی پیامک ارسال سفارش بایروز (ثبت خودکار از پیشخوان)';
-        if ( strpos( $code, self::DEFAULT_TIPAX_PATTERN ) !== false || stripos( $raw_text, 'تیپاکس' ) !== false ) {
+        $desc = 'الگوی پیامک اختصاصی فروشگاه بایروز';
+        if ( $code === '5wbbbl3thbu9pvc' ) {
+            $desc = 'الگوی اعتبارسنجی ورود و ثبت‌نام بایروز';
+        } elseif ( $code === '4snu1lum2ki0i3d' ) {
+            $desc = 'الگوی اطلاع‌رسانی پاسخ به دیدگاه محصول بایروز';
+        } elseif ( $code === 'b9yn4l0t11pz4w1' ) {
+            $desc = 'الگوی پیامک سبد خرید رها شده بایروز';
+        } elseif ( $code === '43bte8qr368bkp7' ) {
+            $desc = 'الگوی یادآوری ثبت نظر سفارشات مشتریان بایروز';
+        } elseif ( strpos( $code, self::DEFAULT_TIPAX_PATTERN ) !== false || stripos( $raw_text, 'تیپاکس' ) !== false ) {
             $desc = 'الگوی پیامک ارسال تیپاکس بایروز';
         } elseif ( strpos( $code, self::DEFAULT_POST_PATTERN ) !== false || stripos( $raw_text, 'پست' ) !== false ) {
             $desc = 'الگوی پیامک ارسال شرکت پست بایروز';
@@ -226,6 +234,7 @@ class BRZ_Shipping_SMS_Router {
                     $lines[] = 'name:{b_first_name} {b_last_name}';
                     break;
                 case 'order_id':
+                case 'order-id':
                     $lines[] = 'order_id:{order_id}';
                     break;
                 case 'tapin_barcode':
@@ -259,6 +268,31 @@ class BRZ_Shipping_SMS_Router {
             update_option( 'sms_buyer_settings', $opts );
         }
 
+        // همگام‌سازی تنظیمات متغیرها در پوسته باکالا
+        $bakala_opts    = get_option( 'bakala_options', array() );
+        $bakala_updated = false;
+        if ( is_array( $bakala_opts ) ) {
+            if ( isset( $bakala_opts['review_reminder_pattern'] ) && $bakala_opts['review_reminder_pattern'] === $code ) {
+                $bakala_opts['review_reminder_pattern_var_name']         = 'name';
+                $bakala_opts['review_reminder_pattern_var_order_id']     = 'order_id';
+                $bakala_opts['review_reminder_pattern_var_product_link'] = 'product_link';
+                $bakala_updated = true;
+            } elseif ( isset( $bakala_opts['reply_comment_pattern'] ) && $bakala_opts['reply_comment_pattern'] === $code ) {
+                $bakala_opts['reply_comment_pattern_var_name']         = 'name';
+                $bakala_opts['reply_comment_pattern_var_product_name'] = 'product_name';
+                $bakala_opts['reply_comment_pattern_var_product_link'] = 'product_link';
+                $bakala_updated = true;
+            } elseif ( isset( $bakala_opts['abandoned_cart_pattern'] ) && $bakala_opts['abandoned_cart_pattern'] === $code ) {
+                $bakala_opts['abandoned_cart_pattern_var_name'] = 'name';
+                $bakala_opts['abandoned_cart_pattern_var_link'] = 'link';
+                $bakala_updated = true;
+            }
+
+            if ( $bakala_updated ) {
+                update_option( 'bakala_options', $bakala_opts );
+            }
+        }
+
         wp_send_json_success( array(
             'message'             => 'آخرین متن و متغیرهای الگو با موفقیت از آی‌پی‌پنل دریافت و همگام‌سازی شد.',
             'pattern_message'     => $status['pattern_message'],
@@ -266,6 +300,31 @@ class BRZ_Shipping_SMS_Router {
             'status'              => $status['status'],
             'status_fa'           => $status['status_fa'],
         ) );
+    }
+
+    /**
+     * واکشی متن پشتیبان امن برای پترن‌ها در شرایط اضطراری
+     *
+     * @param string $code کد پترن
+     * @return string
+     */
+    public static function get_backup_template( string $code ): string {
+        switch ( $code ) {
+            case '5wbbbl3thbu9pvc':
+                return "کد ورود شما: %code%\n@buyruz.com #%code%";
+            case '4snu1lum2ki0i3d':
+                return "%name% عزیز\nبه دیدگاه شما در محصول %product_name% پاسخ داده شد.\nلینک: %product_link%\nبایروز";
+            case 'b9yn4l0t11pz4w1':
+                return "%name% عزیز\nشما یک سفارش رها شده در بایروز دارید.\nکد تخفیف: first\n%link%\nبایروز";
+            case '43bte8qr368bkp7':
+                return "%name% عزیز\nتجربه‌تون از سفارش %order_id% چطور بود؟\nبرای ثبت نظر و امتیاز:\n%product_link%\nبایروز";
+            case self::DEFAULT_POST_PATTERN:
+                return "%name% عزیز\nسفارش %order_id% تحویل شرکت پست شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین (فعال‌سازی تا عصر):\nhttps://tracking.post.ir\nبایروز";
+            case self::DEFAULT_TIPAX_PATTERN:
+                return "%name% عزیز\nسفارش %order_id% تحویل تیپاکس شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین در سامانه تیپاکس:\nhttps://tipaxco.com/tracking\nبایروز";
+            default:
+                return "اطلاع‌رسانی فروشگاه اینترنتی بایروز\nbuyruz.com";
+        }
     }
 
     /**
@@ -278,22 +337,71 @@ class BRZ_Shipping_SMS_Router {
             wp_send_json_error( array( 'message' => 'دسترسی غیرمجاز یا نشست منقضی شده است.' ) );
         }
 
-        // شماره موبایل تحت هر شرایطی کاملاً امن و محدود به شماره تست تاییدشده است
+        // شماره موبایل تحت هر شرایطی کاملاً امن و منحصراً شماره تست تاییدشده مدیر سایت است
         $test_phone = '09127166487';
+        $code       = sanitize_text_field( wp_unslash( $_POST['pattern_code'] ?? '' ) );
         $raw_text   = sanitize_textarea_field( wp_unslash( $_POST['pattern_text'] ?? '' ) );
 
-        if ( empty( $raw_text ) ) {
-            wp_send_json_error( array( 'message' => 'متن یا الگوی پیامک خالی است.' ) );
+        if ( empty( $code ) && ! empty( $raw_text ) ) {
+            preg_match( '/(?:pcode|pattern|patterncode)\s*:\s*([a-zA-Z0-9_-]+)/i', $raw_text, $m );
+            $code = $m[1] ?? '';
         }
 
-        preg_match( '/(?:pcode|pattern|patterncode)\s*:\s*([a-zA-Z0-9_-]+)/i', $raw_text, $m );
-        $code = $m[1] ?? '';
+        if ( empty( $code ) && empty( $raw_text ) ) {
+            wp_send_json_error( array( 'message' => 'کد پترن یا متن پیامک مشخص نشده است.' ) );
+        }
 
-        $test_vars = array(
-            'name'          => 'محسن پژوهیانی (تست)',
-            'order_id'      => '9999',
-            'tapin_barcode' => '123456789012345678901234',
-        );
+        // ساخت متغیرهای هوشمند بر اساس نوع پترن
+        $test_vars = array();
+
+        if ( $code === '5wbbbl3thbu9pvc' || strpos( $code, 'otp' ) !== false ) {
+            $test_vars = array( 'code' => '1234' );
+        } elseif ( $code === '4snu1lum2ki0i3d' ) {
+            $test_vars = array(
+                'name'         => 'محسن پژوهیانی (تست)',
+                'product_name' => 'روغن زیتون فرابکر بایروز',
+                'product_link' => 'https://buyruz.com',
+            );
+        } elseif ( $code === 'b9yn4l0t11pz4w1' ) {
+            $test_vars = array(
+                'name' => 'محسن پژوهیانی (تست)',
+                'link' => 'https://buyruz.com/cart',
+            );
+        } elseif ( $code === '43bte8qr368bkp7' ) {
+            $test_vars = array(
+                'name'         => 'محسن پژوهیانی (تست)',
+                'order_id'     => '9999',
+                'product_link' => 'https://buyruz.com/review',
+            );
+        } elseif ( $code === self::DEFAULT_POST_PATTERN || $code === self::DEFAULT_TIPAX_PATTERN ) {
+            $test_vars = array(
+                'name'          => 'محسن پژوهیانی (تست)',
+                'order_id'      => '9999',
+                'tapin_barcode' => '123456789012345678901234',
+            );
+        } else {
+            $st   = class_exists( 'BRZ_IPPanel' ) ? BRZ_IPPanel::get_pattern_status( $code ) : array();
+            $vars = (array) ( $st['variables'] ?? array() );
+            foreach ( $vars as $v ) {
+                $vname = is_array( $v ) ? ( $v['name'] ?? '' ) : (string) $v;
+                $vname = trim( $vname, "}{% \t\n\r" );
+                if ( empty( $vname ) ) continue;
+
+                if ( $vname === 'code' || $vname === 'otp' ) {
+                    $test_vars[ $vname ] = '1234';
+                } elseif ( $vname === 'name' ) {
+                    $test_vars[ $vname ] = 'محسن پژوهیانی (تست)';
+                } elseif ( $vname === 'order_id' || $vname === 'order-id' ) {
+                    $test_vars[ $vname ] = '9999';
+                } elseif ( strpos( $vname, 'link' ) !== false || strpos( $vname, 'url' ) !== false ) {
+                    $test_vars[ $vname ] = 'https://buyruz.com';
+                } elseif ( strpos( $vname, 'barcode' ) !== false ) {
+                    $test_vars[ $vname ] = '123456789012345678901234';
+                } else {
+                    $test_vars[ $vname ] = 'تست';
+                }
+            }
+        }
 
         $msg_id      = null;
         $method_used = 'pattern';
@@ -302,7 +410,7 @@ class BRZ_Shipping_SMS_Router {
             $msg_id = BRZ_IPPanel::send_pattern( $code, $test_phone, $test_vars );
         }
 
-        // سپر فال‌بک ضد ضربه: اگر پترن ارسال نشد، با متن ساده شلیک شود
+        // سپر فال‌بک ضد ضربه: اگر پترن ارسال نشد (مثلاً پترن جدید در وضعیت pending)، با متن ساده شلیک شود
         if ( empty( $msg_id ) ) {
             $method_used = 'fallback_plain';
 
@@ -310,18 +418,15 @@ class BRZ_Shipping_SMS_Router {
             $template = ! empty( $status['pattern_message'] ) ? $status['pattern_message'] : '';
 
             if ( empty( $template ) ) {
-                if ( $code === self::DEFAULT_POST_PATTERN ) {
-                    $template = "%name% عزیز\nسفارش %order_id% تحویل شرکت پست شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین (فعال‌سازی تا عصر):\nhttps://tracking.post.ir\nبایروز";
-                } else {
-                    $template = "%name% عزیز\nسفارش %order_id% تحویل تیپاکس شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین در سامانه تیپاکس:\nhttps://tipaxco.com/tracking\nبایروز";
-                }
+                $template = self::get_backup_template( $code );
             }
 
             $plain_text = $template;
             foreach ( $test_vars as $k => $v ) {
-                $plain_text = str_ireplace( '%' . $k . '%', $v, $plain_text );
+                $plain_text = str_ireplace( '%' . $k . '%', (string) $v, $plain_text );
+                $plain_text = str_ireplace( '{' . $k . '}', (string) $v, $plain_text );
             }
-            $plain_text = preg_replace( '/%[a-zA-Z0-9_-]+%/', '', $plain_text );
+            $plain_text = preg_replace( '/[%\{][a-zA-Z0-9_-]+[\%\}]/', '', $plain_text );
 
             $msg_id = BRZ_IPPanel::send_sms( $test_phone, $plain_text, '3000505' );
         }
