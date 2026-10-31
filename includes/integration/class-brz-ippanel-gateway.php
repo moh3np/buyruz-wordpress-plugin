@@ -200,10 +200,10 @@ if ( class_exists( '\PW\PWSMS\Gateways\IPPanelToken' ) ) {
             }
 
             if ( $code === '4tm5wmb9l6a8ptb' ) {
-                return "%name% عزیز\nسفارش %order_id% تحویل شرکت پست شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین (فعال‌سازی تا عصر):\nhttps://tracking.post.ir\nبایروز";
+                return "%name% عزیز\nسفارش %order_id% تحویل شرکت پست شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین (فعال‌سازی تا عصر):\nhttps://byrz.ir/post\nبایروز";
             }
             if ( $code === '29q4boyn78jr0my' ) {
-                return "%name% عزیز\nسفارش %order_id% تحویل تیپاکس شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین در سامانه تیپاکس:\nhttps://tipaxco.com/tracking\nبایروز";
+                return "%name% عزیز\nسفارش %order_id% تحویل تیپاکس شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین در سامانه تیپاکس:\nhttps://byrz.ir/tipax\nبایروز";
             }
 
             return '';

@@ -65,8 +65,8 @@ class BRZ_Shipping_SMS_Router {
             'quiet_hours_end'            => '08:30',
             'enable_idempotency_shield'  => 1,
             'enable_url_compressor'      => 1,
-            'tpl_post_backup'            => "%name% عزیز\nسفارش %order_id% تحویل شرکت پست شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین (فعال‌سازی تا عصر):\nhttps://tracking.post.ir\nبایروز",
-            'tpl_tipax_backup'           => "%name% عزیز\nسفارش %order_id% تحویل تیپاکس شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین در سامانه تیپاکس:\nhttps://tipaxco.com/tracking\nبایروز",
+            'tpl_post_backup'            => "%name% عزیز\nسفارش %order_id% تحویل شرکت پست شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین (فعال‌سازی تا عصر):\nhttps://byrz.ir/post\nبایروز",
+            'tpl_tipax_backup'           => "%name% عزیز\nسفارش %order_id% تحویل تیپاکس شد.\nکد رهگیری مرسوله: %tapin_barcode%\nرهگیری آنلاین در سامانه تیپاکس:\nhttps://byrz.ir/tipax\nبایروز",
             'tpl_otp_backup'             => "کد ورود شما: %code%\n@buyruz.com #%code%",
             'tpl_review_backup'          => "%name% عزیز\nتجربه‌تون از سفارش %order_id% چطور بود؟\nبرای ثبت نظر و امتیاز:\n%product_link%\nبایروز",
             'tpl_cart_backup'            => "%name% عزیز\nشما یک سفارش رها شده در بایروز دارید.\nکد تخفیف: first\n%link%\nبایروز",
@@ -314,6 +314,120 @@ class BRZ_Shipping_SMS_Router {
             wp_safe_redirect( home_url(), 302 );
             exit;
         }
+    }
+
+    /**
+     * الفبای ۵۸ کاراکتری استاندارد بدون ابهام چشمی (Base58)
+     */
+    public const SHORTENER_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+    /**
+     * تولید پیوند کوتاه با هماهنگی کامل مخزن پایگاه داده پنل (brz_short_urls) و دامنه byrz.ir
+     *
+     * @param string $target_url نشانی مقصد نهایی
+     * @param string $context نوع سناریو (sms_review, sms_cart, sms_reply)
+     * @param string|null $reference_id شناسه یکتای مرجع جهت ضد تکرار (مانند order_12345)
+     * @param array $utm_params پارامترهای رهگیری UTM
+     * @return string نشانی کوتاه شده (پیش‌فرض با دامنه byrz.ir)
+     */
+    public static function generate_short_url( string $target_url, string $context = 'sms', ?string $reference_id = null, array $utm_params = array() ): string {
+        $opts = self::get_options();
+        if ( empty( $opts['enable_url_compressor'] ) ) {
+            return $target_url;
+        }
+
+        global $wpdb;
+
+        // تزریق پارامترهای UTM در صورت وجود
+        if ( ! empty( $utm_params ) ) {
+            $target_url = add_query_arg( $utm_params, $target_url );
+        }
+
+        // ۱. بررسی لینک موجود در صورت وجود شناسه مرجع (Idempotency / Anti-Duplicate)
+        if ( ! empty( $reference_id ) && isset( $wpdb ) && is_object( $wpdb ) && method_exists( $wpdb, 'get_row' ) ) {
+            $table = 'brz_short_urls';
+            $existing = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT short_code FROM {$table} WHERE context = %s AND reference_id = %s LIMIT 1",
+                    $context,
+                    $reference_id
+                )
+            );
+            if ( $existing && ! empty( $existing->short_code ) ) {
+                return 'https://byrz.ir/' . $existing->short_code;
+            }
+        }
+
+        // ۲. ساخت کد کوتاه یکتا بر پایه Base58 با درج در دیتابیس مشترک
+        if ( isset( $wpdb ) && is_object( $wpdb ) && method_exists( $wpdb, 'insert' ) ) {
+            $table = 'brz_short_urls';
+            $table_exists = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
+            if ( $table_exists === $table ) {
+                $temp_code = 'tmp_' . bin2hex( random_bytes( 4 ) );
+                $inserted = $wpdb->insert(
+                    $table,
+                    array(
+                        'short_code'        => $temp_code,
+                        'target_url'        => $target_url,
+                        'domain_type'       => 'shop',
+                        'context'           => $context,
+                        'reference_id'      => $reference_id,
+                        'utm_source'        => $utm_params['utm_source'] ?? 'sms',
+                        'utm_medium'        => $utm_params['utm_medium'] ?? 'direct',
+                        'utm_campaign'      => $utm_params['utm_campaign'] ?? $context,
+                        'is_active'         => 1,
+                        'created_at'        => current_time( 'mysql' ),
+                        'updated_at'        => current_time( 'mysql' ),
+                    ),
+                    array( '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' )
+                );
+
+                if ( false !== $inserted && ! empty( $wpdb->insert_id ) ) {
+                    $insert_id = (int) $wpdb->insert_id;
+                    $short_code = self::to_base58( $insert_id, 4 );
+                    $wpdb->update(
+                        $table,
+                        array( 'short_code' => $short_code ),
+                        array( 'id' => $insert_id ),
+                        array( '%s' ),
+                        array( '%d' )
+                    );
+                    return 'https://byrz.ir/' . $short_code;
+                }
+            }
+        }
+
+        // فال‌بک ایمن در صورت نبود دیتابیس
+        if ( ! empty( $reference_id ) && preg_match( '/^order_([0-9]+)$/', $reference_id, $m ) ) {
+            return 'https://byrz.ir/r' . $m[1];
+        }
+
+        return $target_url;
+    }
+
+    /**
+     * تبدیل شناسه عددی به رشته مبنای ۵۸ (Base58) با شافلینگ بدون تصادم
+     */
+    public static function to_base58( int $num, int $min_len = 4 ): string {
+        $alphabet = self::SHORTENER_ALPHABET;
+        $base     = 58;
+        $res      = '';
+
+        if ( $num < 11316496 ) {
+            $num = ( $num * 3874205 + 1234567 ) % 11316496;
+        }
+
+        while ( $num > 0 ) {
+            $rem = $num % $base;
+            $res = $alphabet[ $rem ] . $res;
+            $num = intdiv( $num, $base );
+        }
+
+        if ( $res === '' ) {
+            $res = $alphabet[0];
+        }
+
+        return str_pad( $res, $min_len, $alphabet[0], STR_PAD_LEFT );
     }
 
     /**

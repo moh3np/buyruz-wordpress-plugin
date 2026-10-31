@@ -199,6 +199,7 @@ namespace Buyruz\Tests\Unit {
             $opts = BRZ_Smart_Comments::get_options();
             $opts['enable_utm_tags'] = 1;
             $opts['utm_campaign'] = 'expert_response';
+            $opts['enable_url_shortener'] = 0;
 
             $message = BRZ_Smart_Comments::format_sms_message( $parent, $reply, 'expert', $opts );
 
@@ -208,6 +209,11 @@ namespace Buyruz\Tests\Unit {
             $this->assertStringContainsString( 'utm_source=sms', $message );
             $this->assertStringContainsString( 'utm_campaign=expert_response', $message );
             $this->assertStringContainsString( 'بایروز مگ', $message );
+
+            // تست با فعال بودن کوتاه‌کننده دامنه byrz.ir
+            $opts['enable_url_shortener'] = 1;
+            $messageShort = BRZ_Smart_Comments::format_sms_message( $parent, $reply, 'expert', $opts );
+            $this->assertStringContainsString( 'https://byrz.ir/', $messageShort );
         }
 
         public function test_dispatch_sms_routes_to_pattern_when_active() {

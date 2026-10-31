@@ -567,6 +567,12 @@ class BRZ_Smart_Comments {
             ), $target_url );
         }
 
+        // تبدیل خودکار به پیوند کوتاه و امن دامنه byrz.ir جهت تضمین محدودیت ۴۰ کاراکتر پترن
+        $use_shortener = isset( $opts['enable_url_shortener'] ) ? ! empty( $opts['enable_url_shortener'] ) : true;
+        if ( $use_shortener && class_exists( '\Buyruz\Integration\BRZ_URL_Shortener' ) ) {
+            $target_url = \Buyruz\Integration\BRZ_URL_Shortener::shorten( $target_url, 'comment_reply', (string) $reply->comment_ID );
+        }
+
         $template = ( 'expert' === $reply_type ) ? $opts['expert_sms_template'] : $opts['peer_sms_template'];
 
         $replacements = array(

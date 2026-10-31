@@ -86,6 +86,23 @@ namespace Buyruz\Tests\Unit {
 
             $tipax = BRZ_Shipping_SMS_Router::get_backup_template( '29q4boyn78jr0my' );
             $this->assertStringContainsString( 'تیپاکس', $tipax );
+            $this->assertStringContainsString( 'https://byrz.ir/tipax', $tipax );
+
+            $post = BRZ_Shipping_SMS_Router::get_backup_template( '4tm5wmb9l6a8ptb' );
+            $this->assertStringContainsString( 'https://byrz.ir/post', $post );
+        }
+
+        public function test_generate_short_url_and_base58_encoding() {
+            // Test Base58 encoder
+            $code1 = BRZ_Shipping_SMS_Router::to_base58( 1, 4 );
+            $this->assertSame( 4, strlen( $code1 ) );
+
+            $code2 = BRZ_Shipping_SMS_Router::to_base58( 2, 4 );
+            $this->assertNotSame( $code1, $code2 );
+
+            // Test generate_short_url with order reference fallback
+            $url = BRZ_Shipping_SMS_Router::generate_short_url( 'https://buyruz.com/product/test', 'sms_review', 'order_50368' );
+            $this->assertSame( 'https://byrz.ir/r50368', $url );
         }
 
         public function test_get_default_options_has_all_modular_keys() {

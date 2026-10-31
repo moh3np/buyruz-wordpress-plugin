@@ -314,11 +314,20 @@ class BRZ_IPPanel {
         $sender_line = ! empty( $sender ) ? $sender : self::get_sender();
         $url = self::API_ENDPOINT . '/sms/pattern/normal/send';
 
-        // تضمین رعایت محدودیت طول متغیرها (حداکثر ۴۰ کاراکتر جهت جلوگیری از خطای وب‌سرویس)
+        // تضمین رعایت محدودیت طول متغیرها و کوتاه‌سازی خودکار پیوندها با دامنه byrz.ir
         $safe_variables = array();
         foreach ( $variables as $k => $v ) {
-            if ( is_string( $v ) && function_exists( 'mb_strlen' ) && mb_strlen( $v, 'UTF-8' ) > 40 ) {
-                $safe_variables[ $k ] = mb_substr( $v, 0, 39, 'UTF-8' );
+            if ( is_string( $v ) ) {
+                $val = trim( $v );
+                // اگر مقدار یک لینک کامل بود، پیش از ارسال به پترن خودکار به byrz.ir کوتاه شود
+                if ( preg_match( '#^https?://#i', $val ) && class_exists( '\Buyruz\Integration\BRZ_URL_Shortener' ) ) {
+                    $val = \Buyruz\Integration\BRZ_URL_Shortener::shorten( $val, 'pattern_var' );
+                }
+                if ( function_exists( 'mb_strlen' ) && mb_strlen( $val, 'UTF-8' ) > 40 ) {
+                    $safe_variables[ $k ] = mb_substr( $val, 0, 39, 'UTF-8' );
+                } else {
+                    $safe_variables[ $k ] = $val;
+                }
             } else {
                 $safe_variables[ $k ] = $v;
             }

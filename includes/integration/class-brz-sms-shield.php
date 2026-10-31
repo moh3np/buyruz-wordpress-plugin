@@ -615,7 +615,19 @@ class BRZ_SMS_Shield {
             // سپر فال‌بک ضد ضربه: الگوی باکالا در انتظار تایید یا ناموفق است، ارسال بلادرنگ با متن ساده
             $name   = trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() );
             $use_short = class_exists( 'BRZ_Shipping_SMS_Router' ) && BRZ_Shipping_SMS_Router::get_option( 'enable_url_compressor', 1 );
-            $short  = $use_short ? home_url( '/r/' . $order->get_id() ) : home_url( '/s/r' . $order->get_id() );
+            $target_review_url = home_url( '/r/' . $order->get_id() );
+            $short = ( class_exists( 'BRZ_Shipping_SMS_Router' ) && $use_short )
+                ? BRZ_Shipping_SMS_Router::generate_short_url(
+                    $target_review_url,
+                    'sms_review',
+                    'order_' . $order->get_id(),
+                    array(
+                        'utm_source'   => 'sms',
+                        'utm_medium'   => 'feedback',
+                        'utm_campaign' => 'review_reminder',
+                    )
+                )
+                : 'https://byrz.ir/r' . $order->get_id();
             $tpl    = class_exists( 'BRZ_Shipping_SMS_Router' ) ? BRZ_Shipping_SMS_Router::get_backup_template( $pattern_code ) : '';
 
             if ( empty( $tpl ) ) {

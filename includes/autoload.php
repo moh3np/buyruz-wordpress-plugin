@@ -15,6 +15,14 @@ spl_autoload_register( function( $class ) {
         return;
     }
 
+    if ( $class === 'Buyruz\\Integration\\BRZ_URL_Shortener' || $class === 'BRZ_URL_Shortener' ) {
+        $shortener_file = __DIR__ . '/integration/class-brz-url-shortener.php';
+        if ( file_exists( $shortener_file ) ) {
+            require_once $shortener_file;
+        }
+        return;
+    }
+
     if ( strpos( $class, 'BRZ_' ) !== 0 ) {
         return;
     }
@@ -48,6 +56,7 @@ spl_autoload_register( function( $class ) {
         'BRZ_Connections'                => 'admin/class-brz-connections.php',
         'BRZ_WC_Shortcodes'              => 'integration/class-brz-wc-shortcodes.php',
         'BRZ_Order_Processor'            => 'integration/class-brz-order-processor.php',
+        'BRZ_URL_Shortener'              => 'integration/class-brz-url-shortener.php',
         'BRZ_SMS_Shield'                 => 'integration/class-brz-sms-shield.php',
         'BRZ_Shipping_SMS_Router'        => 'integration/class-brz-shipping-sms-router.php',
         'BRZ_IPPanel_Gateway'            => 'integration/class-brz-ippanel-gateway.php',
