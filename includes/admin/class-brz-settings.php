@@ -581,6 +581,10 @@ class BRZ_Settings {
                 'title'       => 'مرکز هوشمند پیامک و ره‌گیری (Pulse Suite)',
                 'description' => 'ماتریس سلامت زنده الگوهای پیامک، تفکیک پست و تیپاکس، ساعات سکوت، سپر فال‌بک ضد ضربه و ویجت پیشخوان.',
             ),
+            'buyruz-module-bnpl_hub' => array(
+                'title'       => 'هاب اقساطی هوشمند (BNPL)',
+                'description' => 'مدیریت شرایط خرید اقساطی، فعال‌سازی درگاه‌های اسنپ‌پی، دیجی‌پی و ترب‌پی، و کنترل مبالغ.',
+            ),
         );
 
         return isset( $meta[ $active_slug ] ) ? $meta[ $active_slug ] : array(
@@ -1372,6 +1376,13 @@ class BRZ_Settings {
                 return;
             }
 
+            if ( 'bnpl_hub' === $module_slug && $active ) {
+                if ( class_exists( 'BRZ_BNPL_Hub' ) && method_exists( 'BRZ_BNPL_Hub', 'render_admin_page' ) ) {
+                    BRZ_BNPL_Hub::render_admin_page();
+                    return;
+                }
+            }
+
             if ( 'sms_management' === $module_slug && $active ) {
                 if ( class_exists( 'BRZ_Shipping_SMS_Router' ) && method_exists( 'BRZ_Shipping_SMS_Router', 'render_admin_page' ) ) {
                     BRZ_Shipping_SMS_Router::render_admin_page();
@@ -1830,6 +1841,12 @@ class BRZ_Settings {
         if ( strpos( $hook, 'buyruz-' ) === false ) {
             return;
         }
+
+        $page = sanitize_text_field( $_GET['page'] ?? '' );
+        if ( 'buyruz-module-sms_management' === $page && class_exists( 'BRZ_Shipping_SMS_Router' ) && method_exists( 'BRZ_Shipping_SMS_Router', 'enqueue_admin_assets' ) ) {
+            BRZ_Shipping_SMS_Router::enqueue_admin_assets( $hook );
+        }
+
         wp_enqueue_style( 'brz-settings-admin', BRZ_URL . 'assets/admin/settings.css', array(), BRZ_VERSION );
         wp_enqueue_script( 'brz-settings-admin', BRZ_URL . 'assets/admin/settings.js', array(), BRZ_VERSION, true );
         wp_enqueue_script( 'jquery-ui-sortable' );
@@ -2041,6 +2058,9 @@ class BRZ_Settings {
         $current['modules'] = $states;
         update_option( BRZ_OPTION, $current, false );
         self::$options_cache = $current;
+        if ( function_exists( 'wp_cache_delete' ) ) {
+            wp_cache_delete( BRZ_OPTION, 'options' );
+        }
 
         $label = isset( $registry[ $slug ]['label'] ) ? $registry[ $slug ]['label'] : $slug;
 
@@ -2076,15 +2096,17 @@ class BRZ_Settings {
             unset( $input['brz_form_context'] );
         }
 
-        // Modules (preserve by default)
+        // Modules (preserve existing states by default, only merge explicitly submitted module keys)
         if ( isset( $input['modules'] ) && is_array( $input['modules'] ) ) {
-            $states = array();
-            foreach ( BRZ_Modules::registry() as $slug => $meta ) {
-                $states[ $slug ] = ! empty( $input['modules'][ $slug ] ) ? 1 : 0;
+            $states = BRZ_Modules::get_states();
+            foreach ( $input['modules'] as $slug => $val ) {
+                if ( array_key_exists( $slug, BRZ_Modules::registry() ) ) {
+                    $states[ $slug ] = ! empty( $val ) ? 1 : 0;
+                }
             }
             $output['modules'] = $states;
             unset( $input['modules'] );
-        } elseif ( ! isset( $output['modules'] ) ) {
+        } elseif ( ! isset( $output['modules'] ) || ! is_array( $output['modules'] ) ) {
             $output['modules'] = BRZ_Modules::default_states();
         }
 
@@ -2179,7 +2201,11 @@ class BRZ_Settings {
             if ( isset( $input['speed_optimizer'] ) && is_array( $input['speed_optimizer'] ) ) {
                 $so = $input['speed_optimizer'];
                 $output['speed_optimizer'] = array(
-                    'product_css_optimizer' => ! empty( $so['product_css_optimizer'] ) ? 1 : 0,
+                    'product_css_optimizer'   => ! empty( $so['product_css_optimizer'] ) ? 1 : 0,
+                    'menu_cache'              => ! empty( $so['menu_cache'] ) ? 1 : 0,
+                    'schema_accelerator'      => ! empty( $so['schema_accelerator'] ) ? 1 : 0,
+                    'gutenberg_woo_optimizer' => ! empty( $so['gutenberg_woo_optimizer'] ) ? 1 : 0,
+                    'product_lcp_optimizer'   => ! empty( $so['product_lcp_optimizer'] ) ? 1 : 0,
                 );
                 unset( $input['speed_optimizer'] );
             }

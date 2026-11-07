@@ -28,10 +28,30 @@ namespace {
         }
     }
 
+    if ( ! function_exists( 'remove_action' ) ) {
+        function remove_action( $tag, $function_to_remove, $priority = 10 ) {
+            return true;
+        }
+    }
+
     if ( ! function_exists( 'is_product' ) ) {
         function is_product() {
             global $brz_test_is_product;
             return ! empty( $brz_test_is_product );
+        }
+    }
+
+    if ( ! function_exists( 'is_shop' ) ) {
+        function is_shop() {
+            global $brz_test_is_shop;
+            return ! empty( $brz_test_is_shop );
+        }
+    }
+
+    if ( ! function_exists( 'is_product_taxonomy' ) ) {
+        function is_product_taxonomy() {
+            global $brz_test_is_product_taxonomy;
+            return ! empty( $brz_test_is_product_taxonomy );
         }
     }
 
@@ -150,8 +170,110 @@ namespace {
             ob_start();
             \BRZ_Speed_Optimizer::render_admin_page();
             $out = ob_get_clean();
-            $this->assertStringContainsString( '⚡ بهینه‌ساز جامع سرعت، فونت و استایل‌های بایروز', $out );
+            $this->assertStringContainsString( '⚡ بهینه‌ساز جامع سرعت', $out );
             $this->assertStringContainsString( 'Smart Product Page CSS Optimizer', $out );
+            $this->assertStringContainsString( 'Mega-Menu Query Cache', $out );
+            $this->assertStringContainsString( 'Rank Math Schema Accelerator', $out );
+        }
+
+        public function test_menu_cache_and_schema_accelerator_enabled_by_default() {
+            $this->assertTrue( \BRZ_Speed_Optimizer::is_menu_cache_enabled() );
+            $this->assertTrue( \BRZ_Speed_Optimizer::is_schema_accelerator_enabled() );
+        }
+
+        public function test_related_products_transient_cache_lifecycle() {
+            global $wp_test_transients, $post;
+            $post = (object) array( 'ID' => 19896 );
+
+            // 1. Initial template call (cache miss)
+            $orig_located = '/themes/bakala/woocommerce/single-product/related.php';
+            $located = \BRZ_Speed_Optimizer::filter_related_products_template( $orig_located, 'single-product/related.php', array(), '', '' );
+            $this->assertSame( $orig_located, $located );
+
+            // Simulate template buffering
+            ob_start();
+            \BRZ_Speed_Optimizer::before_related_products_template( 'single-product/related.php', '', $located, array() );
+            echo '<div class="related-carousel">Sample Products</div>';
+            \BRZ_Speed_Optimizer::after_related_products_template( 'single-product/related.php', '', $located, array() );
+            $out = ob_get_clean();
+
+            $this->assertStringContainsString( 'related-carousel', $out );
+
+            // 2. Second template call (cache hit)
+            ob_start();
+            $hit_located = \BRZ_Speed_Optimizer::filter_related_products_template( $orig_located, 'single-product/related.php', array(), '', '' );
+            $cached_out = ob_get_clean();
+
+            $this->assertStringContainsString( 'empty.php', $hit_located );
+            $this->assertStringContainsString( 'related-carousel', $cached_out );
+
+            // 3. Purge cache
+            \BRZ_Speed_Optimizer::purge_related_products_cache( 19896 );
+            $this->assertFalse( get_transient( 'brz_rel_p_19896_desktop' ) );
+        }
+
+        public function test_gutenberg_woo_optimizer_toggle_and_execution(): void {
+            global $wp_test_is_product, $brz_test_is_product, $brz_test_is_shop, $brz_test_is_product_taxonomy, $wp_test_is_product_taxonomy, $wp_test_filters;
+
+            // 1. By default enabled
+            $this->assertTrue( \BRZ_Speed_Optimizer::is_gutenberg_woo_optimizer_enabled() );
+
+            $status = \BRZ_Speed_Optimizer::get_diagnostic_status();
+            $this->assertTrue( $status['gutenberg_woo_optimizer'] );
+
+            // 2. Execution on non-woo page does not add dequeue callback
+            $wp_test_is_product = false;
+            $brz_test_is_product = false;
+            $brz_test_is_shop = false;
+            $brz_test_is_product_taxonomy = false;
+            $wp_test_is_product_taxonomy = false;
+
+            $before_count = count( $wp_test_filters['wp_enqueue_scripts'] ?? array() );
+            \BRZ_Speed_Optimizer::maybe_optimize_gutenberg_woo_styles();
+            $this->assertSame( $before_count, count( $wp_test_filters['wp_enqueue_scripts'] ?? array() ) );
+
+            // 3. Execution on product page registers new dequeue callback
+            $wp_test_is_product = true;
+            $brz_test_is_product = true;
+            \BRZ_Speed_Optimizer::maybe_optimize_gutenberg_woo_styles();
+            $this->assertSame( $before_count + 1, count( $wp_test_filters['wp_enqueue_scripts'] ?? array() ) );
+
+            $wp_test_is_product = false;
+            $brz_test_is_product = false;
+        }
+
+        public function test_lcp_optimizer_toggle_and_attributes(): void {
+            global $brz_test_is_product, $wp_test_is_product;
+
+            $this->assertTrue( \BRZ_Speed_Optimizer::is_lcp_optimizer_enabled() );
+            $status = \BRZ_Speed_Optimizer::get_diagnostic_status();
+            $this->assertTrue( $status['lcp_optimizer'] );
+
+            // Test on non-product
+            $brz_test_is_product = false;
+            $wp_test_is_product = false;
+            $attr = array( 'class' => 'wp-post-image', 'loading' => 'lazy' );
+            $res = \BRZ_Speed_Optimizer::optimize_single_product_lcp_image( $attr, null, 'full' );
+            $this->assertSame( 'lazy', $res['loading'] );
+            $this->assertArrayNotHasKey( 'fetchpriority', $res );
+
+            // Test on product
+            $brz_test_is_product = true;
+            $wp_test_is_product = true;
+            $res = \BRZ_Speed_Optimizer::optimize_single_product_lcp_image( $attr, null, 'full' );
+            $this->assertArrayNotHasKey( 'loading', $res );
+            $this->assertSame( 'high', $res['fetchpriority'] );
+            $this->assertSame( 'async', $res['decoding'] );
+
+            // Test placeholder HTML filter
+            $placeholder_html = '<div class="woocommerce-product-gallery__image--placeholder"><img src="placeholder.webp" class="wp-post-image" loading="lazy" /></div>';
+            $filtered_html = \BRZ_Speed_Optimizer::optimize_single_product_placeholder_lcp_html( $placeholder_html, 0 );
+            $this->assertStringContainsString( 'fetchpriority="high"', $filtered_html );
+            $this->assertStringContainsString( 'decoding="async"', $filtered_html );
+            $this->assertStringNotContainsString( 'loading="lazy"', $filtered_html );
+
+            $brz_test_is_product = false;
+            $wp_test_is_product = false;
         }
     }
 }

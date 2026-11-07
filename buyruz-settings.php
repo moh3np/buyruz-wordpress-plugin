@@ -3,7 +3,7 @@
  * Plugin Name: تنظیمات بایروز
  * Plugin URI: https://github.com/Codruz/buyruz-plugin.git
  * Description: تنظیمات بایروز، مرکز مدیریت و هماهنگ‌سازی قابلیت‌ها و تنظیمات اختصاصی بایروز در سایت شماست. از این صفحه می‌توانید رفتار افزونه‌های بایروز را یکپارچه کنترل کنید.
- * Version: 5.48.0
+ * Version: 5.56.0
  * Author: کُدروز
  * Author URI: https://codruz.ir
  * License: Proprietary
@@ -21,7 +21,7 @@ $plugin_header = get_file_data(
         'Version' => 'Version',
     )
 );
-define( 'BRZ_VERSION', '5.48.0' );
+define( 'BRZ_VERSION', '5.56.0' );
 define( 'BRZ_PATH', plugin_dir_path( __FILE__ ) );
 define( 'BRZ_URL', plugin_dir_url( __FILE__ ) );
 define( 'BRZ_OPTION', 'brz_options' );
@@ -55,6 +55,18 @@ register_activation_hook( __FILE__, function(){
         'modules'         => BRZ_Modules::default_states(),
     );
     $current = get_option( BRZ_OPTION, array() );
+    if ( ! is_array( $current ) ) {
+        $current = array();
+    }
+    $current_modules = isset( $current['modules'] ) && is_array( $current['modules'] ) ? $current['modules'] : array();
+    $default_states  = BRZ_Modules::default_states();
+    foreach ( $default_states as $slug => $def_val ) {
+        if ( ! array_key_exists( $slug, $current_modules ) ) {
+            $current_modules[ $slug ] = $def_val;
+        }
+    }
+    $current_modules['static_controller'] = 0;
+    $current['modules'] = $current_modules;
     update_option( BRZ_OPTION, wp_parse_args( $current, $defaults ), false );
 });
 

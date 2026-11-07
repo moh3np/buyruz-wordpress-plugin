@@ -107,6 +107,10 @@ spl_autoload_register( function( $class ) {
         'BRZ_Link_Nexus_REST'            => 'integration/class-brz-link-nexus-rest.php',
         'BRZ_Smart_Telemetry'            => 'modules/smart-telemetry/class-brz-smart-telemetry.php',
         'BRZ_Smart_Comments'             => 'modules/smart-comments/class-brz-smart-comments.php',
+        'BRZ_BNPL_Hub'                   => 'modules/bnpl-hub/class-brz-bnpl-hub.php',
+        'BRZ_Telemetry_Radar'            => 'modules/telemetry/class-brz-telemetry-radar.php',
+        'BRZ_Notice_Shield'              => 'modules/notice-shield/class-brz-notice-shield.php',
+        'BRZ_Messenger_Hub'              => 'modules/messenger-hub/class-brz-messenger-hub.php',
     );
 
     $map = apply_filters( 'brz/autoload_map', $map );

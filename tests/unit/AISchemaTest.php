@@ -31,7 +31,8 @@ namespace {
 
     if ( ! function_exists( 'is_product' ) ) {
         function is_product() {
-            return true;
+            global $wp_test_is_product;
+            return $wp_test_is_product ?? true;
         }
     }
 

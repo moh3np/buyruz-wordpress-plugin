@@ -35,6 +35,45 @@ if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
 global $wp_options;
 $wp_options = array();
 
+global $wp_user_meta;
+$wp_user_meta = array();
+
+if ( ! function_exists( 'get_current_user_id' ) ) {
+    function get_current_user_id(): int {
+        return 1;
+    }
+}
+
+if ( ! function_exists( 'get_user_meta' ) ) {
+    function get_user_meta( int $user_id, string $key = '', bool $single = false ) {
+        global $wp_user_meta;
+        if ( empty( $key ) ) {
+            return $wp_user_meta[ $user_id ] ?? array();
+        }
+        $val = $wp_user_meta[ $user_id ][ $key ] ?? ( $single ? '' : array() );
+        return $val;
+    }
+}
+
+if ( ! function_exists( 'update_user_meta' ) ) {
+    function update_user_meta( int $user_id, string $key, $value ): bool {
+        global $wp_user_meta;
+        if ( ! isset( $wp_user_meta[ $user_id ] ) ) {
+            $wp_user_meta[ $user_id ] = array();
+        }
+        $wp_user_meta[ $user_id ][ $key ] = $value;
+        return true;
+    }
+}
+
+if ( ! function_exists( 'delete_user_meta' ) ) {
+    function delete_user_meta( int $user_id, string $key ): bool {
+        global $wp_user_meta;
+        unset( $wp_user_meta[ $user_id ][ $key ] );
+        return true;
+    }
+}
+
 /**
  * Mock get_option.
  */
@@ -118,6 +157,16 @@ if ( ! function_exists( 'get_post' ) ) {
         }
         $id = (int) $post;
         return $wp_test_posts[ $id ] ?? null;
+    }
+}
+
+if ( ! function_exists( 'get_the_ID' ) ) {
+    function get_the_ID() {
+        global $wp_test_post_id, $post;
+        if ( ! empty( $wp_test_post_id ) ) {
+            return $wp_test_post_id;
+        }
+        return isset( $post->ID ) ? $post->ID : 123;
     }
 }
 

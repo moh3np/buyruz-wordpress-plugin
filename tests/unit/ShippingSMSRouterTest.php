@@ -269,5 +269,69 @@ namespace Buyruz\Tests\Unit {
             $this->assertSame( 'event_15', $limited[0]['event'], 'Most recent entry should be at index 0.' );
             $this->assertSame( 'event_6', $limited[9]['event'], '10th entry should be event_6.' );
         }
+
+        public function test_get_all_system_scenarios_discovery() {
+            $scenarios = BRZ_Shipping_SMS_Router::get_all_system_scenarios();
+
+            $this->assertIsArray( $scenarios );
+            $this->assertCount( 13, $scenarios );
+
+            // Check key scenarios existence
+            $this->assertArrayHasKey( 'bakala_otp', $scenarios );
+            $this->assertArrayHasKey( 'wc_buyer_processing', $scenarios );
+            $this->assertArrayHasKey( 'buyruz_shipping_post', $scenarios );
+            $this->assertArrayHasKey( 'buyruz_shipping_tipax', $scenarios );
+            $this->assertArrayHasKey( 'bakala_review', $scenarios );
+            $this->assertArrayHasKey( 'bakala_cart', $scenarios );
+            $this->assertArrayHasKey( 'bakala_reply', $scenarios );
+            $this->assertArrayHasKey( 'wc_admin_processing', $scenarios );
+            $this->assertArrayHasKey( 'buyruz_fallback_plain', $scenarios );
+
+            // Check short link attributes
+            $this->assertTrue( $scenarios['buyruz_shipping_post']['has_short_link'] );
+            $this->assertSame( 'https://byrz.ir/post', $scenarios['buyruz_shipping_post']['short_link'] );
+            $this->assertTrue( $scenarios['buyruz_shipping_tipax']['has_short_link'] );
+            $this->assertSame( 'https://byrz.ir/tipax', $scenarios['buyruz_shipping_tipax']['short_link'] );
+            $this->assertFalse( $scenarios['bakala_otp']['has_short_link'] );
+        }
+
+        public function test_resolve_test_phone_supports_custom_destinations_and_normalizes() {
+            // Null or empty falls back to default phone
+            $this->assertSame( '09127166487', BRZ_Shipping_SMS_Router::resolve_test_phone( null ) );
+            $this->assertSame( '09127166487', BRZ_Shipping_SMS_Router::resolve_test_phone( '' ) );
+
+            // Custom valid Iranian mobiles
+            $this->assertSame( '09351234567', BRZ_Shipping_SMS_Router::resolve_test_phone( '09351234567' ) );
+            $this->assertSame( '09198765432', BRZ_Shipping_SMS_Router::resolve_test_phone( '9198765432' ) );
+            $this->assertSame( '09123456789', BRZ_Shipping_SMS_Router::resolve_test_phone( '989123456789' ) );
+            $this->assertSame( '09301112233', BRZ_Shipping_SMS_Router::resolve_test_phone( ' 0930-111-2233 ' ) );
+
+            // Invalid numbers fall back to default
+            $this->assertSame( '09127166487', BRZ_Shipping_SMS_Router::resolve_test_phone( '12345' ) );
+            $this->assertSame( '09127166487', BRZ_Shipping_SMS_Router::resolve_test_phone( '02188888888' ) );
+        }
+
+        public function test_smart_shields_options_storage_and_defaults() {
+            $opts = BRZ_Shipping_SMS_Router::get_options();
+            $this->assertArrayHasKey( 'enable_shipping_split', $opts );
+            $this->assertArrayHasKey( 'enable_quiet_hours', $opts );
+            $this->assertArrayHasKey( 'enable_url_compressor', $opts );
+            $this->assertArrayHasKey( 'enable_bakala_review_guard', $opts );
+            $this->assertArrayHasKey( 'override_wc_gateway', $opts );
+            $this->assertArrayHasKey( 'enable_fallback_plain', $opts );
+            $this->assertArrayHasKey( 'enable_idempotency_shield', $opts );
+            $this->assertArrayHasKey( 'enable_dashboard_widget', $opts );
+
+            // Update a shield key
+            $all = get_option( BRZ_OPTION, array() );
+            $all['sms_management']['enable_shipping_split'] = 0;
+            update_option( BRZ_OPTION, $all );
+            if ( class_exists( '\BRZ_Settings' ) ) {
+                \BRZ_Settings::reset_cache();
+            }
+
+            $updated = BRZ_Shipping_SMS_Router::get_options();
+            $this->assertSame( 0, $updated['enable_shipping_split'] );
+        }
     }
 }

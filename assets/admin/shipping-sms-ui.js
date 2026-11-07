@@ -20,21 +20,50 @@
         var toast = document.createElement('div');
         toast.id = 'brz-sms-toast';
         toast.className = 'brz-toast brz-toast-' + (type || 'success');
-        toast.textContent = message;
+
+        var icon = 'ℹ️';
+        if (type === 'success') icon = '✅';
+        if (type === 'error') icon = '❌';
+
+        var iconSpan = document.createElement('span');
+        iconSpan.textContent = icon;
+
+        var textSpan = document.createElement('span');
+        textSpan.textContent = message;
+        textSpan.style.flex = '1';
+
+        var closeBtn = document.createElement('span');
+        closeBtn.innerHTML = '&times;';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.fontSize = '18px';
+        closeBtn.style.opacity = '0.7';
+        closeBtn.style.padding = '0 4px';
+        closeBtn.title = 'بستن';
+        closeBtn.addEventListener('click', function() {
+            toast.classList.remove('brz-toast-show');
+            setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+        });
+
+        toast.appendChild(iconSpan);
+        toast.appendChild(textSpan);
+        toast.appendChild(closeBtn);
         document.body.appendChild(toast);
 
         setTimeout(function() {
             toast.classList.add('brz-toast-show');
         }, 10);
 
+        var duration = (type === 'error') ? 6500 : 4000;
         setTimeout(function() {
-            toast.classList.remove('brz-toast-show');
-            setTimeout(function() {
-                if (toast.parentNode) {
-                    toast.parentNode.removeChild(toast);
-                }
-            }, 300);
-        }, 4000);
+            if (toast.classList.contains('brz-toast-show')) {
+                toast.classList.remove('brz-toast-show');
+                setTimeout(function() {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 300);
+            }
+        }, duration);
     }
 
     function extractPatternCode(text) {
@@ -44,6 +73,7 @@
     }
 
     function insertTextAtCursor(inputEl, textToInsert) {
+        if (!inputEl) return;
         if (typeof inputEl.selectionStart !== 'undefined') {
             var start = inputEl.selectionStart;
             var end = inputEl.selectionEnd;
@@ -55,6 +85,10 @@
             inputEl.value += textToInsert;
         }
     }
+
+    // اکسپورت سراسری جهت اطمینان از عملکرد در هر موقعیتی
+    window.insertTextAtCursor = insertTextAtCursor;
+    window.brzInsertTextAtCursor = insertTextAtCursor;
 
     function highlightVariables(text) {
         if (!text) return '';
@@ -629,6 +663,650 @@
         }
     }
 
+    // -------------------------------------------------------------
+    // Pulse Suite 4.0: Modern Tabbed Dashboard & Matrix Controller
+    // -------------------------------------------------------------
+    function initPulseDashboard() {
+        var tabNav = document.querySelector('.brz-pulse-tab-nav');
+        if (!tabNav) {
+            return;
+        }
+
+        // ۱. ناوبری تب‌ها
+        var tabBtns = document.querySelectorAll('.brz-pulse-tab-btn');
+        var tabPanes = document.querySelectorAll('.brz-pulse-tab-pane');
+
+        function activateTab(tabId) {
+            tabBtns.forEach(function(btn) {
+                if (btn.getAttribute('data-tab') === tabId) {
+                    btn.classList.add('is-active');
+                } else {
+                    btn.classList.remove('is-active');
+                }
+            });
+
+            tabPanes.forEach(function(pane) {
+                if (pane.id === tabId) {
+                    pane.classList.add('is-active');
+                } else {
+                    pane.classList.remove('is-active');
+                }
+            });
+
+            try {
+                localStorage.setItem('brz_pulse_active_tab', tabId);
+                if (history.replaceState) {
+                    history.replaceState(null, null, '#' + tabId);
+                }
+            } catch (e) {}
+        }
+
+        tabBtns.forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                activateTab(this.getAttribute('data-tab'));
+            });
+        });
+
+        // بازیابی تب فعال از هش یا لوکال استوریج
+        var savedTab = '';
+        if (window.location.hash && document.getElementById(window.location.hash.substring(1))) {
+            savedTab = window.location.hash.substring(1);
+        } else {
+            try {
+                savedTab = localStorage.getItem('brz_pulse_active_tab');
+            } catch (e) {}
+        }
+        if (savedTab && document.getElementById(savedTab)) {
+            activateTab(savedTab);
+        }
+
+        // ۲. فیلتر کردن ردیف‌های ماتریس سلامت
+        var filterChips = document.querySelectorAll('.brz-filter-chip');
+        var searchInput = document.getElementById('brz-matrix-search');
+        var matrixRows = document.querySelectorAll('.brz-matrix-row');
+
+        function applyMatrixFilters() {
+            var activeFilter = document.querySelector('.brz-filter-chip.is-active');
+            var filterVal = activeFilter ? activeFilter.getAttribute('data-filter') : 'active';
+            var query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+            var visibleCount = 0;
+            matrixRows.forEach(function(row) {
+                var isActive = row.getAttribute('data-active') === '1';
+                var text = (row.getAttribute('data-search-text') || '').toLowerCase();
+
+                var matchesFilter = true;
+                if (filterVal === 'active' && !isActive) matchesFilter = false;
+                if (filterVal === 'inactive' && isActive) matchesFilter = false;
+
+                var matchesSearch = true;
+                if (query.length > 0 && text.indexOf(query) === -1) matchesSearch = false;
+
+                if (matchesFilter && matchesSearch) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            var countDisplay = document.getElementById('brz-filtered-count');
+            if (countDisplay) {
+                countDisplay.textContent = visibleCount;
+            }
+        }
+
+        filterChips.forEach(function(chip) {
+            chip.addEventListener('click', function(e) {
+                e.preventDefault();
+                filterChips.forEach(function(c) { c.classList.remove('is-active'); });
+                this.classList.add('is-active');
+                applyMatrixFilters();
+            });
+        });
+
+        if (searchInput) {
+            searchInput.addEventListener('input', applyMatrixFilters);
+        }
+
+        // اعمال فیلتر پیش‌فرض (فقط فعال‌ها)
+        applyMatrixFilters();
+
+        // ۳. سوییچ زنده فعال/غیرفعال‌سازی سناریوها با AJAX
+        var scenarioToggles = document.querySelectorAll('.brz-scenario-toggle');
+        scenarioToggles.forEach(function(toggle) {
+            toggle.addEventListener('change', function() {
+                var checkbox = this;
+                var wrapper = checkbox.closest('.brz-sms-switch') || checkbox.closest('.brz-toggle-switch');
+                var row = checkbox.closest('.brz-matrix-row');
+                var scenarioId = checkbox.getAttribute('data-scenario-id');
+                var isChecked = checkbox.checked ? 1 : 0;
+
+                if (wrapper) wrapper.classList.add('is-busy');
+
+                var formData = new FormData();
+                formData.append('action', 'brz_sms_toggle_scenario');
+                formData.append('nonce', config.nonce);
+                formData.append('scenario_id', scenarioId);
+                formData.append('is_active', isChecked);
+
+                fetch(config.ajaxUrl, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    if (wrapper) wrapper.classList.remove('is-busy');
+                    if (data && data.success) {
+                        showToast(data.data.message || 'وضعیت سناریو با موفقیت تغییر یافت.', 'success');
+                        if (row) {
+                            row.setAttribute('data-active', isChecked ? '1' : '0');
+                            var statusBadge = row.querySelector('.brz-scenario-status-badge');
+                            if (statusBadge) {
+                                if (isChecked) {
+                                    statusBadge.className = 'brz-status-pill brz-status-pill--active brz-scenario-status-badge';
+                                    statusBadge.innerHTML = '<span class="brz-status-dot"></span> فعال در سایت';
+                                } else {
+                                    statusBadge.className = 'brz-status-pill brz-status-pill--inactive brz-scenario-status-badge';
+                                    statusBadge.innerHTML = '<span class="brz-status-dot"></span> غیرفعال';
+                                }
+                            }
+                        }
+                        // به‌روزرسانی شمارنده بالای صفحه و نشان تب
+                        updateActiveScenariosCount();
+                        applyMatrixFilters();
+                    } else {
+                        checkbox.checked = !isChecked;
+                        showToast((data && data.data && data.data.message) ? data.data.message : 'خطا در تغییر وضعیت.', 'error');
+                    }
+                })
+                .catch(function() {
+                    if (wrapper) wrapper.classList.remove('is-busy');
+                    checkbox.checked = !isChecked;
+                    showToast('خطای شبکه در ارتباط با سرور.', 'error');
+                });
+            });
+        });
+
+        function updateActiveScenariosCount() {
+            var activeRows = document.querySelectorAll('.brz-matrix-row[data-active="1"]');
+            var totalCounter = document.getElementById('brz-total-active-count');
+            var tabBadge = document.getElementById('brz-tab-active-badge');
+            if (totalCounter) {
+                totalCounter.textContent = activeRows.length;
+            }
+            if (tabBadge) {
+                tabBadge.textContent = activeRows.length;
+            }
+        }
+
+        // ۴. شبیه‌ساز زنده موبایل (Mobile Simulator Preview)
+        var diagSelect = document.getElementById('brz_diag_scenario_select');
+        var phoneBubble = document.getElementById('brz-sms-preview-bubble') || document.getElementById('brz-phone-bubble-content');
+        var charCountEl = document.getElementById('brz-sms-char-count');
+        var segCountEl  = document.getElementById('brz-sms-segment-count');
+
+        function updatePhoneSimulator() {
+            if (!diagSelect || !phoneBubble) return;
+            var opt = diagSelect.options[diagSelect.selectedIndex];
+            if (!opt) return;
+
+            var preview = opt.getAttribute('data-preview') || 'پیامک آزمایشی بایروز';
+            var link = opt.getAttribute('data-link') || '';
+
+            var formatted = preview.replace(/\n/g, '<br>');
+            if (link) {
+                formatted += '<br><a href="' + link + '" target="_blank">' + link + '</a>';
+            }
+            formatted += '<span class="opt-out">بایروز<br>لغو11</span>';
+            phoneBubble.innerHTML = formatted;
+
+            // محاسبه تعداد کاراکتر و صفحات پیامک فارسی
+            if (charCountEl) {
+                var fullText = preview + (link ? '\n' + link : '') + '\nبایروز\nلغو11';
+                var len = fullText.length;
+                charCountEl.textContent = len + ' کاراکتر';
+                if (segCountEl) {
+                    var segs = len <= 70 ? 1 : Math.ceil(len / 67);
+                    segCountEl.textContent = segs + ' پیامک فارسی';
+                }
+            }
+        }
+
+        if (diagSelect) {
+            diagSelect.addEventListener('change', updatePhoneSimulator);
+            updatePhoneSimulator();
+        }
+
+        // تابع کمکی درج زنده شلیک در جدول تلمتری (تب ۵)
+        function appendToTelemetry(eventLabel, phone, method, msgId) {
+            var emptyBox = document.getElementById('brz-telemetry-empty');
+            var tableWrap = document.getElementById('brz-telemetry-table-wrap');
+            var tbody = document.getElementById('brz-telemetry-tbody');
+            if (!tbody) return;
+
+            if (emptyBox) emptyBox.style.display = 'none';
+            if (tableWrap) tableWrap.style.display = '';
+
+            var nowStr = new Date().toLocaleTimeString('fa-IR');
+            var tr = document.createElement('tr');
+            tr.style.background = '#ecfdf5';
+            tr.style.transition = 'background 1s ease';
+
+            var methodBadge = (method === 'pattern')
+                ? '<span class="brz-status-pill brz-status-pill--active">🟢 پترن خدماتی</span>'
+                : '<span class="brz-status-pill brz-status-pill--pending">🛡️ فال‌بک متن ساده</span>';
+
+            tr.innerHTML = '<td dir="ltr" style="font-family:ui-monospace, monospace;">' + nowStr + '</td>' +
+                '<td><strong>' + (eventLabel || 'تست آزمایشی') + '</strong></td>' +
+                '<td dir="ltr" style="font-family:ui-monospace, monospace;">' + (phone || '---') + '</td>' +
+                '<td>' + methodBadge + '</td>' +
+                '<td dir="ltr"><code>' + (msgId || 'OK') + '</code></td>' +
+                '<td><span class="brz-status-pill brz-status-pill--active">تایید وب‌سرویس</span></td>';
+
+            if (tbody.firstChild) {
+                tbody.insertBefore(tr, tbody.firstChild);
+            } else {
+                tbody.appendChild(tr);
+            }
+
+            setTimeout(function() {
+                tr.style.background = '';
+            }, 2000);
+
+            // حفظ سقف حداکثر ۱۰ ردیف
+            while (tbody.children.length > 10) {
+                tbody.removeChild(tbody.lastChild);
+            }
+        }
+
+        // دکمه استعلام وضعیت سرور آی‌پی‌پنل در تب ۱
+        var refreshMatrixBtn = document.getElementById('brz_btn_matrix_refresh_all');
+        if (refreshMatrixBtn) {
+            refreshMatrixBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (refreshMatrixBtn.disabled) return;
+                refreshMatrixBtn.disabled = true;
+                var origHtml = refreshMatrixBtn.innerHTML;
+                refreshMatrixBtn.innerHTML = '<span class="brz-spinning">🔄</span> در حال استعلام سرور...';
+
+                var formData = new FormData();
+                formData.append('action', 'brz_sms_refresh_patterns');
+                formData.append('nonce', config.nonce);
+
+                fetch(config.ajaxUrl, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    refreshMatrixBtn.disabled = false;
+                    refreshMatrixBtn.innerHTML = origHtml;
+                    if (data && data.success) {
+                        showToast(data.data.message || 'استعلام برخط وضعیت الگوها با موفقیت انجام شد.', 'success');
+                        var statuses = data.data.statuses || {};
+                        Object.keys(statuses).forEach(function(sId) {
+                            var info = statuses[sId];
+                            var pill = document.querySelector('.brz-server-status-pill[data-scenario-id="' + sId + '"]');
+                            if (pill) {
+                                if (info.is_active) {
+                                    pill.className = 'brz-status-pill brz-status-pill--active brz-server-status-pill';
+                                } else {
+                                    pill.className = 'brz-status-pill brz-status-pill--pending brz-server-status-pill';
+                                }
+                                var txt = pill.querySelector('.brz-status-text');
+                                if (txt) txt.textContent = info.label;
+                            }
+                        });
+                    } else {
+                        var err = (data && data.data && data.data.message) ? data.data.message : 'خطا در استعلام سرور.';
+                        showToast(err, 'error');
+                    }
+                })
+                .catch(function() {
+                    refreshMatrixBtn.disabled = false;
+                    refreshMatrixBtn.innerHTML = origHtml;
+                    showToast('خطای ارتباط با سرور.', 'error');
+                });
+            });
+        }
+
+        // سوییچ‌های تعاملی بلادرنگ سپرهای هوشمند در تب ۲
+        var shieldToggles = document.querySelectorAll('.brz-shield-toggle');
+        shieldToggles.forEach(function(toggle) {
+            toggle.addEventListener('change', function() {
+                var checkbox = this;
+                var wrapper = checkbox.closest('.brz-sms-switch');
+                var shieldKey = checkbox.getAttribute('data-shield-key');
+                var isChecked = checkbox.checked ? 1 : 0;
+
+                if (wrapper) wrapper.classList.add('is-busy');
+
+                var formData = new FormData();
+                formData.append('action', 'brz_sms_toggle_shield');
+                formData.append('nonce', config.nonce);
+                formData.append('shield_key', shieldKey);
+                formData.append('is_active', isChecked);
+
+                fetch(config.ajaxUrl, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    if (wrapper) wrapper.classList.remove('is-busy');
+                    if (data && data.success) {
+                        showToast(data.data.message || 'تنظیمات با موفقیت ذخیره شد.', 'success');
+                    } else {
+                        checkbox.checked = !isChecked;
+                        var err = (data && data.data && data.data.message) ? data.data.message : 'خطا در ذخیره تنظیمات.';
+                        showToast(err, 'error');
+                    }
+                })
+                .catch(function() {
+                    if (wrapper) wrapper.classList.remove('is-busy');
+                    checkbox.checked = !isChecked;
+                    showToast('خطای شبکه در ذخیره تنظیمات.', 'error');
+                });
+            });
+        });
+
+        // کلیک روی تگ‌های متغیر در تب ۳ (درج بی‌نقص در محل مکان‌نما)
+        document.addEventListener('click', function(e) {
+            var pill = e.target.closest('.brz-tag-pill');
+            if (!pill) return;
+            var textToInsert = pill.getAttribute('data-insert') || pill.textContent.trim();
+            if (!textToInsert) return;
+
+            var card = pill.closest('.brz-fallback-card') || pill.closest('div');
+            var textarea = card ? card.querySelector('textarea') : null;
+            if (!textarea && pill.parentElement && pill.parentElement.previousElementSibling && pill.parentElement.previousElementSibling.tagName === 'TEXTAREA') {
+                textarea = pill.parentElement.previousElementSibling;
+            }
+
+            if (textarea) {
+                insertTextAtCursor(textarea, textToInsert);
+                showToast('متغیر ' + textToInsert + ' در متن قالب درج شد.', 'info');
+            }
+        });
+
+        // ۵. اجرای تست انفرادی در تب دیاگنوستیک
+        var diagRunBtn = document.getElementById('brz_diag_run_btn');
+        var diagResultBox = document.getElementById('brz_diag_result_box');
+        var testPhoneInput = document.getElementById('brz_diag_test_phone');
+        var resetPhoneBtn = document.getElementById('brz_reset_test_phone_btn');
+
+        if (resetPhoneBtn && testPhoneInput) {
+            resetPhoneBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                var defPhone = testPhoneInput.getAttribute('data-default-phone') || config.testPhone || '09127166487';
+                testPhoneInput.value = defPhone;
+                showToast('شماره آزمون به پیش‌فرض مدیر بازنشانی شد: ' + defPhone, 'success');
+            });
+        }
+
+        if (diagRunBtn) {
+            diagRunBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (!diagSelect) return;
+
+                var scenarioId = diagSelect.value;
+                var opt = diagSelect.options[diagSelect.selectedIndex];
+                var patCode = opt ? opt.getAttribute('data-code') : '';
+                var scTitle = opt ? opt.textContent.trim() : 'تست آزمایشی';
+                var targetPhone = testPhoneInput ? testPhoneInput.value.trim() : (config.testPhone || '09127166487');
+                if (!targetPhone) {
+                    targetPhone = config.testPhone || '09127166487';
+                }
+
+                diagRunBtn.disabled = true;
+                diagRunBtn.innerHTML = '<span>⏳</span> در حال شلیک آزمایشی...';
+                if (diagResultBox) diagResultBox.style.display = 'none';
+
+                var formData = new FormData();
+                formData.append('action', 'brz_sms_test_send');
+                formData.append('nonce', config.nonce);
+                formData.append('scenario_id', scenarioId);
+                formData.append('pattern_code', patCode);
+                formData.append('test_phone', targetPhone);
+
+                fetch(config.ajaxUrl, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    diagRunBtn.disabled = false;
+                    diagRunBtn.innerHTML = '<span>🚀</span> شلیک پیامک آزمایشی';
+                    if (data && data.success) {
+                        showToast(data.data.message || 'پیامک با موفقیت ارسال شد.', 'success');
+                        appendToTelemetry(scTitle, targetPhone, data.data.method, data.data.msg_id);
+                        if (diagResultBox) {
+                            diagResultBox.style.background = '#ecfdf5';
+                            diagResultBox.style.color = '#065f46';
+                            diagResultBox.style.border = '1px solid #a7f3d0';
+                            diagResultBox.innerHTML = '<strong>✅ ' + data.data.message + '</strong>';
+                            diagResultBox.style.display = 'block';
+                        }
+                    } else {
+                        var err = (data && data.data && data.data.message) ? data.data.message : 'خطا در ارسال تست.';
+                        showToast(err, 'error');
+                        if (diagResultBox) {
+                            diagResultBox.style.background = '#fef2f2';
+                            diagResultBox.style.color = '#991b1b';
+                            diagResultBox.style.border = '1px solid #fecaca';
+                            diagResultBox.innerHTML = '<strong>❌ ' + err + '</strong>';
+                            diagResultBox.style.display = 'block';
+                        }
+                    }
+                })
+                .catch(function() {
+                    diagRunBtn.disabled = false;
+                    diagRunBtn.innerHTML = '<span>🚀</span> شلیک پیامک آزمایشی';
+                    showToast('خطای شبکه در شلیک پیامک.', 'error');
+                });
+            });
+        }
+
+        // ۶. اجرای آزمون دسته‌ای هوشمند با فاصله زمانی ضداسپم (Paced Batch Runner)
+        var batchStartBtn = document.getElementById('brz-batch-start-btn');
+        var batchStopBtn = document.getElementById('brz-batch-stop-btn');
+        var batchProgressBar = document.getElementById('brz-batch-progress-bar');
+        var batchConsole = document.getElementById('brz-batch-console');
+        var batchStatusText = document.getElementById('brz-batch-status-text');
+        var isBatchAborted = false;
+        var batchTimer = null;
+
+        if (batchStopBtn) {
+            batchStopBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                isBatchAborted = true;
+                if (batchTimer) clearInterval(batchTimer);
+                batchStopBtn.style.display = 'none';
+                batchStartBtn.disabled = false;
+                if (batchStatusText) batchStatusText.textContent = '🛑 آزمون دسته‌ای توسط کاربر متوقف شد.';
+                var line = document.createElement('div');
+                line.style.color = '#f87171';
+                line.textContent = '[' + new Date().toLocaleTimeString('fa-IR') + '] 🛑 آزمون دسته‌ای توسط کاربر لغو گردید.';
+                batchConsole.appendChild(line);
+                batchConsole.scrollTop = batchConsole.scrollHeight;
+                showToast('آزمون دسته‌ای متوقف شد.', 'info');
+            });
+        }
+
+        if (batchStartBtn && batchProgressBar && batchConsole) {
+            batchStartBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (batchStartBtn.disabled) return;
+
+                var activeOptions = [];
+                if (diagSelect) {
+                    for (var i = 0; i < diagSelect.options.length; i++) {
+                        var o = diagSelect.options[i];
+                        if (o.value) {
+                            activeOptions.push({
+                                id: o.value,
+                                title: o.textContent.trim(),
+                                code: o.getAttribute('data-code') || ''
+                            });
+                        }
+                    }
+                }
+
+                if (activeOptions.length === 0) {
+                    showToast('هیچ سناریوی فعالی برای آزمون دسته‌ای یافت نشد.', 'error');
+                    return;
+                }
+
+                var batchTargetPhone = testPhoneInput ? testPhoneInput.value.trim() : (config.testPhone || '09127166487');
+                if (!batchTargetPhone) {
+                    batchTargetPhone = config.testPhone || '09127166487';
+                }
+
+                isBatchAborted = false;
+                batchStartBtn.disabled = true;
+                if (batchStopBtn) batchStopBtn.style.display = 'inline-block';
+                batchConsole.innerHTML = '';
+                var total = activeOptions.length;
+                var currentIndex = 0;
+
+                function logMsg(msg) {
+                    var line = document.createElement('div');
+                    line.textContent = '[' + new Date().toLocaleTimeString('fa-IR') + '] ' + msg;
+                    batchConsole.appendChild(line);
+                    batchConsole.scrollTop = batchConsole.scrollHeight;
+                }
+
+                logMsg('🚀 شروع آزمون جامع ضداسپم: ارسال ' + total + ' سناریو به شماره ' + batchTargetPhone + ' با فاصله امن ۸ ثانیه‌ای...');
+
+                function runNext() {
+                    if (isBatchAborted) return;
+
+                    if (currentIndex >= total) {
+                        batchProgressBar.style.width = '100%';
+                        if (batchStatusText) batchStatusText.textContent = '✅ آزمون جامع با موفقیت پایان یافت!';
+                        batchStartBtn.disabled = false;
+                        if (batchStopBtn) batchStopBtn.style.display = 'none';
+                        showToast('تمامی سناریوهای فعال با موفقیت به شماره ' + batchTargetPhone + ' ارسال شدند.', 'success');
+                        logMsg('🏁 آزمون دسته‌ای تکمیل شد.');
+                        return;
+                    }
+
+                    var item = activeOptions[currentIndex];
+                    var progressPct = Math.round((currentIndex / total) * 100);
+                    batchProgressBar.style.width = progressPct + '%';
+                    if (batchStatusText) {
+                        batchStatusText.textContent = 'در حال شلیک (' + (currentIndex + 1) + ' از ' + total + '): ' + item.title;
+                    }
+
+                    logMsg('⚡ در حال شلیک: ' + item.title + ' (کد: ' + item.code + ')...');
+
+                    var formData = new FormData();
+                    formData.append('action', 'brz_sms_test_send');
+                    formData.append('nonce', config.nonce);
+                    formData.append('scenario_id', item.id);
+                    formData.append('pattern_code', item.code);
+                    formData.append('test_phone', batchTargetPhone);
+
+                    fetch(config.ajaxUrl, {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(function(res) { return res.json(); })
+                    .then(function(data) {
+                        if (isBatchAborted) return;
+                        if (data && data.success) {
+                            logMsg('✅ تحویل وب‌سرویس شد (شناسه پیامک: ' + (data.data.msg_id || 'OK') + ')');
+                            appendToTelemetry(item.title, batchTargetPhone, data.data.method, data.data.msg_id);
+                        } else {
+                            logMsg('⚠️ خطای شلیک: ' + ((data && data.data && data.data.message) ? data.data.message : 'عدم تایید وب‌سرویس'));
+                        }
+
+                        currentIndex++;
+                        if (currentIndex < total) {
+                            var countdown = 8;
+                            if (batchStatusText) batchStatusText.textContent = '⏳ استراحت ضداسپم همراه اول: ارسال بعدی در ' + countdown + ' ثانیه...';
+                            batchTimer = setInterval(function() {
+                                if (isBatchAborted) {
+                                    clearInterval(batchTimer);
+                                    return;
+                                }
+                                countdown--;
+                                if (batchStatusText) batchStatusText.textContent = '⏳ استراحت ضداسپم همراه اول: ارسال بعدی در ' + countdown + ' ثانیه...';
+                                if (countdown <= 0) {
+                                    clearInterval(batchTimer);
+                                    runNext();
+                                }
+                            }, 1000);
+                        } else {
+                            runNext();
+                        }
+                    })
+                    .catch(function() {
+                        if (isBatchAborted) return;
+                        logMsg('❌ خطای ارتباط شبکه در سناریو: ' + item.title);
+                        currentIndex++;
+                        setTimeout(runNext, 3000);
+                    });
+                }
+
+                runNext();
+            });
+        }
+
+        // ۷. شلیک تست سریع از جدول ماتریس سناریوها
+        var quickTestRowBtns = document.querySelectorAll('.brz-quick-test-row');
+        quickTestRowBtns.forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (btn.disabled) return;
+
+                var scenarioId = btn.getAttribute('data-scenario-id');
+                var patCode = btn.getAttribute('data-code');
+                var tr = btn.closest('tr');
+                var scTitle = tr && tr.querySelector('strong') ? tr.querySelector('strong').textContent.trim() : 'تست سریع سطر';
+                var targetPhone = testPhoneInput ? testPhoneInput.value.trim() : (config.testPhone || '09127166487');
+                if (!targetPhone) {
+                    targetPhone = config.testPhone || '09127166487';
+                }
+
+                var origText = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span>⏳</span> ...';
+
+                var formData = new FormData();
+                formData.append('action', 'brz_sms_test_send');
+                formData.append('nonce', config.nonce);
+                formData.append('scenario_id', scenarioId);
+                formData.append('pattern_code', patCode);
+                formData.append('test_phone', targetPhone);
+
+                fetch(config.ajaxUrl, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    btn.disabled = false;
+                    btn.innerHTML = origText;
+                    if (data && data.success) {
+                        showToast(data.data.message || 'پیامک آزمایشی با موفقیت ارسال شد.', 'success');
+                        appendToTelemetry(scTitle, targetPhone, data.data.method, data.data.msg_id);
+                    } else {
+                        var err = (data && data.data && data.data.message) ? data.data.message : 'خطا در ارسال پیامک آزمایشی.';
+                        showToast(err, 'error');
+                    }
+                })
+                .catch(function() {
+                    btn.disabled = false;
+                    btn.innerHTML = origText;
+                    showToast('خطای شبکه در ارسال پیامک آزمایشی.', 'error');
+                });
+            });
+        });
+    }
+
     function initAll() {
         // ۱. تکست‌اریاهای ووکامرس
         var wooSelectors = [
@@ -661,6 +1339,9 @@
                 initWidgetForBakalaInput(inp, key);
             });
         });
+
+        // ۳. راه‌اندازی داشبورد و ماتریس پالس سوئیت
+        initPulseDashboard();
     }
 
     document.addEventListener('DOMContentLoaded', initAll);

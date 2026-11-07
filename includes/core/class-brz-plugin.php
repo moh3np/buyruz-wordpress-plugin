@@ -14,6 +14,11 @@ class BRZ_Plugin {
         // Version-gated migrations (only when version changes)
         self::maybe_run_migrations();
 
+        // Sovereign Diagnostic & Telemetry Radar bootstrap (Zero-cost dormant if no audit request)
+        if ( class_exists( 'BRZ_Telemetry_Radar' ) ) {
+            BRZ_Telemetry_Radar::init();
+        }
+
         // Context detection
         $is_admin = is_admin();
         $is_rest  = defined( 'REST_REQUEST' ) && REST_REQUEST;
@@ -191,12 +196,25 @@ class BRZ_Plugin {
         $opts = get_option( BRZ_OPTION, array() );
         if ( is_array( $opts ) ) {
             $changed = false;
-            if ( isset( $opts['modules'] ) && is_array( $opts['modules'] ) ) {
-                // If static_controller was turned off due to legacy migration bug, heal it to active
-                if ( empty( $opts['modules']['static_controller'] ) && ! empty( $opts['static_controller'] ) ) {
-                    $opts['modules']['static_controller'] = 1;
+            if ( ! isset( $opts['modules'] ) || ! is_array( $opts['modules'] ) ) {
+                $opts['modules'] = BRZ_Modules::default_states();
+                $changed = true;
+            } else {
+                // Ensure all registered modules have a defined state without overwriting any user choice
+                $defaults = BRZ_Modules::default_states();
+                foreach ( BRZ_Modules::registry() as $slug => $meta ) {
+                    if ( ! array_key_exists( $slug, $opts['modules'] ) ) {
+                        $opts['modules'][ $slug ] = isset( $defaults[ $slug ] ) ? $defaults[ $slug ] : 0;
+                        $changed = true;
+                    }
+                }
+
+                // Static controller is officially retired and permanently disabled
+                if ( ! empty( $opts['modules']['static_controller'] ) ) {
+                    $opts['modules']['static_controller'] = 0;
                     $changed = true;
                 }
+
                 // Safely prune obsolete legacy keys without ever overwriting active module states
                 $obsolete_slugs = array( 'urlgen', 'page_mapper', 'price_queue' );
                 foreach ( $obsolete_slugs as $old_slug ) {
@@ -208,6 +226,12 @@ class BRZ_Plugin {
             }
             if ( $changed ) {
                 update_option( BRZ_OPTION, $opts, false );
+                if ( class_exists( 'BRZ_Settings' ) && method_exists( 'BRZ_Settings', 'reset_cache' ) ) {
+                    BRZ_Settings::reset_cache();
+                }
+                if ( function_exists( 'wp_cache_delete' ) ) {
+                    wp_cache_delete( BRZ_OPTION, 'options' );
+                }
             }
         }
 
