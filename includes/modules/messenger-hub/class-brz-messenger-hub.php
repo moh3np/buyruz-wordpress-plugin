@@ -65,6 +65,7 @@ class BRZ_Messenger_Hub {
         // Intercept Bakala OTP request to dispatch across SMS, Bale Safir, Bale Bot & Telegram Bot
         add_action( 'wp_ajax_bakala_send_code', array( __CLASS__, 'handle_send_code' ), 5 );
         add_action( 'wp_ajax_nopriv_bakala_send_code', array( __CLASS__, 'handle_send_code' ), 5 );
+        add_action( 'template_redirect', array( __CLASS__, 'maybe_intercept_custom_endpoint' ), 5 );
 
         $settings = self::get_settings();
         if ( empty( $settings['telegram_enabled'] ) ) {
@@ -73,6 +74,16 @@ class BRZ_Messenger_Hub {
 
         // WooCommerce Order Status Change Listener
         add_action( 'woocommerce_order_status_changed', array( __CLASS__, 'on_order_status_change' ), 20, 4 );
+    }
+
+    /**
+     * Intercept custom Bakala AJAX endpoint (/bakala/ajax/send_code/).
+     */
+    public static function maybe_intercept_custom_endpoint(): void {
+        $action = get_query_var( 'bakala_ajax_action' );
+        if ( 'send_code' === $action ) {
+            self::handle_send_code();
+        }
     }
 
     /**
