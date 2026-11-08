@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * هاب یکپارچه پیام‌رسان‌های بایروز (تلگرام و بله)
  * مدیریت ارتباط با ربات تلگرام از طریق گیت‌وی پرسرعت و پایدار کلودفلر،
  * ارسال بلادرنگ و غیربلاک‌کننده نوتیفیکیشن سفارشات برای مدیر و کاربران،
- * و ایجاد بستر کد تأیید ورود (OTP) با تلگرام و اتصال به بله.
+ * و ایجاد بستر همزمان ارسال کد تأیید ورود (OTP) در ۴ کانال: پیامک، سفیر بله، بازوی بله و ربات تلگرام.
  */
 class BRZ_Messenger_Hub {
 
@@ -30,7 +30,8 @@ class BRZ_Messenger_Hub {
             'bale_bot_id'               => '1849657353',
             'bale_bot_token'            => '1849657353:lu2XACGAlsWEcGPTsAlOP17gtFaaq2B_Jww',
             'bale_admin_mobile'         => '09139743730',
-            'bale_safir_key'            => '',
+            'bale_admin_chat_id'        => '700063503',
+            'bale_safir_key'            => 'wlTdB58fgazjKfs0',
         );
     }
 
@@ -53,12 +54,17 @@ class BRZ_Messenger_Hub {
             add_action( 'wp_ajax_brz_save_messenger_settings', array( __CLASS__, 'ajax_save_settings' ) );
             add_action( 'wp_ajax_brz_send_test_telegram', array( __CLASS__, 'ajax_send_test_telegram' ) );
             add_action( 'wp_ajax_brz_detect_telegram_chat_id', array( __CLASS__, 'ajax_detect_telegram_chat_id' ) );
+            add_action( 'wp_ajax_brz_detect_bale_chat_id', array( __CLASS__, 'ajax_detect_bale_chat_id' ) );
         }
 
         // Verify module is enabled in BRZ_Modules
         if ( class_exists( 'BRZ_Modules' ) && ! BRZ_Modules::is_enabled( 'messenger_hub' ) ) {
             return;
         }
+
+        // Intercept Bakala OTP request to dispatch across SMS, Bale Safir, Bale Bot & Telegram Bot
+        add_action( 'wp_ajax_bakala_send_code', array( __CLASS__, 'handle_send_code' ), 5 );
+        add_action( 'wp_ajax_nopriv_bakala_send_code', array( __CLASS__, 'handle_send_code' ), 5 );
 
         $settings = self::get_settings();
         if ( empty( $settings['telegram_enabled'] ) ) {
@@ -70,13 +76,140 @@ class BRZ_Messenger_Hub {
     }
 
     /**
+     * Intercept and handle bakala_send_code AJAX requests.
+     * Ensures OTP code is dispatched simultaneously to SMS, Bale (Safir & Bot), and Telegram.
+     */
+    public static function handle_send_code(): void {
+        // 1. Verify CSRF nonce
+        if ( function_exists( 'verify_general_nonce' ) ) {
+            verify_general_nonce();
+        }
+
+        // 2. Normalize and validate phone
+        $phone_raw = sanitize_text_field( $_POST['phone_email'] ?? '' );
+        $phone     = self::normalize_phone( $phone_raw );
+
+        if ( ! preg_match( '/^09[0-9]{9}$/', $phone ) ) {
+            wp_send_json( array(
+                'status'      => 'error',
+                'status_code' => 400,
+                'message'     => 'شماره موبایل وارد شده معتبر نیست.',
+            ) );
+        }
+
+        // 3. Cooldown check (120 seconds)
+        global $wpdb;
+        $table  = $wpdb->prefix . 'bakala_otp';
+        $latest = $wpdb->get_row( $wpdb->prepare( "SELECT created_at FROM {$table} WHERE phone = %s ORDER BY id DESC LIMIT 1", $phone ) );
+        if ( $latest ) {
+            $diff = time() - strtotime( $latest->created_at );
+            if ( $diff < 120 ) {
+                wp_send_json( array(
+                    'status'         => 'otp_active',
+                    'status_code'    => 200,
+                    'message'        => 'کد تایید قبلاً ارسال شده است. لطفاً کمی صبر کنید.',
+                    'remaining_time' => 120 - $diff,
+                    'bale_sent'      => true,
+                ) );
+            }
+        }
+
+        // 4. Generate 4-digit code
+        $code = (string) wp_rand( 1000, 9999 );
+
+        // 5. Dispatch via Bakala (handles SMS via IPPanel + Bale Safir with custom brand + DB insert)
+        if ( function_exists( 'bakala_dispatch_otp' ) ) {
+            bakala_dispatch_otp( $phone, $code );
+        }
+
+        // 6. Dispatch to Telegram Bot (@buyruz_bot)
+        $settings    = self::get_settings();
+        $admin_phone = self::normalize_phone( $settings['bale_admin_mobile'] ?? '09139743730' );
+
+        $tg_chat_id = ( $phone === $admin_phone ) ? ( $settings['telegram_admin_chat_id'] ?? '' ) : self::get_telegram_chat_id_by_phone( $phone );
+        if ( ! empty( $tg_chat_id ) ) {
+            self::send_telegram_otp( $tg_chat_id, $code );
+        }
+
+        // 7. Dispatch to Bale Personal Bot (@buyruz_bot)
+        $bale_chat_id = ( $phone === $admin_phone ) ? ( $settings['bale_admin_chat_id'] ?? '700063503' ) : self::get_bale_chat_id_by_phone( $phone );
+        if ( ! empty( $bale_chat_id ) ) {
+            self::send_bale_bot_otp( $bale_chat_id, $code );
+        }
+
+        // 8. Output success response
+        wp_send_json( array(
+            'status'      => 'success',
+            'status_code' => 200,
+            'message'     => 'کد تایید پیامک، بله و تلگرام شد.',
+            'bale_sent'   => true,
+        ) );
+    }
+
+    /**
+     * Normalize Iranian phone numbers to standard 09xxxxxxxxx format.
+     */
+    public static function normalize_phone( string $phone ): string {
+        $persian = array( '۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹' );
+        $arabic  = array( '٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩' );
+        $english = array( '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' );
+
+        $phone = str_replace( $persian, $english, $phone );
+        $phone = str_replace( $arabic, $english, $phone );
+        $phone = preg_replace( '/[^0-9]/', '', $phone );
+
+        if ( strpos( $phone, '989' ) === 0 ) {
+            $phone = '0' . substr( $phone, 2 );
+        } elseif ( strpos( $phone, '9' ) === 0 && strlen( $phone ) === 10 ) {
+            $phone = '0' . $phone;
+        }
+
+        return $phone;
+    }
+
+    /**
+     * Find mapped Telegram Chat ID for a phone number.
+     */
+    public static function get_telegram_chat_id_by_phone( string $phone ): string {
+        $user = self::get_user_by_phone( $phone );
+        if ( $user ) {
+            return (string) get_user_meta( $user->ID, '_brz_telegram_chat_id', true );
+        }
+        return '';
+    }
+
+    /**
+     * Find mapped Bale Chat ID for a phone number.
+     */
+    public static function get_bale_chat_id_by_phone( string $phone ): string {
+        $user = self::get_user_by_phone( $phone );
+        if ( $user ) {
+            return (string) get_user_meta( $user->ID, '_brz_bale_chat_id', true );
+        }
+        return '';
+    }
+
+    /**
+     * Find WordPress user by phone number.
+     */
+    public static function get_user_by_phone( string $phone ): ?WP_User {
+        $users = get_users( array(
+            'meta_key'   => 'billing_phone',
+            'meta_value' => $phone,
+            'number'     => 1,
+        ) );
+
+        if ( ! empty( $users ) ) {
+            return $users[0];
+        }
+
+        // Try username match
+        $user = get_user_by( 'login', $phone );
+        return $user ?: null;
+    }
+
+    /**
      * Send message via Telegram Bot through Cloudflare Worker Gateway.
-     *
-     * @param string|int $chat_id   Recipient Chat ID.
-     * @param string     $text      HTML formatted message text.
-     * @param array|null $keyboard  Optional InlineKeyboardMarkup array.
-     * @param bool       $blocking  Whether HTTP call should block execution.
-     * @return array|WP_Error Response from wp_remote_post.
      */
     public static function send_telegram_message( $chat_id, string $text, ?array $keyboard = null, bool $blocking = false ) {
         $settings = self::get_settings();
@@ -113,12 +246,64 @@ class BRZ_Messenger_Hub {
     }
 
     /**
+     * Send message via Bale Personal Bot (@buyruz_bot).
+     */
+    public static function send_bale_bot_message( $chat_id, string $text, bool $blocking = false ) {
+        $settings = self::get_settings();
+        $token    = trim( $settings['bale_bot_token'] ?? '' );
+
+        if ( empty( $token ) || empty( $chat_id ) ) {
+            return new WP_Error( 'missing_params', 'پارامترهای اتصال به بازوی بله کامل نیستند.' );
+        }
+
+        $api_url = 'https://tapi.bale.ai/bot' . $token . '/sendMessage';
+
+        $body = array(
+            'chat_id'    => $chat_id,
+            'text'       => $text,
+            'parse_mode' => 'HTML',
+        );
+
+        $args = array(
+            'headers'     => array( 'Content-Type' => 'application/json; charset=utf-8' ),
+            'body'        => wp_json_encode( $body ),
+            'timeout'     => $blocking ? 10 : 3,
+            'blocking'    => $blocking,
+            'data_format' => 'body',
+            'sslverify'   => true,
+        );
+
+        return wp_remote_post( $api_url, $args );
+    }
+
+    /**
+     * Send OTP verification code to a Telegram Chat.
+     */
+    public static function send_telegram_otp( $chat_id, string $code ): bool {
+        $text  = "🔐 <b>کد تایید ورود به بایروز:</b>\n\n";
+        $text .= "<code>{$code}</code>\n\n";
+        $text .= "⏱ این کد تا ۲ دقیقه معتبر است.\n";
+        $text .= "⚠️ لطفاً این کد را در اختیار دیگران قرار ندهید.";
+
+        $res = self::send_telegram_message( $chat_id, $text, null, false );
+        return ! is_wp_error( $res );
+    }
+
+    /**
+     * Send OTP verification code to a Bale Personal Chat.
+     */
+    public static function send_bale_bot_otp( $chat_id, string $code ): bool {
+        $text  = "🔐 <b>کد تایید ورود به بایروز:</b>\n\n";
+        $text .= "<code>{$code}</code>\n\n";
+        $text .= "⏱ این کد تا ۲ دقیقه معتبر است.\n";
+        $text .= "⚠️ لطفاً این کد را در اختیار دیگران قرار ندهید.";
+
+        $res = self::send_bale_bot_message( $chat_id, $text, false );
+        return ! is_wp_error( $res );
+    }
+
+    /**
      * Handle WooCommerce order status transition.
-     *
-     * @param int      $order_id   Order ID.
-     * @param string   $old_status Previous status slug.
-     * @param string   $new_status New status slug.
-     * @param WC_Order $order      Order instance.
      */
     public static function on_order_status_change( int $order_id, string $old_status, string $new_status, $order = null ): void {
         $settings = self::get_settings();
@@ -168,10 +353,16 @@ class BRZ_Messenger_Hub {
 
         // Non-blocking dispatch so checkout/save never delays
         self::send_telegram_message( $admin_chat_id, $message, $keyboard, false );
+
+        // Also notify admin in Bale personal bot if chat ID is set
+        $bale_admin_chat = trim( $settings['bale_admin_chat_id'] ?? '' );
+        if ( ! empty( $bale_admin_chat ) ) {
+            self::send_bale_bot_message( $bale_admin_chat, $message, false );
+        }
     }
 
     /**
-     * Format rich HTML message for Telegram order alert.
+     * Format rich HTML message for Telegram and Bale order alert.
      */
     public static function format_order_message( WC_Order $order, string $status ): string {
         $status_map = array(
@@ -233,24 +424,6 @@ class BRZ_Messenger_Hub {
     }
 
     /**
-     * Send OTP verification code to a Telegram Chat.
-     */
-    public static function send_telegram_otp( $chat_id, string $code ): bool {
-        $text  = "🔐 <b>کد تایید ورود به بایروز:</b>\n\n";
-        $text .= "<code>{$code}</code>\n\n";
-        $text .= "⏱ این کد تا ۲ دقیقه معتبر است.\n";
-        $text .= "⚠️ لطفاً این کد را در اختیار دیگران قرار ندهید.";
-
-        $res = self::send_telegram_message( $chat_id, $text, null, true );
-        if ( is_wp_error( $res ) ) {
-            return false;
-        }
-
-        $code_num = wp_remote_retrieve_response_code( $res );
-        return ( 200 === $code_num );
-    }
-
-    /**
      * AJAX handler to save messenger settings.
      */
     public static function ajax_save_settings(): void {
@@ -277,6 +450,7 @@ class BRZ_Messenger_Hub {
             'bale_bot_id'               => sanitize_text_field( trim( $raw['bale_bot_id'] ?? '' ) ),
             'bale_bot_token'            => sanitize_text_field( trim( $raw['bale_bot_token'] ?? '' ) ),
             'bale_admin_mobile'         => sanitize_text_field( trim( $raw['bale_admin_mobile'] ?? '' ) ),
+            'bale_admin_chat_id'        => sanitize_text_field( trim( $raw['bale_admin_chat_id'] ?? '' ) ),
             'bale_safir_key'            => sanitize_text_field( trim( $raw['bale_safir_key'] ?? '' ) ),
         );
 
@@ -286,7 +460,11 @@ class BRZ_Messenger_Hub {
         if ( ! empty( $clean['bale_bot_id'] ) ) {
             $bakala = get_option( 'bakala_options', array() );
             if ( is_array( $bakala ) ) {
-                $bakala['bale_bot_id'] = $clean['bale_bot_id'];
+                $bakala['bale_bot_id']      = $clean['bale_bot_id'];
+                $bakala['bale_use_core_bot'] = 0;
+                if ( ! empty( $clean['bale_safir_key'] ) ) {
+                    $bakala['bale_api_key'] = $clean['bale_safir_key'];
+                }
                 if ( ! empty( $clean['bale_admin_mobile'] ) ) {
                     $bakala['bale_admin_mobile'] = $clean['bale_admin_mobile'];
                 }
@@ -360,7 +538,6 @@ class BRZ_Messenger_Hub {
             wp_send_json_error( array( 'message' => 'پیام جدیدی در ربات یافت نشد. لطفاً در تلگرام به آیدی @buyruz_bot پیام /start بفرستید و دوباره دکمه را بزنید.' ) );
         }
 
-        // Get latest message
         $updates = $body['result'];
         $last    = end( $updates );
         $chat    = $last['message']['chat'] ?? null;
@@ -380,7 +557,52 @@ class BRZ_Messenger_Hub {
             'chat_id'  => $chat_id,
             'username' => $username,
             'name'     => $name,
-            'message'  => "شناسه چت با موفقیت شناسایی شد: {$chat_id} (" . ( $username ? '@' . $username : $name ) . ")",
+            'message'  => "شناسه چت تلگرام شناسایی شد: {$chat_id} (" . ( $username ? '@' . $username : $name ) . ")",
+        ) );
+    }
+
+    /**
+     * AJAX handler to auto-detect Bale Chat ID from /getUpdates.
+     */
+    public static function ajax_detect_bale_chat_id(): void {
+        check_ajax_referer( self::NONCE_ACTION, 'nonce' );
+        if ( ! current_user_can( 'manage_woocommerce' ) && ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'دسترسی مجاز نیست.' ), 403 );
+        }
+
+        $settings = self::get_settings();
+        $token    = trim( $settings['bale_bot_token'] ?? '' );
+
+        $url = 'https://tapi.bale.ai/bot' . $token . '/getUpdates';
+        $res = wp_remote_get( $url, array( 'timeout' => 8, 'sslverify' => true ) );
+
+        if ( is_wp_error( $res ) ) {
+            wp_send_json_error( array( 'message' => 'ارتباط با بله برقرار نشد: ' . $res->get_error_message() ) );
+        }
+
+        $body = json_decode( wp_remote_retrieve_body( $res ), true );
+        if ( empty( $body['ok'] ) || empty( $body['result'] ) ) {
+            wp_send_json_error( array( 'message' => 'پیام جدیدی در بازوی بله یافت نشد. لطفاً در بله به آیدی @buyruz_bot پیام /start بفرستید.' ) );
+        }
+
+        $updates = $body['result'];
+        $last    = end( $updates );
+        $chat    = $last['message']['chat'] ?? null;
+
+        if ( ! $chat || empty( $chat['id'] ) ) {
+            wp_send_json_error( array( 'message' => 'اطلاعات چت بله استخراج نشد.' ) );
+        }
+
+        $chat_id = (string) $chat['id'];
+        $name    = trim( ( $chat['first_name'] ?? '' ) . ' ' . ( $chat['last_name'] ?? '' ) );
+
+        $settings['bale_admin_chat_id'] = $chat_id;
+        update_option( self::OPTION_KEY, $settings, false );
+
+        wp_send_json_success( array(
+            'chat_id' => $chat_id,
+            'name'    => $name,
+            'message' => "شناسه چت بله شناسایی شد: {$chat_id} ({$name})",
         ) );
     }
 
@@ -418,7 +640,7 @@ class BRZ_Messenger_Hub {
                 <div style="flex: 1; min-width: 250px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.03); display: flex; align-items: center; gap: 14px;">
                     <div style="font-size: 32px; line-height: 1;">📱</div>
                     <div>
-                        <div style="font-size: 13px; color: #64748b; font-weight: 500;">بازوی بله</div>
+                        <div style="font-size: 13px; color: #64748b; font-weight: 500;">بازوی بله (سفیر + بات)</div>
                         <div style="font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 3px;">
                             <a href="https://ble.ir/buyruz_bot" target="_blank" style="color: #059669; text-decoration: none;">@buyruz_bot</a>
                             <span style="display: inline-block; background: #dcfce7; color: #15803d; font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; margin-right: 6px;">شناسه: <?php echo esc_html( $settings['bale_bot_id'] ); ?></span>
@@ -454,7 +676,7 @@ class BRZ_Messenger_Hub {
                             <td>
                                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                                     <input type="checkbox" id="brz-tg-enabled" <?php checked( 1, $settings['telegram_enabled'] ); ?> />
-                                    <span>ارسال اعلان وضعیت سفارشات ووکامرس به تلگرام فعال باشد</span>
+                                    <span>ارسال اعلان وضعیت سفارشات و کدهای OTP به تلگرام فعال باشد</span>
                                 </label>
                             </td>
                         </tr>
@@ -479,7 +701,7 @@ class BRZ_Messenger_Hub {
                                     <input type="text" id="brz-tg-chat-id" class="regular-text code" dir="ltr" value="<?php echo esc_attr( $settings['telegram_admin_chat_id'] ); ?>" style="flex: 1;" />
                                     <button type="button" id="brz-tg-detect-btn" class="button" style="white-space: nowrap;">🔍 استخراج خودکار آیدی</button>
                                 </div>
-                                <p class="description">شناسه عددی اکانت تلگرام مدیر (۷۱۴۵۲۸۳۴). پیام‌های سفارشات به این چت ارسال می‌شود.</p>
+                                <p class="description">شناسه عددی اکانت تلگرام مدیر (۷۱۴۵۲۸۳۴). پیام‌های سفارشات و OTP مدیر به این چت ارسال می‌شود.</p>
                             </td>
                         </tr>
                         <tr>
@@ -517,17 +739,34 @@ class BRZ_Messenger_Hub {
                 <table class="form-table" role="presentation">
                     <tbody>
                         <tr>
-                            <th scope="row"><label for="brz-bale-bot-id">شناسه بازوی بله (Bot ID)</label></th>
+                            <th scope="row"><label for="brz-bale-safir-key">کلید وب‌سرویس سفیر (Api Access Key)</label></th>
                             <td>
-                                <input type="text" id="brz-bale-bot-id" class="regular-text code" dir="ltr" value="<?php echo esc_attr( $settings['bale_bot_id'] ); ?>" style="width: 100%; max-width: 520px;" />
-                                <p class="description">شناسه عددی بازو (مثلاً <code>1849657353</code> برای @buyruz_bot).</p>
+                                <input type="text" id="brz-bale-safir-key" class="regular-text code" dir="ltr" value="<?php echo esc_attr( $settings['bale_safir_key'] ); ?>" style="width: 100%; max-width: 520px;" />
+                                <p class="description">کلید دریافتی از business.bale.ai جهت درج عنوان رسمی «از طرف: فروشگاه اینترنتی بایروز» در کانال OTP بله.</p>
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><label for="brz-bale-token">توکن بازوی بله</label></th>
+                            <th scope="row"><label for="brz-bale-bot-id">شناسه بازوی بله (Bot ID)</label></th>
+                            <td>
+                                <input type="text" id="brz-bale-bot-id" class="regular-text code" dir="ltr" value="<?php echo esc_attr( $settings['bale_bot_id'] ); ?>" style="width: 100%; max-width: 520px;" />
+                                <p class="description">شناسه عددی بازو (<code>1849657353</code> برای @buyruz_bot).</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="brz-bale-token">توکن بازوی بله (Bot Token)</label></th>
                             <td>
                                 <input type="password" id="brz-bale-token" class="regular-text code" dir="ltr" value="<?php echo esc_attr( $settings['bale_bot_token'] ); ?>" style="width: 100%; max-width: 520px;" />
-                                <p class="description">توکن بات‌فادر بله جهت تعامل‌های مستقیم API.</p>
+                                <p class="description">توکن بات‌فادر بله جهت ارسال پیام در چت شخصی خود بازو.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="brz-bale-chat-id">شناسه چت شخصی مدیر در بله (Bale Chat ID)</label></th>
+                            <td>
+                                <div style="display: flex; gap: 10px; align-items: center; max-width: 520px;">
+                                    <input type="text" id="brz-bale-chat-id" class="regular-text code" dir="ltr" value="<?php echo esc_attr( $settings['bale_admin_chat_id'] ); ?>" style="flex: 1;" />
+                                    <button type="button" id="brz-bale-detect-btn" class="button" style="white-space: nowrap;">🔍 استخراج خودکار آیدی بله</button>
+                                </div>
+                                <p class="description">شناسه چت اکانت بله شما (<code>700063503</code>). پیام‌های OTP و سفارشات در چت خود بازوی بله به این آیدی ارسال می‌شود.</p>
                             </td>
                         </tr>
                         <tr>
@@ -616,6 +855,39 @@ class BRZ_Messenger_Hub {
                 });
             });
 
+            // Detect Bale Chat ID
+            $('#brz-bale-detect-btn').on('click', function(e) {
+                e.preventDefault();
+                var $btn = $(this);
+                var $fb  = $('#brz-ms-save-feedback');
+                $btn.prop('disabled', true).text('در حال جستجو...');
+                $fb.text('').css('color', '#64748b');
+
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        action: 'brz_detect_bale_chat_id',
+                        nonce: $('#brz-ms-nonce').val()
+                    },
+                    success: function(res) {
+                        $btn.prop('disabled', false).text('🔍 استخراج خودکار آیدی بله');
+                        if (res && res.success) {
+                            $('#brz-bale-chat-id').val(res.data.chat_id);
+                            $fb.text(res.data.message || 'شناسه بله ثبت شد').css('color', '#16a34a');
+                        } else {
+                            var err = (res && res.data && res.data.message) ? res.data.message : 'یافت نشد';
+                            $fb.text(err).css('color', '#dc2626');
+                        }
+                    },
+                    error: function() {
+                        $btn.prop('disabled', false).text('🔍 استخراج خودکار آیدی بله');
+                        $fb.text('خطا در ارتباط با سرور').css('color', '#dc2626');
+                    }
+                });
+            });
+
             // Save Settings
             $('#brz-messenger-form').on('submit', function(e) {
                 e.preventDefault();
@@ -636,8 +908,10 @@ class BRZ_Messenger_Hub {
                     telegram_admin_chat_id: $('#brz-tg-chat-id').val(),
                     telegram_notify_new_order: 1,
                     telegram_statuses: statuses,
+                    bale_safir_key: $('#brz-bale-safir-key').val(),
                     bale_bot_id: $('#brz-bale-bot-id').val(),
                     bale_bot_token: $('#brz-bale-token').val(),
+                    bale_admin_chat_id: $('#brz-bale-chat-id').val(),
                     bale_admin_mobile: $('#brz-bale-mobile').val()
                 };
 

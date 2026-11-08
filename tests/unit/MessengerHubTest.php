@@ -50,15 +50,32 @@ namespace Buyruz\Tests\Unit {
             $this->assertArrayHasKey( 'telegram_statuses', $defaults );
             $this->assertArrayHasKey( 'bale_bot_id', $defaults );
             $this->assertArrayHasKey( 'bale_admin_mobile', $defaults );
+            $this->assertArrayHasKey( 'bale_admin_chat_id', $defaults );
+            $this->assertArrayHasKey( 'bale_safir_key', $defaults );
 
             $this->assertSame( '71452834', $defaults['telegram_admin_chat_id'] );
+            $this->assertSame( '700063503', $defaults['bale_admin_chat_id'] );
             $this->assertSame( '1849657353', $defaults['bale_bot_id'] );
+            $this->assertSame( 'wlTdB58fgazjKfs0', $defaults['bale_safir_key'] );
             $this->assertSame( 'https://buyruz-telegram-gateway.steamdev.workers.dev', $defaults['telegram_gateway_url'] );
+        }
+
+        public function test_normalize_phone_formats(): void {
+            $this->assertSame( '09139743730', BRZ_Messenger_Hub::normalize_phone( '۰۹۱۳۹۷۴۳۷۳۰' ) );
+            $this->assertSame( '09139743730', BRZ_Messenger_Hub::normalize_phone( '+989139743730' ) );
+            $this->assertSame( '09139743730', BRZ_Messenger_Hub::normalize_phone( '989139743730' ) );
+            $this->assertSame( '09139743730', BRZ_Messenger_Hub::normalize_phone( '0913 974 3730' ) );
         }
 
         public function test_send_telegram_message_validation(): void {
             // Missing chat id should fail gracefully
             $err = BRZ_Messenger_Hub::send_telegram_message( '', 'Hello' );
+            $this->assertTrue( is_wp_error( $err ) );
+        }
+
+        public function test_send_bale_bot_message_validation(): void {
+            // Missing chat id should fail gracefully
+            $err = BRZ_Messenger_Hub::send_bale_bot_message( '', 'Hello' );
             $this->assertTrue( is_wp_error( $err ) );
         }
     }
