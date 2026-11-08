@@ -264,6 +264,12 @@ class BRZ_Messenger_Hub {
         }
 
         $phone = self::normalize_phone( $phone );
+        if ( str_starts_with( $phone, '09' ) ) {
+            $phone = '98' . substr( $phone, 1 );
+        } elseif ( str_starts_with( $phone, '9' ) && strlen( $phone ) === 10 ) {
+            $phone = '98' . $phone;
+        }
+
         $url   = 'https://safir.bale.ai/api/v3/send_message';
 
         $body = array(
@@ -589,10 +595,19 @@ class BRZ_Messenger_Hub {
 
         $api_url = 'https://tapi.bale.ai/bot' . $token . '/sendMessage';
 
+        // Convert HTML tags to Bale-compatible Markdown format
+        $md_text = $text;
+        $md_text = preg_replace( '#<code>(.*?)</code>#si', '`$1`', $md_text );
+        $md_text = preg_replace( '#<b>(.*?)</b>#si', '*$1*', $md_text );
+        $md_text = preg_replace( '#<strong>(.*?)</strong>#si', '*$1*', $md_text );
+        $md_text = preg_replace( '#<i>(.*?)</i>#si', '_$1_', $md_text );
+        $md_text = preg_replace( '#<em>(.*?)</em>#si', '_$1_', $md_text );
+        $clean_text = wp_strip_all_tags( $md_text );
+
         $body = array(
             'chat_id'    => $chat_id,
-            'text'       => $text,
-            'parse_mode' => 'HTML',
+            'text'       => $clean_text,
+            'parse_mode' => 'Markdown',
         );
 
         if ( ! empty( $keyboard ) ) {
@@ -612,7 +627,7 @@ class BRZ_Messenger_Hub {
     }
 
     /**
-     * Send OTP verification code to a Telegram Chat.
+     * Send OTP verification code to a Telegram Chat with 1-tap copy button.
      */
     public static function send_telegram_otp( $chat_id, string $code ): bool {
         $text  = "🔐 <b>کد تایید ورود به بایروز:</b>\n\n";
@@ -621,22 +636,44 @@ class BRZ_Messenger_Hub {
         $text .= "⚠️ لطفاً این کد را در اختیار دیگران قرار ندهید.\n\n";
         $text .= "🌐 <a href=\"https://buyruz.com\">فروشگاه اینترنتی بایروز</a>";
 
-        $res = self::send_telegram_message( $chat_id, $text, null, true );
+        $keyboard = array(
+            'inline_keyboard' => array(
+                array(
+                    array(
+                        'text'      => '📋 کپی کد تایید',
+                        'copy_text' => array( 'text' => $code ),
+                    ),
+                ),
+            ),
+        );
+
+        $res = self::send_telegram_message( $chat_id, $text, $keyboard, true );
         return ! is_wp_error( $res );
     }
 
     /**
-     * Send OTP verification code to a Bale Personal Chat.
+     * Send OTP verification code to a Bale Personal Chat with 1-tap copy button.
      */
     public static function send_bale_bot_otp( $chat_id, string $code ): bool {
-        $text  = "🔐 کد تأیید ورود شما به بایروز:\n\n"
-               . "کد شما: {$code}\n\n"
+        $text  = "🔐 <b>کد تایید ورود به بایروز:</b>\n\n"
+               . "<code>{$code}</code>\n\n"
                . "⏱ این کد تا ۲ دقیقه معتبر است.\n"
                . "⚠️ لطفاً این کد را در اختیار دیگران قرار ندهید.\n\n"
                . "🌐 فروشگاه اینترنتی بایروز\n"
                . "https://buyruz.com";
 
-        $res = self::send_bale_bot_message( $chat_id, $text, null, true );
+        $keyboard = array(
+            'inline_keyboard' => array(
+                array(
+                    array(
+                        'text'      => '📋 کپی کد تایید',
+                        'copy_text' => array( 'text' => $code ),
+                    ),
+                ),
+            ),
+        );
+
+        $res = self::send_bale_bot_message( $chat_id, $text, $keyboard, true );
         return ! is_wp_error( $res );
     }
 
@@ -797,16 +834,18 @@ class BRZ_Messenger_Hub {
         $order_id = $order->get_id();
         $message  = self::format_customer_order_card( $order, 'order_placed' );
 
+        $view_url = home_url( '/my-account/view-order/' . $order_id . '/?brz_seen=' . $order_id );
+
         $customer_keyboard = array(
             'inline_keyboard' => array(
                 array(
                     array(
-                        'text'          => '👁️ رویت شد',
+                        'text'          => '👁️ پیام را دیدم (تایید رویت)',
                         'callback_data' => 'seen_' . $order_id,
                     ),
                     array(
-                        'text' => '🔍 پیگیری سفارش در سایت',
-                        'url'  => home_url( '/?brz_seen=' . $order_id . '&order_tracking=' . $order_id ),
+                        'text' => '🛒 مشاهده و پیگیری فاکتور',
+                        'url'  => $view_url,
                     ),
                 ),
             ),
@@ -819,6 +858,31 @@ class BRZ_Messenger_Hub {
         if ( ! empty( $bale_chat_id ) ) {
             self::send_bale_bot_message( $bale_chat_id, $message, $customer_keyboard, false );
         }
+    }
+
+    /**
+     * Resolve dynamic direct online tracking URL based on shipping carrier and barcode.
+     */
+    public static function get_tracking_url( string $shipping_method, string $barcode, int $order_id = 0 ): string {
+        $barcode      = trim( $barcode );
+        $method_lower = mb_strtolower( $shipping_method );
+
+        if ( ! empty( $barcode ) ) {
+            // Post: 20-24 digit numeric barcode or shipping method mentions Post
+            if ( preg_match( '/^[0-9]{20,24}$/', $barcode ) || str_contains( $method_lower, 'post' ) || str_contains( $method_lower, 'پست' ) ) {
+                return 'https://tracking.post.ir/?id=' . urlencode( $barcode );
+            }
+            // Tipax
+            if ( str_contains( $method_lower, 'tipax' ) || str_contains( $method_lower, 'تیپاکس' ) ) {
+                return 'https://tipaxco.com/tracking?id=' . urlencode( $barcode );
+            }
+        }
+
+        if ( $order_id > 0 ) {
+            return home_url( '/my-account/view-order/' . $order_id . '/' );
+        }
+
+        return home_url( '/my-account/orders/' );
     }
 
     /**
@@ -835,11 +899,74 @@ class BRZ_Messenger_Hub {
 
         $html  = "🛍️ <b>سفارش شما در فروشگاه اینترنتی بایروز ثبت شد!</b>\n";
         $html .= "──────────────────\n";
-        $html .= "سلام " . esc_html( $name ) . " عزیز،\n";
+        $html .= "سلام <b>" . esc_html( $name ) . " عزیز</b>،\n";
         $html .= "سفارش شما با شماره <code>#{$order_num}</code> با موفقیت تایید و وارد مرحله آماده‌سازی شد.\n\n";
         $html .= "💳 <b>مبلغ پرداختی:</b> <b>{$total}</b> تومان\n";
         $html .= "⏰ <b>زمان ثبت:</b> {$date_str}\n\n";
-        $html .= "به محض بسته‌بندی و تحویل به شرکت پست/تیپاکس، کد رهگیری در همین پیام‌رسان برای شما ارسال خواهد شد.\n\n";
+        $html .= "به محض تحویل به متصدی ارسال، کد رهگیری در همین پیام‌رسان تقدیم شما خواهد شد.\n\n";
+        $html .= "🌐 <a href=\"https://buyruz.com\">فروشگاه اینترنتی بایروز</a>";
+
+        return $html;
+    }
+
+    /**
+     * Format rich customer shipping notification card (C-03).
+     */
+    public static function format_customer_shipped_card( WC_Order $order, string $barcode = '' ): string {
+        $order_num     = $order->get_order_number();
+        $name          = trim( $order->get_billing_first_name() ?: $order->get_formatted_billing_full_name() );
+        if ( empty( $name ) ) {
+            $name = 'مشتری گرامی';
+        }
+        $shipping_name = $order->get_shipping_method() ?: 'پست پیشتاز سراسری';
+
+        $html  = "📦 <b>مرسوله شما تحویل شرکت ملی پست شد!</b>\n";
+        $html .= "──────────────────\n";
+        $html .= "سلام <b>" . esc_html( $name ) . " عزیز</b>،\n";
+        $html .= "سفارش شماره <code>#{$order_num}</code> بسته‌بندی و تحویل مامور <b>" . esc_html( $shipping_name ) . "</b> گردید.\n\n";
+        if ( ! empty( $barcode ) ) {
+            $html .= "📮 <b>کد رهگیری ۲۴ رقمی مرسوله:</b>\n<code>{$barcode}</code>\n\n";
+            $html .= "⏱ <i>اطلاعات رهگیری معمولاً پس از ساعت ۱۹ در سامانه شرکت پست به‌روزرسانی می‌گردد.</i>\n\n";
+        }
+        $html .= "🌐 <a href=\"https://buyruz.com\">فروشگاه اینترنتی بایروز</a>";
+
+        return $html;
+    }
+
+    /**
+     * Format customer review request card (C-06).
+     */
+    public static function format_customer_review_card( WC_Order $order, string $coupon_code = 'BUYRUZ-50K' ): string {
+        $order_num = $order->get_order_number();
+        $name      = trim( $order->get_billing_first_name() ?: $order->get_formatted_billing_full_name() );
+        if ( empty( $name ) ) {
+            $name = 'همراه گرامی';
+        }
+
+        $html  = "⭐ <b>از خرید خود رضایت داشتید؟ هدیه بگیرید!</b>\n";
+        $html .= "──────────────────\n";
+        $html .= "سلام <b>" . esc_html( $name ) . " عزیز</b>، امیدواریم از کیفیت اقلام سفارش <code>#{$order_num}</code> کمال رضایت را داشته باشید.\n\n";
+        $html .= "با ثبت تجربه و امتیاز خود درباره این محصولات، یک <b>کد تخفیف ویژه ۵۰ هزار تومانی</b> برای خرید بعدی دریافت فرمایید 🎁\n\n";
+        $html .= "🎁 <b>کد تخفیف هدیه:</b> <code>{$coupon_code}</code>\n\n";
+        $html .= "🌐 <a href=\"https://buyruz.com\">فروشگاه اینترنتی بایروز</a>";
+
+        return $html;
+    }
+
+    /**
+     * Format customer abandoned cart recovery card (C-07).
+     */
+    public static function format_customer_cart_card( string $name = 'کاربر گرامی', array $items = array(), string $coupon_code = 'BUYRUZ-GIFT' ): string {
+        $html  = "🛒 <b>سبد خرید شما در انتظار شماست!</b>\n";
+        $html .= "──────────────────\n";
+        $html .= "سلام <b>" . esc_html( $name ) . " عزیز</b>، اقلام انتخابی شما در سبد خرید بایروز محفوظ مانده‌اند:\n\n";
+        if ( ! empty( $items ) ) {
+            foreach ( $items as $item_name ) {
+                $html .= "• " . esc_html( $item_name ) . "\n";
+            }
+            $html .= "\n";
+        }
+        $html .= "🎁 برای تکمیل خرید با تخفیف ویژه، از کد تخفیف <code>{$coupon_code}</code> استفاده فرمایید.\n\n";
         $html .= "🌐 <a href=\"https://buyruz.com\">فروشگاه اینترنتی بایروز</a>";
 
         return $html;
