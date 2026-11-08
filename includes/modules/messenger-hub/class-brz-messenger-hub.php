@@ -101,9 +101,17 @@ class BRZ_Messenger_Hub {
         global $wpdb;
         $table  = $wpdb->prefix . 'bakala_otp';
         $latest = $wpdb->get_row( $wpdb->prepare( "SELECT created_at FROM {$table} WHERE phone = %s ORDER BY id DESC LIMIT 1", $phone ) );
-        if ( $latest ) {
-            $diff = time() - strtotime( $latest->created_at );
-            if ( $diff < 120 ) {
+        if ( $latest && ! empty( $latest->created_at ) ) {
+            $created_ts = strtotime( $latest->created_at );
+            $now_ts     = current_time( 'timestamp' );
+            $diff       = $now_ts - $created_ts;
+
+            // Handle slight sub-second or clock variance
+            if ( $diff < 0 ) {
+                $diff = ( $diff >= -30 ) ? 0 : 9999;
+            }
+
+            if ( $diff >= 0 && $diff < 120 ) {
                 wp_send_json( array(
                     'status'         => 'otp_active',
                     'status_code'    => 200,
@@ -259,9 +267,8 @@ class BRZ_Messenger_Hub {
         $api_url = 'https://tapi.bale.ai/bot' . $token . '/sendMessage';
 
         $body = array(
-            'chat_id'    => $chat_id,
-            'text'       => $text,
-            'parse_mode' => 'HTML',
+            'chat_id' => $chat_id,
+            'text'    => $text,
         );
 
         $args = array(
@@ -283,9 +290,10 @@ class BRZ_Messenger_Hub {
         $text  = "🔐 <b>کد تایید ورود به بایروز:</b>\n\n";
         $text .= "<code>{$code}</code>\n\n";
         $text .= "⏱ این کد تا ۲ دقیقه معتبر است.\n";
-        $text .= "⚠️ لطفاً این کد را در اختیار دیگران قرار ندهید.";
+        $text .= "⚠️ لطفاً این کد را در اختیار دیگران قرار ندهید.\n\n";
+        $text .= "🌐 <a href=\"https://buyruz.com\">فروشگاه اینترنتی بایروز</a>";
 
-        $res = self::send_telegram_message( $chat_id, $text, null, false );
+        $res = self::send_telegram_message( $chat_id, $text, null, true );
         return ! is_wp_error( $res );
     }
 
@@ -293,12 +301,14 @@ class BRZ_Messenger_Hub {
      * Send OTP verification code to a Bale Personal Chat.
      */
     public static function send_bale_bot_otp( $chat_id, string $code ): bool {
-        $text  = "🔐 <b>کد تایید ورود به بایروز:</b>\n\n";
-        $text .= "<code>{$code}</code>\n\n";
-        $text .= "⏱ این کد تا ۲ دقیقه معتبر است.\n";
-        $text .= "⚠️ لطفاً این کد را در اختیار دیگران قرار ندهید.";
+        $text  = "🔐 کد تأیید ورود شما به بایروز:\n\n"
+               . "کد شما: {$code}\n\n"
+               . "⏱ این کد تا ۲ دقیقه معتبر است.\n"
+               . "⚠️ لطفاً این کد را در اختیار دیگران قرار ندهید.\n\n"
+               . "🌐 فروشگاه اینترنتی بایروز\n"
+               . "https://buyruz.com";
 
-        $res = self::send_bale_bot_message( $chat_id, $text, false );
+        $res = self::send_bale_bot_message( $chat_id, $text, true );
         return ! is_wp_error( $res );
     }
 
