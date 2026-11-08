@@ -110,6 +110,7 @@ class BRZ_Messenger_Hub {
             add_action( 'wp_ajax_brz_save_messenger_settings', array( __CLASS__, 'ajax_save_settings' ) );
             add_action( 'wp_ajax_brz_reset_messenger_presets', array( __CLASS__, 'ajax_reset_messenger_presets' ) );
             add_action( 'wp_ajax_brz_send_test_telegram', array( __CLASS__, 'ajax_send_test_telegram' ) );
+            add_action( 'wp_ajax_brz_send_test_bale', array( __CLASS__, 'ajax_send_test_bale' ) );
             add_action( 'wp_ajax_brz_detect_telegram_chat_id', array( __CLASS__, 'ajax_detect_telegram_chat_id' ) );
             add_action( 'wp_ajax_brz_detect_bale_chat_id', array( __CLASS__, 'ajax_detect_bale_chat_id' ) );
         }
@@ -576,9 +577,9 @@ class BRZ_Messenger_Hub {
     }
 
     /**
-     * Send message via Bale Personal Bot (@buyruz_bot).
+     * Send message via Bale Personal Bot (@buyruz_bot) with optional inline keyboard.
      */
-    public static function send_bale_bot_message( $chat_id, string $text, bool $blocking = false ) {
+    public static function send_bale_bot_message( $chat_id, string $text, ?array $keyboard = null, bool $blocking = false ) {
         $settings = self::get_settings();
         $token    = trim( (string) ( $settings['bale_bot_token'] ?? '' ) );
 
@@ -589,9 +590,14 @@ class BRZ_Messenger_Hub {
         $api_url = 'https://tapi.bale.ai/bot' . $token . '/sendMessage';
 
         $body = array(
-            'chat_id' => $chat_id,
-            'text'    => $text,
+            'chat_id'    => $chat_id,
+            'text'       => $text,
+            'parse_mode' => 'HTML',
         );
+
+        if ( ! empty( $keyboard ) ) {
+            $body['reply_markup'] = $keyboard;
+        }
 
         $args = array(
             'headers'     => array( 'Content-Type' => 'application/json; charset=utf-8' ),
@@ -630,7 +636,7 @@ class BRZ_Messenger_Hub {
                . "🌐 فروشگاه اینترنتی بایروز\n"
                . "https://buyruz.com";
 
-        $res = self::send_bale_bot_message( $chat_id, $text, true );
+        $res = self::send_bale_bot_message( $chat_id, $text, null, true );
         return ! is_wp_error( $res );
     }
 
@@ -714,7 +720,7 @@ class BRZ_Messenger_Hub {
         // Also notify admin in Bale personal bot if chat ID is set
         $bale_admin_chat = trim( (string) ( $settings['bale_admin_chat_id'] ?? '' ) );
         if ( ! empty( $bale_admin_chat ) ) {
-            self::send_bale_bot_message( $bale_admin_chat, $message, false );
+            self::send_bale_bot_message( $bale_admin_chat, $message, $keyboard, false );
         }
     }
 
@@ -811,7 +817,7 @@ class BRZ_Messenger_Hub {
         }
 
         if ( ! empty( $bale_chat_id ) ) {
-            self::send_bale_bot_message( $bale_chat_id, $message, false );
+            self::send_bale_bot_message( $bale_chat_id, $message, $customer_keyboard, false );
         }
     }
 
@@ -1013,7 +1019,12 @@ class BRZ_Messenger_Hub {
                     if ( $order ) {
                         self::answer_telegram_callback_query( $cb_id, '📋 اطلاعات پستی استخراج شد' );
                         $postal_block = self::format_order_postal_block( $order );
-                        self::send_telegram_message( $chat_id, $postal_block, null, false );
+                        $bale_admin_chat = trim( (string) ( $settings['bale_admin_chat_id'] ?? '' ) );
+                        if ( ! empty( $bale_admin_chat ) && (string) $chat_id === $bale_admin_chat ) {
+                            self::send_bale_bot_message( $chat_id, $postal_block, null, false );
+                        } else {
+                            self::send_telegram_message( $chat_id, $postal_block, null, false );
+                        }
                     }
                 }
                 return new WP_REST_Response( array( 'ok' => true, 'unhandled' => $body ), 200 );
@@ -1225,6 +1236,52 @@ class BRZ_Messenger_Hub {
 
         $desc = $body['description'] ?? 'خطای ناشناخته از تلگرام';
         wp_send_json_error( array( 'message' => 'پاسخ تلگرام: ' . $desc ) );
+    }
+
+    /**
+     * AJAX handler to send live test message to Bale Bot admin.
+     */
+    public static function ajax_send_test_bale(): void {
+        check_ajax_referer( self::NONCE_ACTION, 'nonce' );
+        if ( ! current_user_can( 'manage_woocommerce' ) && ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'دسترسی مجاز نیست.' ), 403 );
+        }
+
+        $settings = self::get_settings();
+        $chat_id  = trim( (string) ( $settings['bale_admin_chat_id'] ?? '' ) );
+        if ( empty( $chat_id ) ) {
+            wp_send_json_error( array( 'message' => 'شناسه چت بله (Chat ID) هنوز ثبت نشده است. لطفاً ابتدا در بله پیام /start بفرستید.' ) );
+        }
+
+        $now_str = date_i18n( 'Y/m/d H:i:s' );
+        $text    = "🧪 <b>پیام تست موتور پیام‌رسانی BOME v6.0 در بازوی بله</b>\n";
+        $text   .= "──────────────────\n";
+        $text   .= "✅ اتصال میان سرور سایت بایروز و بازوی رسمی بله (@buyruz_bot) فعال و پایدار است.\n\n";
+        $text   .= "⏰ <b>زمان تست:</b> {$now_str}\n";
+        $text   .= "🤖 <b>شناسه بازو:</b> <code>" . esc_html( $settings['bale_bot_id'] ) . "</code>";
+
+        $keyboard = array(
+            'inline_keyboard' => array(
+                array(
+                    array( 'text' => '🔍 مشاهده پیشخوان سفارشات', 'url' => admin_url( 'admin.php?page=wc-orders' ) ),
+                ),
+            ),
+        );
+
+        $res = self::send_bale_bot_message( $chat_id, $text, $keyboard, true );
+        if ( is_wp_error( $res ) ) {
+            wp_send_json_error( array( 'message' => 'خطا در ارسال به بله: ' . $res->get_error_message() ) );
+        }
+
+        $code = wp_remote_retrieve_response_code( $res );
+        $body = json_decode( wp_remote_retrieve_body( $res ), true );
+
+        if ( 200 === $code && ! empty( $body['ok'] ) ) {
+            wp_send_json_success( array( 'message' => 'پیام تست با موفقیت همراه با دکمه شیشه‌ای به بله شما ارسال شد!' ) );
+        }
+
+        $desc = $body['description'] ?? 'خطای ناشناخته از بله';
+        wp_send_json_error( array( 'message' => 'پاسخ بله: ' . $desc ) );
     }
 
     /**
@@ -1603,6 +1660,15 @@ class BRZ_Messenger_Hub {
                                 <p class="description">شماره موبایل مدیر ثبت‌شده در بله (09139743730).</p>
                             </td>
                         </tr>
+                        <tr>
+                            <th scope="row">تست ارسال زنده بله</th>
+                            <td>
+                                <button type="button" id="brz-bale-test-btn" class="button button-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+                                    <span>📱</span> ارسال پیام تست به بازوی بله من
+                                </button>
+                                <span id="brz-bale-test-feedback" style="margin-right: 12px; font-weight: 600; font-size: 13px;"></span>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
 
@@ -1684,6 +1750,38 @@ class BRZ_Messenger_Hub {
                     },
                     error: function() {
                         $btn.prop('disabled', false).html('<span>📨</span> ارسال پیام تست به تلگرام من');
+                        $fb.text('خطای ارتباط با سرور.').css('color', '#dc2626');
+                    }
+                });
+            });
+
+            // Test Bale Bot Message
+            $('#brz-bale-test-btn').on('click', function(e) {
+                e.preventDefault();
+                var $btn = $(this);
+                var $fb  = $('#brz-bale-test-feedback');
+                $btn.prop('disabled', true).text('در حال ارسال به بله...');
+                $fb.text('').css('color', '#64748b');
+
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        action: 'brz_send_test_bale',
+                        nonce: $('#brz-ms-nonce').val()
+                    },
+                    success: function(res) {
+                        $btn.prop('disabled', false).html('<span>📱</span> ارسال پیام تست به بازوی بله من');
+                        if (res && res.success) {
+                            $fb.text(res.data.message || 'ارسال شد!').css('color', '#16a34a');
+                        } else {
+                            var msg = (res && res.data && res.data.message) ? res.data.message : 'خطا در ارسال';
+                            $fb.text(msg).css('color', '#dc2626');
+                        }
+                    },
+                    error: function() {
+                        $btn.prop('disabled', false).html('<span>📱</span> ارسال پیام تست به بازوی بله من');
                         $fb.text('خطای ارتباط با سرور.').css('color', '#dc2626');
                     }
                 });
