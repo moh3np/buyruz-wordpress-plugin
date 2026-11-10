@@ -244,10 +244,18 @@ class BRZ_Mag_Spotlight {
      * Enqueue admin assets when needed.
      */
     public static function enqueue_admin_assets( string $hook ): void {
-        // Enqueue on post edit or buyruz settings page
-        if ( 'post.php' === $hook || 'post-new.php' === $hook || false !== strpos( $hook, 'buyruz' ) ) {
+        if ( false !== strpos( $hook, 'buyruz' ) ) {
             wp_enqueue_style( 'brz-settings-admin', BRZ_URL . 'assets/admin/settings.css', array(), BRZ_VERSION );
             wp_enqueue_script( 'brz-settings-admin', BRZ_URL . 'assets/admin/settings.js', array(), BRZ_VERSION, true );
+            return;
+        }
+
+        if ( 'post.php' === $hook || 'post-new.php' === $hook ) {
+            global $post;
+            if ( $post && 'page' === $post->post_type ) {
+                wp_enqueue_style( 'brz-settings-admin', BRZ_URL . 'assets/admin/settings.css', array(), BRZ_VERSION );
+                wp_enqueue_script( 'brz-settings-admin', BRZ_URL . 'assets/admin/settings.js', array(), BRZ_VERSION, true );
+            }
         }
     }
 
@@ -256,6 +264,10 @@ class BRZ_Mag_Spotlight {
      */
     public static function ajax_search_posts(): void {
         check_ajax_referer( 'brz_mag_spotlight_ajax', 'nonce' );
+
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            wp_send_json_error( array( 'message' => 'دسترسی غیرمجاز.' ), 403 );
+        }
 
         $query = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
         $args  = array(
@@ -316,9 +328,18 @@ class BRZ_Mag_Spotlight {
 
         update_option( self::OPTION_KEY, $clean, false );
 
-        // Purge LiteSpeed Cache for front page
-        if ( class_exists( 'LiteSpeed_Cache_API' ) ) {
-            \LiteSpeed_Cache_API::purge_post( 2185 );
+        // Purge dynamic front page caches without hardcoded post ID assumptions
+        $front_page_id = (int) get_option( 'page_on_front' );
+        if ( $front_page_id > 0 ) {
+            if ( function_exists( 'clean_post_cache' ) ) {
+                clean_post_cache( $front_page_id );
+            }
+            if ( class_exists( 'LiteSpeed_Cache_API' ) ) {
+                \LiteSpeed_Cache_API::purge_post( $front_page_id );
+            }
+        }
+        if ( function_exists( 'wp_cache_flush' ) ) {
+            wp_cache_flush();
         }
 
         wp_send_json_success( array(
@@ -446,33 +467,60 @@ class BRZ_Mag_Spotlight {
                         fetch('<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>?action=brz_mag_search_posts&nonce=<?php echo esc_js( $ajax_nonce ); ?>&q=' + encodeURIComponent(q))
                             .then(function(res) { return res.json(); })
                             .then(function(data) {
-                                if (!data.success || !data.data.length) {
-                                    searchResults.innerHTML = '<div style="padding:12px;color:#64748b;font-size:13px;">مقاله‌ای با این عنوان یافت نشد.</div>';
+                                searchResults.textContent = '';
+                                if (!data.success || !data.data || !data.data.length) {
+                                    var emptyMsg = document.createElement('div');
+                                    emptyMsg.style.cssText = 'padding:12px;color:#64748b;font-size:13px;';
+                                    emptyMsg.textContent = 'مقاله‌ای با این عنوان یافت نشد.';
+                                    searchResults.appendChild(emptyMsg);
                                     searchResults.style.display = 'block';
                                     return;
                                 }
-                                var html = '';
-                                data.data.forEach(function(item) {
-                                    html += '<div class="brz-spotlight-item" data-id="' + item.id + '" data-title="' + encodeURIComponent(item.title) + '" data-thumb="' + item.thumbnail + '" data-excerpt="' + encodeURIComponent(item.excerpt) + '" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background 0.15s;">' +
-                                        (item.thumbnail ? '<img src="' + item.thumbnail + '" style="width:40px;height:40px;object-fit:cover;border-radius:4px;" />' : '<div style="width:40px;height:40px;background:#e2e8f0;border-radius:4px;"></div>') +
-                                        '<div style="flex:1;">' +
-                                            '<div style="font-weight:700;font-size:13px;color:#0f172a;">' + item.title + '</div>' +
-                                            '<div style="font-size:11px;color:#64748b;">📅 ' + item.date + ' | شناسه: ' + item.id + '</div>' +
-                                        '</div>' +
-                                        '<span style="font-size:12px;color:#05593d;font-weight:700;">انتخاب &larr;</span>' +
-                                    '</div>';
-                                });
-                                searchResults.innerHTML = html;
-                                searchResults.style.display = 'block';
 
-                                searchResults.querySelectorAll('.brz-spotlight-item').forEach(function(el) {
-                                    el.addEventListener('mouseenter', function() { el.style.background = '#f8fafc'; });
-                                    el.addEventListener('mouseleave', function() { el.style.background = '#ffffff'; });
-                                    el.addEventListener('click', function() {
-                                        var pid   = el.getAttribute('data-id');
-                                        var title = decodeURIComponent(el.getAttribute('data-title'));
-                                        var thumb = el.getAttribute('data-thumb');
-                                        var exc   = decodeURIComponent(el.getAttribute('data-excerpt'));
+                                data.data.forEach(function(item) {
+                                    var row = document.createElement('div');
+                                    row.className = 'brz-spotlight-item';
+                                    row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background 0.15s;';
+
+                                    if (item.thumbnail) {
+                                        var img = document.createElement('img');
+                                        img.src = item.thumbnail;
+                                        img.alt = '';
+                                        img.style.cssText = 'width:40px;height:40px;object-fit:cover;border-radius:4px;';
+                                        row.appendChild(img);
+                                    } else {
+                                        var placeholder = document.createElement('div');
+                                        placeholder.style.cssText = 'width:40px;height:40px;background:#e2e8f0;border-radius:4px;';
+                                        row.appendChild(placeholder);
+                                    }
+
+                                    var info = document.createElement('div');
+                                    info.style.flex = '1';
+
+                                    var titleEl = document.createElement('div');
+                                    titleEl.style.cssText = 'font-weight:700;font-size:13px;color:#0f172a;';
+                                    titleEl.textContent = item.title || '';
+
+                                    var metaEl = document.createElement('div');
+                                    metaEl.style.cssText = 'font-size:11px;color:#64748b;';
+                                    metaEl.textContent = '📅 ' + (item.date || '') + ' | شناسه: ' + item.id;
+
+                                    info.appendChild(titleEl);
+                                    info.appendChild(metaEl);
+                                    row.appendChild(info);
+
+                                    var pick = document.createElement('span');
+                                    pick.style.cssText = 'font-size:12px;color:#05593d;font-weight:700;';
+                                    pick.textContent = 'انتخاب ←';
+                                    row.appendChild(pick);
+
+                                    row.addEventListener('mouseenter', function() { row.style.background = '#FAF9F6'; });
+                                    row.addEventListener('mouseleave', function() { row.style.background = '#ffffff'; });
+                                    row.addEventListener('click', function() {
+                                        var pid   = String(item.id || '');
+                                        var title = String(item.title || '');
+                                        var thumb = String(item.thumbnail || '');
+                                        var exc   = String(item.excerpt || '');
 
                                         hiddenId.value = pid;
                                         currTitle.textContent = title;
@@ -499,7 +547,10 @@ class BRZ_Mag_Spotlight {
                                             window.brzToast('مقاله «' + title + '» انتخاب شد. جهت اعمال دکمه ذخیره را بزنید.', 'success');
                                         }
                                     });
+
+                                    searchResults.appendChild(row);
                                 });
+                                searchResults.style.display = 'block';
                             });
                     }, 250);
                 });

@@ -13,7 +13,9 @@ class BRZ_SSO_Portal {
     const OPTION_SECRET = 'brz_sso_secret';
     const OPTION_LIFETIME = 'brz_sso_lifetime';
     const OPTION_DOMAIN = 'brz_sso_domain';
-    
+    const RATE_LIMIT_MAX = 5;
+    const RATE_LIMIT_WINDOW = 900; // 15 minutes in seconds
+
     public static function init(): void {
         add_action( 'rest_api_init', array( __CLASS__, 'register_rest_routes' ) );
         add_action( 'admin_init', array( __CLASS__, 'maybe_save_permissions' ) );
@@ -70,16 +72,30 @@ class BRZ_SSO_Portal {
     }
 
     /**
-     * Get SSO Shared Secret. Auto-generates a key if missing.
+     * Get SSO Shared Secret without any hardcoded fallback literal.
+     * Supports BRZ_SSO_SECRET constant (wp-config.php) or generates a CSPRNG secret once.
      */
     public static function get_secret(): string {
-        $customized = get_option( 'brz_sso_secret_customized', false );
-        $secret     = get_option( self::OPTION_SECRET, '' );
-
-        if ( empty( $secret ) || ! $customized ) {
-            $secret = 'kpWJf1vJmS3x9Q7rB2z8Nn4aDyUE0cL6hP_A-9m';
-            update_option( self::OPTION_SECRET, $secret );
+        if ( defined( 'BRZ_SSO_SECRET' ) && is_string( BRZ_SSO_SECRET ) && '' !== BRZ_SSO_SECRET ) {
+            return BRZ_SSO_SECRET;
         }
+
+        $secret = get_option( self::OPTION_SECRET, '' );
+        if ( is_string( $secret ) && '' !== $secret ) {
+            return $secret;
+        }
+
+        try {
+            $secret = bin2hex( random_bytes( 32 ) );
+        } catch ( Exception $e ) {
+            $secret = function_exists( 'wp_generate_password' )
+                ? wp_generate_password( 64, false, false )
+                : hash( 'sha256', uniqid( (string) mt_rand(), true ) );
+        }
+
+        update_option( self::OPTION_SECRET, $secret, false );
+        update_option( 'brz_sso_secret_customized', true, false );
+
         return $secret;
     }
 
@@ -111,20 +127,23 @@ class BRZ_SSO_Portal {
     }
 
     /**
+     * Resolve validated client IP from trusted server REMOTE_ADDR.
+     */
+    private static function get_client_ip(): string {
+        $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? trim( (string) wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+        if ( $ip && false !== filter_var( $ip, FILTER_VALIDATE_IP ) ) {
+            return $ip;
+        }
+        return '0.0.0.0';
+    }
+
+    /**
      * Log user activity.
      */
     public static function log_activity( int $user_id, string $username, string $action ): void {
         global $wpdb;
-        $ip = '0.0.0.0';
-        if ( ! empty( $_SERVER['HTTP_CLIENT_IP'] ) ) {
-            $ip = sanitize_text_field( $_SERVER['HTTP_CLIENT_IP'] );
-        } elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
-            $ip = sanitize_text_field( $_SERVER['HTTP_X_FORWARDED_FOR'] );
-        } elseif ( ! empty( $_SERVER['REMOTE_ADDR'] ) ) {
-            $ip = sanitize_text_field( $_SERVER['REMOTE_ADDR'] );
-        }
-
-        $ua = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( $_SERVER['HTTP_USER_AGENT'] ) : '';
+        $ip = self::get_client_ip();
+        $ua = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) : '';
 
         $wpdb->insert(
             self::table_name(),
@@ -202,6 +221,92 @@ class BRZ_SSO_Portal {
     }
 
     /**
+     * Extract SSO token from request header, param, Bearer header, or cookie.
+     */
+    private static function extract_request_token( WP_REST_Request $request ): string {
+        $token = $request->get_header( 'X-SSO-Token' );
+        if ( ! empty( $token ) ) {
+            return sanitize_text_field( (string) $token );
+        }
+
+        $param = $request->get_param( 'token' );
+        if ( ! empty( $param ) ) {
+            return sanitize_text_field( (string) $param );
+        }
+
+        $auth_header = isset( $_SERVER['HTTP_AUTHORIZATION'] ) ? (string) $_SERVER['HTTP_AUTHORIZATION'] : '';
+        if ( preg_match( '/Bearer\s+(.*)$/i', $auth_header, $m ) ) {
+            return sanitize_text_field( trim( $m[1] ) );
+        }
+
+        if ( ! empty( $_COOKIE['buyruz_sso_token'] ) ) {
+            return sanitize_text_field( wp_unslash( $_COOKIE['buyruz_sso_token'] ) );
+        }
+
+        return '';
+    }
+
+    /**
+     * Permission callback for /titles endpoint (requires editor login or valid SSO token).
+     */
+    public static function can_access_titles( WP_REST_Request $request ): bool {
+        if ( current_user_can( 'edit_posts' ) ) {
+            return true;
+        }
+
+        $token = self::extract_request_token( $request );
+        if ( '' === $token ) {
+            return false;
+        }
+
+        $payload = self::verify_token( $token );
+        if ( ! $payload || empty( $payload['uid'] ) ) {
+            return false;
+        }
+
+        return user_can( (int) $payload['uid'], 'edit_posts' ) || self::check_user_access( (int) $payload['uid'], 'bridge' );
+    }
+
+    /**
+     * Validate redirect URL against strict allowlist (prevents open redirect + token leak).
+     */
+    public static function validate_redirect_url( string $raw_url ): string {
+        $fallback = 'https://panel.buyruz.com/';
+        if ( '' === trim( $raw_url ) ) {
+            return $fallback;
+        }
+
+        $parsed = wp_parse_url( $raw_url );
+        if ( ! is_array( $parsed ) || empty( $parsed['host'] ) ) {
+            return $fallback;
+        }
+
+        $scheme = isset( $parsed['scheme'] ) ? strtolower( $parsed['scheme'] ) : '';
+        if ( 'https' !== $scheme ) {
+            return $fallback;
+        }
+
+        $host          = strtolower( $parsed['host'] );
+        $allowed_hosts = array_map( 'strtolower', self::allow_sso_hosts( array() ) );
+        $site_host     = strtolower( (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
+        if ( $site_host ) {
+            $allowed_hosts[] = $site_host;
+        }
+
+        if ( in_array( $host, $allowed_hosts, true ) ) {
+            return $raw_url;
+        }
+
+        // Allow direct subdomains of configured cookie domain (e.g. *.buyruz.com)
+        $cookie_domain = ltrim( strtolower( self::get_cookie_domain() ), '.' );
+        if ( $cookie_domain && ( $host === $cookie_domain || substr( $host, -strlen( '.' . $cookie_domain ) ) === '.' . $cookie_domain ) ) {
+            return $raw_url;
+        }
+
+        return $fallback;
+    }
+
+    /**
      * Register REST API Endpoints.
      */
     public static function register_rest_routes(): void {
@@ -232,7 +337,7 @@ class BRZ_SSO_Portal {
         register_rest_route( 'buyruz/v1', '/titles', array(
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => array( __CLASS__, 'rest_get_titles' ),
-            'permission_callback' => '__return_true',
+            'permission_callback' => array( __CLASS__, 'can_access_titles' ),
         ) );
     }
 
@@ -293,7 +398,7 @@ class BRZ_SSO_Portal {
     }
 
     /**
-     * API Login Endpoint.
+     * API Login Endpoint with brute-force rate limiting.
      */
     public static function rest_login( WP_REST_Request $request ): WP_REST_Response {
         $username = sanitize_user( $request->get_param( 'username' ) );
@@ -303,10 +408,23 @@ class BRZ_SSO_Portal {
             return new WP_REST_Response( array( 'success' => false, 'message' => 'نام کاربری یا رمز عبور ارسال نشده است.' ), 400 );
         }
 
+        $rl_key   = 'brz_sso_rl_' . md5( self::get_client_ip() . '|' . strtolower( $username ) );
+        $attempts = function_exists( 'get_transient' ) ? (int) get_transient( $rl_key ) : 0;
+        if ( $attempts >= self::RATE_LIMIT_MAX ) {
+            return new WP_REST_Response( array( 'success' => false, 'message' => 'تعداد تلاش‌های ناموفق بیش از حد مجاز است. لطفاً ۱۵ دقیقه دیگر تلاش کنید.' ), 429 );
+        }
+
         $user = wp_authenticate( $username, $password );
 
         if ( is_wp_error( $user ) ) {
+            if ( function_exists( 'set_transient' ) ) {
+                set_transient( $rl_key, $attempts + 1, self::RATE_LIMIT_WINDOW );
+            }
             return new WP_REST_Response( array( 'success' => false, 'message' => 'نام کاربری یا کلمه عبور نادرست است.' ), 401 );
+        }
+
+        if ( function_exists( 'delete_transient' ) ) {
+            delete_transient( $rl_key );
         }
 
         $token = self::generate_token( $user );
@@ -572,21 +690,25 @@ class BRZ_SSO_Portal {
             return;
         }
 
-        $redirect_to_panel = isset( $_GET['redirect'] ) ? esc_url_raw( wp_unslash( $_GET['redirect'] ) ) : '';
-        if ( empty( $redirect_to_panel ) ) {
-            $redirect_to_panel = 'https://panel.buyruz.com'; 
-        }
+        $raw_redirect      = isset( $_GET['redirect'] ) ? esc_url_raw( wp_unslash( $_GET['redirect'] ) ) : '';
+        $redirect_to_panel = self::validate_redirect_url( $raw_redirect );
+
+        $parsed_target = wp_parse_url( $redirect_to_panel );
+        $target_origin = ( ! empty( $parsed_target['scheme'] ) && ! empty( $parsed_target['host'] ) )
+            ? $parsed_target['scheme'] . '://' . $parsed_target['host'] . ( ! empty( $parsed_target['port'] ) ? ':' . (int) $parsed_target['port'] : '' )
+            : 'https://panel.buyruz.com';
 
         // 1. If user is not logged in to WordPress, redirect them to the WordPress login page
         if ( ! is_user_logged_in() ) {
-            $current_url = home_url( $_SERVER['REQUEST_URI'] );
-            wp_redirect( wp_login_url( $current_url ) );
+            $req_uri     = isset( $_SERVER['REQUEST_URI'] ) ? esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '/';
+            $current_url = home_url( $req_uri );
+            wp_safe_redirect( wp_login_url( $current_url ) );
             exit;
         }
 
         $user = wp_get_current_user();
 
-        // 2. Check if the user has access to the panel
+        // 2. Check if the user has access to the panel / Offline Bridge
         $has_static = self::check_user_access( $user->ID, 'static' );
         $has_bridge = self::check_user_access( $user->ID, 'bridge' );
 
@@ -623,7 +745,7 @@ class BRZ_SSO_Portal {
             header( 'Pragma: no-cache' );
         }
 
-        // اگر درخواست از پنجره پاپ‌آپ آمده باشد، توکن را بدون ریدایرکت به پنجره والد بفرست و ببند
+        // اگر درخواست از پنجره پاپ‌آپ آمده باشد، توکن را منحصراً به مبدا مجاز پنجره والد بفرست و ببند
         if ( ! empty( $_GET['popup'] ) ) {
             ?>
             <!DOCTYPE html>
@@ -643,9 +765,10 @@ class BRZ_SSO_Portal {
                 </div>
                 <script>
                     const token = <?php echo wp_json_encode( $token ); ?>;
+                    const targetOrigin = <?php echo wp_json_encode( $target_origin ); ?>;
                     if (window.opener && !window.opener.closed) {
                         try {
-                            window.opener.postMessage({ type: 'BRZ_SSO_SUCCESS', token: token }, '*');
+                            window.opener.postMessage({ type: 'BRZ_SSO_SUCCESS', token: token }, targetOrigin);
                         } catch(e) {}
                         setTimeout(function() {
                             window.close();
@@ -660,10 +783,10 @@ class BRZ_SSO_Portal {
             exit;
         }
 
-        // 5. Redirect back to the panel with sso_token attached as a query param fallback to eliminate redirect loops completely
+        // 5. Redirect back strictly to allowlisted panel URL with sso_token fallback
         $target_redirect = add_query_arg( 'sso_token', rawurlencode( $token ), $redirect_to_panel );
 
-        wp_redirect( $target_redirect, 302 );
+        wp_safe_redirect( $target_redirect, 302 );
         exit;
     }
 
@@ -747,8 +870,8 @@ class BRZ_SSO_Portal {
         <?php if ( $active_tab === 'users' ) : ?>
             <div class="brz-card">
                 <div class="brz-card__header">
-                    <h3>مدیریت دسترسی کاربران به پنل عملیاتی</h3>
-                    <p class="description">در این بخش می‌توانید سطوح دسترسی همکاران را به بخش‌های مختلف استاتیک‌ساز و پل آفلاین کنترل کنید.</p>
+                    <h3>مدیریت دسترسی کاربران به پنل عملیاتی و پل آفلاین</h3>
+                    <p class="description">در این بخش می‌توانید سطوح دسترسی همکاران را به پل آفلاین و ابزارهای API کنترل کنید.</p>
                 </div>
                 <div class="brz-card__body">
                     <!-- فرم جستجو و افزودن کاربر -->
@@ -768,7 +891,7 @@ class BRZ_SSO_Portal {
                                 <tr>
                                     <th>کاربر (نام کاربری)</th>
                                     <th>نقش کاربری</th>
-                                    <th>🖥️ دسترسی استاتیک‌ساز</th>
+                                    <th>🔐 دسترسی عمومی پنل عملیاتی</th>
                                     <th>🔌 دسترسی پل آفلاین (Bridge)</th>
                                 </tr>
                             </thead>

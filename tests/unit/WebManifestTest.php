@@ -78,7 +78,7 @@ namespace Buyruz\Tests\Unit {
 
             $this->assertSame( 'فروشگاه اینترنتی بایروز', $defaults['app_name'] );
             $this->assertSame( 'بایروز', $defaults['app_short_name'] );
-            $this->assertSame( '#008a3e', $defaults['theme_color'] );
+            $this->assertSame( '#05593D', $defaults['theme_color'] );
             $this->assertSame( 'standalone', $defaults['display'] );
         }
 

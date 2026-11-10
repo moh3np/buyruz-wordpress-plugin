@@ -6,8 +6,8 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * PWA Web Manifest & Root Favicon Orchestrator for Buyruz.
  *
  * Provides W3C-compliant Web App Manifest generation, physical root asset synchronization
- * (manifest.json and favicon.ico) for static mirror compliance, mobile PWA meta tags injection,
- * and sub-5ms fallback streaming with zero runtime database overhead.
+ * (manifest.json and favicon.ico), mobile PWA meta tags injection, and fast dynamic
+ * streaming for both Shop and Magazine subdirectories.
  */
 class BRZ_Web_Manifest {
 
@@ -27,7 +27,7 @@ class BRZ_Web_Manifest {
             'app_name'              => $is_magazine ? 'مجله تخصصی بایروز' : 'فروشگاه اینترنتی بایروز',
             'app_short_name'        => $is_magazine ? 'مجله بایروز' : 'بایروز',
             'app_description'       => $is_magazine ? 'مرجع مقالات، نقد و بررسی و آموزش بازی‌های فکری و بردگیم' : 'مرجع تخصصی بازی‌های فکری، بردگیم و پرونده‌های معمایی',
-            'theme_color'           => '#008a3e',
+            'theme_color'           => '#05593D',
             'background_color'      => '#ffffff',
             'display'               => 'standalone',
             'start_url'             => $is_magazine ? '/mag/' : '/',
@@ -105,7 +105,7 @@ class BRZ_Web_Manifest {
     public static function inject_head_tags(): void {
         $opts = self::get_options();
 
-        $theme_color      = esc_attr( $opts['theme_color'] ?? '#008a3e' );
+        $theme_color      = esc_attr( $opts['theme_color'] ?? '#05593D' );
         $app_name         = esc_attr( $opts['app_name'] ?? 'فروشگاه اینترنتی بایروز' );
         $app_short_name   = esc_attr( $opts['app_short_name'] ?? 'بایروز' );
         $enable_apple     = ! empty( $opts['enable_apple_tags'] );
@@ -138,9 +138,12 @@ class BRZ_Web_Manifest {
 
         $icons = array();
 
-        // 1. Physical root favicon icon entry
+        // 1. Physical root favicon icon entry (profile/subdirectory-aware)
+        $favicon_path = function_exists( 'wp_parse_url' )
+            ? wp_parse_url( home_url( '/favicon.ico' ), PHP_URL_PATH )
+            : parse_url( home_url( '/favicon.ico' ), PHP_URL_PATH );
         $icons[] = array(
-            'src'     => '/favicon.ico',
+            'src'     => $favicon_path ? $favicon_path : '/favicon.ico',
             'sizes'   => '48x48 32x32 16x16',
             'type'    => 'image/x-icon',
             'purpose' => 'any',
@@ -171,21 +174,24 @@ class BRZ_Web_Manifest {
             }
         }
 
-        $is_magazine = class_exists( 'BRZ_Profile' ) && BRZ_Profile::is_magazine();
+        $is_magazine  = class_exists( 'BRZ_Profile' ) && BRZ_Profile::is_magazine();
+        $default_path = function_exists( 'wp_parse_url' )
+            ? ( wp_parse_url( home_url( '/' ), PHP_URL_PATH ) ?: '/' )
+            : ( parse_url( home_url( '/' ), PHP_URL_PATH ) ?: '/' );
 
         return array(
             'name'             => $opts['app_name'] ?? ( $is_magazine ? 'مجله تخصصی بایروز' : 'فروشگاه اینترنتی بایروز' ),
             'short_name'       => $opts['app_short_name'] ?? ( $is_magazine ? 'مجله بایروز' : 'بایروز' ),
             'description'      => $opts['app_description'] ?? ( $is_magazine ? 'مرجع مقالات، نقد و بررسی و آموزش بازی‌های فکری و بردگیم' : 'مرجع تخصصی بازی‌های فکری، بردگیم و پرونده‌های معمایی' ),
-            'start_url'        => $opts['start_url'] ?? ( $is_magazine ? '/mag/' : '/' ),
-            'scope'            => $opts['scope'] ?? ( $is_magazine ? '/mag/' : '/' ),
+            'start_url'        => $opts['start_url'] ?? $default_path,
+            'scope'            => $opts['scope'] ?? $default_path,
             'display'          => $opts['display'] ?? 'standalone',
             'orientation'      => $opts['orientation'] ?? 'portrait-primary',
             'background_color' => $opts['background_color'] ?? '#ffffff',
-            'theme_color'      => $opts['theme_color'] ?? '#008a3e',
+            'theme_color'      => $opts['theme_color'] ?? '#05593D',
             'lang'             => $opts['lang'] ?? 'fa-IR',
             'dir'              => $opts['dir'] ?? 'rtl',
-            'categories'       => array( 'shopping', 'games', 'entertainment' ),
+            'categories'       => $is_magazine ? array( 'news', 'education', 'games' ) : array( 'shopping', 'games', 'entertainment' ),
             'icons'            => $icons,
         );
     }
@@ -215,12 +221,13 @@ class BRZ_Web_Manifest {
             }
         }
 
-        // 2. Generate/Copy physical favicon.ico
+        // 2. Generate/Copy physical favicon.ico only when source is genuinely an ICO file
         $site_icon_id = get_option( 'site_icon' );
         if ( ! empty( $site_icon_id ) ) {
             $attached_file = get_attached_file( $site_icon_id );
             if ( ! empty( $attached_file ) && file_exists( $attached_file ) ) {
-                if ( @copy( $attached_file, $favicon_target ) ) {
+                $ext = strtolower( pathinfo( $attached_file, PATHINFO_EXTENSION ) );
+                if ( 'ico' === $ext && @copy( $attached_file, $favicon_target ) ) {
                     @chmod( $favicon_target, 0644 );
                     $favicon_written = true;
                     $favicon_msg     = 'فایل favicon.ico از نمادک سایت با موفقیت در ریشه همگام شد.';
@@ -255,10 +262,13 @@ class BRZ_Web_Manifest {
      * Fast streaming fallback if /manifest.json is requested via dynamic route.
      */
     public static function handle_manifest_stream(): void {
-        $uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
-        $path = parse_url( $uri, PHP_URL_PATH );
+        $uri  = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+        $path = function_exists( 'wp_parse_url' ) ? wp_parse_url( $uri, PHP_URL_PATH ) : parse_url( $uri, PHP_URL_PATH );
 
-        if ( '/manifest.json' === $path || '/site.webmanifest' === $path ) {
+        $expected_manifest = parse_url( home_url( '/manifest.json' ), PHP_URL_PATH );
+        $expected_webman   = parse_url( home_url( '/site.webmanifest' ), PHP_URL_PATH );
+
+        if ( $path && ( $expected_manifest === $path || $expected_webman === $path || '/manifest.json' === $path || '/site.webmanifest' === $path ) ) {
             $manifest_file = ABSPATH . 'manifest.json';
             
             // If physical file exists, serve it directly with high performance
@@ -290,17 +300,20 @@ class BRZ_Web_Manifest {
             wp_send_json_error( array( 'message' => 'دسترسی غیرمجاز.' ) );
         }
 
+        $defaults = self::default_options();
         $opts = array(
             'enable_head_tags'     => isset( $_POST['enable_head_tags'] ) ? 1 : 0,
             'enable_physical_sync' => isset( $_POST['enable_physical_sync'] ) ? 1 : 0,
             'enable_apple_tags'    => isset( $_POST['enable_apple_tags'] ) ? 1 : 0,
-            'app_name'             => sanitize_text_field( wp_unslash( $_POST['app_name'] ?? 'فروشگاه اینترنتی بایروز' ) ),
-            'app_short_name'       => sanitize_text_field( wp_unslash( $_POST['app_short_name'] ?? 'بایروز' ) ),
-            'app_description'      => sanitize_textarea_field( wp_unslash( $_POST['app_description'] ?? '' ) ),
-            'theme_color'          => sanitize_hex_color( wp_unslash( $_POST['theme_color'] ?? '#008a3e' ) ) ?: '#008a3e',
+            'app_name'             => sanitize_text_field( wp_unslash( $_POST['app_name'] ?? $defaults['app_name'] ) ),
+            'app_short_name'       => sanitize_text_field( wp_unslash( $_POST['app_short_name'] ?? $defaults['app_short_name'] ) ),
+            'app_description'      => sanitize_textarea_field( wp_unslash( $_POST['app_description'] ?? $defaults['app_description'] ) ),
+            'theme_color'          => sanitize_hex_color( wp_unslash( $_POST['theme_color'] ?? '#05593D' ) ) ?: '#05593D',
             'background_color'     => sanitize_hex_color( wp_unslash( $_POST['background_color'] ?? '#ffffff' ) ) ?: '#ffffff',
             'display'              => sanitize_key( wp_unslash( $_POST['display'] ?? 'standalone' ) ),
             'orientation'          => sanitize_key( wp_unslash( $_POST['orientation'] ?? 'portrait-primary' ) ),
+            'start_url'            => $defaults['start_url'],
+            'scope'                => $defaults['scope'],
             'lang'                 => sanitize_text_field( wp_unslash( $_POST['lang'] ?? 'fa-IR' ) ),
             'dir'                  => sanitize_key( wp_unslash( $_POST['dir'] ?? 'rtl' ) ),
         );
@@ -542,10 +555,10 @@ class BRZ_Web_Manifest {
                     </div>
 
                     <!-- Integration Info -->
-                    <div class="brz-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
-                        <h4 style="margin-top: 0; color: #1e293b; font-size: 13px;">🛡 هماهنگی با پنل استاتیک‌ساز</h4>
-                        <p style="font-size: 12px; color: #475569; line-height: 1.6; margin: 0;">
-                            با ذخیره تنظیمات و همگام‌سازی فایل‌ها در اینجا، پنل استاتیک‌ساز بایروز در بیلد بعدی به صورت خودکار فایل‌های <code>favicon.ico</code> و <code>manifest.json</code> را به ریشه استاتیک کپی کرده و <strong>ماتریس سلامت دارایی‌های ریشه ۱۰۰٪ سبز</strong> می‌شود.
+                    <div class="brz-card" style="background: #FAF9F6; border: 1px solid #E2E8F0; border-right: 4px solid #05593D; border-radius: 12px; padding: 16px;">
+                        <h4 style="margin-top: 0; color: #03432E; font-size: 13px;">📱 استاندارد زنده PWA و وب مانیفست</h4>
+                        <p style="font-size: 12px; color: #1E293B; line-height: 1.6; margin: 0;">
+                            با ذخیره تنظیمات، فایل‌های <code>manifest.json</code> و متاتگ‌های PWA متناسب با محیط فعال (فروشگاه یا مجله) همگام‌سازی و با کش Nginx FastCGI و آروان با نهایت سرعت سرو می‌شوند.
                         </p>
                     </div>
                 </div>
