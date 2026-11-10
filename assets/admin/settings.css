@@ -1564,3 +1564,82 @@
 .brz-button:active::before {
   opacity: 0.1;
 }
+
+/* ==========================================================================
+   CRITICAL MODULE CONFIRMATION MODAL (Buyruz Brand Palette)
+   ========================================================================== */
+
+.brz-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100100;
+  background: rgba(3, 67, 46, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  direction: rtl;
+}
+
+.brz-confirm-modal {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-top: 4px solid #ffb800;
+  border-radius: 14px;
+  max-width: 440px;
+  width: 100%;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(3, 67, 46, 0.25);
+  color: #1e293b;
+}
+
+.brz-confirm-modal__title {
+  margin: 0 0 10px 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #03432e;
+}
+
+.brz-confirm-modal__desc {
+  margin: 0 0 20px 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #334155;
+}
+
+.brz-confirm-modal__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.brz-confirm-btn {
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.brz-confirm-btn--cancel {
+  background: #05593d;
+  color: #ffffff;
+}
+
+.brz-confirm-btn--cancel:hover {
+  background: #03432e;
+}
+
+.brz-confirm-btn--danger {
+  background: #faf9f6;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
+.brz-confirm-btn--danger:hover {
+  background: #fee2e2;
+}

@@ -149,6 +149,69 @@
      5. MODULE CARD STATE
      ========================================================================== */
 
+  function showCriticalConfirm(label, onConfirm) {
+    var existing = document.getElementById('brz-critical-confirm');
+    if (existing) existing.remove();
+
+    var backdrop = document.createElement('div');
+    backdrop.id = 'brz-critical-confirm';
+    backdrop.className = 'brz-confirm-backdrop';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+
+    var box = document.createElement('div');
+    box.className = 'brz-confirm-modal';
+
+    var title = document.createElement('h3');
+    title.className = 'brz-confirm-modal__title';
+    title.textContent = 'تایید غیرفعال‌سازی ماژول حیاتی';
+
+    var desc = document.createElement('p');
+    desc.className = 'brz-confirm-modal__desc';
+    desc.textContent = 'ماژول «' + label + '» برای عملکرد یا امنیت این سایت حیاتی است. آیا از خاموش کردن آن مطمئن هستید؟';
+
+    var actions = document.createElement('div');
+    actions.className = 'brz-confirm-modal__actions';
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'brz-confirm-btn brz-confirm-btn--cancel';
+    cancelBtn.textContent = 'انصراف (حفظ امنیت)';
+
+    var confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'brz-confirm-btn brz-confirm-btn--danger';
+    confirmBtn.textContent = 'تایید و غیرفعال‌سازی';
+
+    function closeModal() {
+      document.removeEventListener('keydown', onKey);
+      backdrop.remove();
+    }
+
+    function onKey(e) {
+      if (e.key === 'Escape') closeModal();
+    }
+
+    cancelBtn.addEventListener('click', closeModal);
+    backdrop.addEventListener('click', function (e) {
+      if (e.target === backdrop) closeModal();
+    });
+    confirmBtn.addEventListener('click', function () {
+      closeModal();
+      onConfirm();
+    });
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    box.appendChild(title);
+    box.appendChild(desc);
+    box.appendChild(actions);
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+    document.addEventListener('keydown', onKey);
+    cancelBtn.focus();
+  }
+
   function updateCardState(card, newState) {
     var toggle = card.querySelector('.brz-toggle-switch');
     var label = card.querySelector('.brz-toggle-label');
@@ -157,17 +220,21 @@
 
     if (newState) {
       card.classList.add('is-active');
+      card.classList.remove('is-inactive');
       if (toggle) {
         toggle.classList.add('is-on');
         toggle.classList.remove('is-off');
+        toggle.setAttribute('aria-checked', 'true');
       }
       if (label) label.textContent = 'روشن';
       if (hiddenState) hiddenState.value = '0';
     } else {
       card.classList.remove('is-active');
+      card.classList.add('is-inactive');
       if (toggle) {
         toggle.classList.remove('is-on');
         toggle.classList.add('is-off');
+        toggle.setAttribute('aria-checked', 'false');
       }
       if (label) label.textContent = 'خاموش';
       if (hiddenState) hiddenState.value = '1';
@@ -188,68 +255,91 @@
 
   var toggleForms = document.querySelectorAll('.brz-toggle-form');
 
+  function dispatchToggle(form, forceFlag) {
+    var card = form.closest('.brz-module-card');
+    var moduleSlug = form.dataset.module || (card && card.dataset.module) || '';
+    var hiddenState = form.querySelector('input[name="state"]');
+    var nonceField = form.querySelector('[name="' + (settings.nonceField || '_wpnonce') + '"]');
+    var sendState = hiddenState ? hiddenState.value : '';
+    var submitBtn = form.querySelector('.brz-toggle-switch');
+
+    if (!moduleSlug || sendState === '') {
+      showToast(settings.failText || 'خطا در داده‌ها', 'error');
+      return;
+    }
+
+    // Visual feedback
+    if (submitBtn) submitBtn.style.opacity = '0.5';
+
+    var payload = new FormData();
+    payload.append('action', 'brz_toggle_module');
+    payload.append('module', moduleSlug);
+    payload.append('state', sendState);
+    if (forceFlag) {
+      payload.append('force', '1');
+    }
+    if (nonceField) {
+      payload.append(settings.nonceField || '_wpnonce', nonceField.value);
+    }
+
+    fetch(settings.ajaxUrl, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: payload
+    })
+      .then(function (response) {
+        return response.json().catch(function () {
+          return { success: false, data: { message: settings.failText || 'تغییر وضعیت انجام نشد' } };
+        }).then(function (json) {
+          return { ok: response.ok, json: json };
+        });
+      })
+      .then(function (res) {
+        if (!res.ok || !res.json || !res.json.success || !res.json.data) {
+          var errMsg = (res.json && res.json.data && res.json.data.message) || settings.failText || 'تغییر وضعیت انجام نشد';
+          throw new Error(errMsg);
+        }
+
+        var newState = res.json.data.state ? 1 : 0;
+
+        if (card) {
+          updateCardState(card, newState);
+        } else {
+          window.location.reload();
+        }
+
+        showToast(
+          newState
+            ? (settings.successOn || 'ماژول فعال شد')
+            : (settings.successOff || 'ماژول غیرفعال شد'),
+          'success'
+        );
+      })
+      .catch(function (err) {
+        showToast((err && err.message) || settings.failText || 'تغییر وضعیت انجام نشد', 'error');
+      })
+      .finally(function () {
+        if (submitBtn) submitBtn.style.opacity = '';
+      });
+  }
+
   toggleForms.forEach(function (form) {
     form.addEventListener('submit', function (event) {
       event.preventDefault();
-
       var card = form.closest('.brz-module-card');
-      var moduleSlug = form.dataset.module || (card && card.dataset.module) || '';
       var hiddenState = form.querySelector('input[name="state"]');
-      var nonceField = form.querySelector('[name="' + (settings.nonceField || '_wpnonce') + '"]');
       var sendState = hiddenState ? hiddenState.value : '';
-      var submitBtn = form.querySelector('.brz-toggle-switch');
+      var isCritical = (form.dataset.critical === '1') || (card && card.dataset.critical === '1');
 
-      if (!moduleSlug || sendState === '') {
-        showToast(settings.failText || 'خطا در داده‌ها', 'error');
+      if (sendState === '0' && isCritical) {
+        var modLabel = form.dataset.label || form.dataset.module || 'حیاتی';
+        showCriticalConfirm(modLabel, function () {
+          dispatchToggle(form, true);
+        });
         return;
       }
 
-      // Visual feedback
-      if (submitBtn) submitBtn.style.opacity = '0.5';
-
-      var payload = new FormData();
-      payload.append('action', 'brz_toggle_module');
-      payload.append('module', moduleSlug);
-      payload.append('state', sendState);
-      if (nonceField) {
-        payload.append(settings.nonceField || '_wpnonce', nonceField.value);
-      }
-
-      fetch(settings.ajaxUrl, {
-        method: 'POST',
-        credentials: 'same-origin',
-        body: payload
-      })
-        .then(function (response) {
-          if (!response.ok) throw new Error('bad_status');
-          return response.json();
-        })
-        .then(function (json) {
-          if (!json || !json.success || !json.data) {
-            throw new Error('bad_response');
-          }
-
-          var newState = json.data.state ? 1 : 0;
-
-          if (card) {
-            updateCardState(card, newState);
-          } else {
-            window.location.reload();
-          }
-
-          showToast(
-            newState
-              ? (settings.successOn || 'ماژول فعال شد')
-              : (settings.successOff || 'ماژول غیرفعال شد'),
-            'success'
-          );
-        })
-        .catch(function () {
-          showToast(settings.failText || 'تغییر وضعیت انجام نشد', 'error');
-        })
-        .finally(function () {
-          if (submitBtn) submitBtn.style.opacity = '';
-        });
+      dispatchToggle(form, false);
     });
   });
 

@@ -192,23 +192,14 @@ class BRZ_Plugin {
             }
         }
 
-        // Preserve and normalize module states across upgrades (strictly zero resets)
+        // Preserve and normalize module states across upgrades (strictly sparse overrides; zero snapshot freeze)
         $opts = get_option( BRZ_OPTION, array() );
         if ( is_array( $opts ) ) {
             $changed = false;
             if ( ! isset( $opts['modules'] ) || ! is_array( $opts['modules'] ) ) {
-                $opts['modules'] = BRZ_Modules::default_states();
-                $changed = true;
+                $opts['modules'] = array();
+                $changed         = true;
             } else {
-                // Ensure all registered modules have a defined state without overwriting any user choice
-                $defaults = BRZ_Modules::default_states();
-                foreach ( BRZ_Modules::registry() as $slug => $meta ) {
-                    if ( ! array_key_exists( $slug, $opts['modules'] ) ) {
-                        $opts['modules'][ $slug ] = isset( $defaults[ $slug ] ) ? $defaults[ $slug ] : 0;
-                        $changed = true;
-                    }
-                }
-
                 // Static controller is officially retired and permanently disabled
                 if ( ! empty( $opts['modules']['static_controller'] ) ) {
                     $opts['modules']['static_controller'] = 0;
@@ -226,12 +217,7 @@ class BRZ_Plugin {
             }
             if ( $changed ) {
                 update_option( BRZ_OPTION, $opts, false );
-                if ( class_exists( 'BRZ_Settings' ) && method_exists( 'BRZ_Settings', 'reset_cache' ) ) {
-                    BRZ_Settings::reset_cache();
-                }
-                if ( function_exists( 'wp_cache_delete' ) ) {
-                    wp_cache_delete( BRZ_OPTION, 'options' );
-                }
+                BRZ_Modules::flush_option_cache();
             }
         }
 
@@ -240,8 +226,8 @@ class BRZ_Plugin {
             BRZ_Change_Log::ensure_table();
         }
 
-        // Ensure SSO Portal Log table exists
-        if ( class_exists( 'BRZ_SSO_Portal' ) ) {
+        // Ensure SSO Portal Log table exists only when SSO Portal is enabled
+        if ( class_exists( 'BRZ_SSO_Portal' ) && BRZ_Modules::is_enabled( 'sso_portal' ) ) {
             BRZ_SSO_Portal::ensure_table();
         }
 

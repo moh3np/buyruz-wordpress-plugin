@@ -141,6 +141,11 @@ class BRZ_Settings {
         add_action( 'admin_post_brz_delete_compare_table', array( __CLASS__, 'handle_delete_compare_table' ) );
         add_action( 'admin_post_brz_create_compare_table', array( __CLASS__, 'handle_create_compare_table' ) );
 
+        // Cache coherence across direct WordPress option mutations
+        add_action( 'update_option_' . BRZ_OPTION, array( __CLASS__, 'reset_cache' ) );
+        add_action( 'add_option_' . BRZ_OPTION, array( __CLASS__, 'reset_cache' ) );
+        add_action( 'delete_option_' . BRZ_OPTION, array( __CLASS__, 'reset_cache' ) );
+
         if ( class_exists( 'BRZ_Connections' ) ) {
             BRZ_Connections::init();
         }
@@ -657,6 +662,10 @@ class BRZ_Settings {
             echo '<div class="notice notice-success"><p>' . esc_html( sprintf( '%s فعال شد.', $label ) ) . '</p></div>';
         } elseif ( 'module-off' === $msg ) {
             echo '<div class="notice notice-warning"><p>' . esc_html( sprintf( '%s غیرفعال شد.', $label ) ) . '</p></div>';
+        } elseif ( 'module-locked' === $msg ) {
+            echo '<div class="notice notice-error"><p>' . esc_html( sprintf( 'ماژول «%s» برای عملکرد و امنیت این سایت حیاتی است و غیرفعال نشد.', $label ) ) . '</p></div>';
+        } elseif ( 'module-retired' === $msg ) {
+            echo '<div class="notice notice-error"><p>' . esc_html( sprintf( 'ماژول «%s» بازنشسته شده و قابل فعال‌سازی نیست.', $label ) ) . '</p></div>';
         } elseif ( 'module-error' === $msg ) {
             echo '<div class="notice notice-error"><p>' . esc_html( sprintf( 'تغییر وضعیت %s امکان‌پذیر نبود.', $label ) ) . '</p></div>';
         }
@@ -756,25 +765,38 @@ class BRZ_Settings {
             <div class="brz-module-grid">
                         <?php foreach ( $modules as $slug => $meta ) : ?>
                             <?php
-                            $enabled     = ! empty( $states[ $slug ] );
-                            $icon        = self::module_icon_letter( $meta );
-                            $category    = isset( $meta['category'] ) ? $meta['category'] : 'universal';
-                            $requires_wc = ! empty( $meta['requires_wc'] );
-                            $disabled_wc = $requires_wc && ! $wc_active;
+                            $enabled             = ! empty( $states[ $slug ] );
+                            $icon                = self::module_icon_letter( $meta );
+                            $category            = isset( $meta['category'] ) ? $meta['category'] : 'universal';
+                            $requires_wc         = ! empty( $meta['requires_wc'] );
+                            $disabled_wc         = $requires_wc && ! $wc_active;
+                            $is_retired          = BRZ_Modules::is_retired( $slug );
+                            $is_critical_locked  = BRZ_Modules::is_critical_for_current_profile( $slug );
 
                             $cat_label = 'عمومی';
                             $cat_color = '#64748b';
                             if ( 'shop' === $category ) {
                                 $cat_label = 'فروشگاه';
-                                $cat_color = '#1a73e8';
+                                $cat_color = '#05593D';
                             } elseif ( 'magazine' === $category ) {
                                 $cat_label = 'مجله خبری';
-                                $cat_color = '#00875a';
+                                $cat_color = '#03432E';
                             }
                             ?>
-                            <div class="brz-module-card <?php echo $enabled && ! $disabled_wc ? 'is-active' : 'is-inactive'; ?>" data-module="<?php echo esc_attr( $slug ); ?>" data-category="<?php echo esc_attr( $category ); ?>" data-requires-wc="<?php echo $requires_wc ? '1' : '0'; ?>">
-                                <div class="brz-module-card__badge" style="background:<?php echo esc_attr( $cat_color ); ?>20;color:<?php echo esc_attr( $cat_color ); ?>;border:1px solid <?php echo esc_attr( $cat_color ); ?>40;">
-                                    <?php echo esc_html( $cat_label ); ?>
+                            <div class="brz-module-card <?php echo $enabled && ! $disabled_wc && ! $is_retired ? 'is-active' : 'is-inactive'; ?>" data-module="<?php echo esc_attr( $slug ); ?>" data-category="<?php echo esc_attr( $category ); ?>" data-requires-wc="<?php echo $requires_wc ? '1' : '0'; ?>" data-critical="<?php echo $is_critical_locked ? '1' : '0'; ?>">
+                                <div class="brz-module-card__badges" style="display:flex;justify-content:center;gap:6px;flex-wrap:wrap;">
+                                    <div class="brz-module-card__badge" style="background:<?php echo esc_attr( $cat_color ); ?>18;color:<?php echo esc_attr( $cat_color ); ?>;border:1px solid <?php echo esc_attr( $cat_color ); ?>40;margin:0;">
+                                        <?php echo esc_html( $cat_label ); ?>
+                                    </div>
+                                    <?php if ( $is_critical_locked ) : ?>
+                                        <div class="brz-module-card__badge brz-module-card__badge--critical" style="background:#FFB80026;color:#03432E;border:1px solid #FFB800;margin:0;font-weight:700;" title="ماژول حیاتی و محافظت‌شده">
+                                            🛡️ حیاتی
+                                        </div>
+                                    <?php elseif ( $is_retired ) : ?>
+                                        <div class="brz-module-card__badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;margin:0;">
+                                            بازنشسته
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="brz-module-card__icon" aria-hidden="true"><?php echo esc_html( $icon ); ?></div>
                                 <h3 class="brz-module-card__title"><?php echo esc_html( $meta['label'] ); ?></h3>
@@ -788,23 +810,23 @@ class BRZ_Settings {
                                 ?>
                                 <div class="brz-module-card__footer">
                                     <div class="brz-toggle-wrap">
-                                        <span class="brz-toggle-label"><?php echo $enabled && ! $disabled_wc ? 'روشن' : 'خاموش'; ?></span>
-                                        <?php if ( ! $disabled_wc ) : ?>
-                                            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="brz-toggle-form" data-module="<?php echo esc_attr( $slug ); ?>" data-label="<?php echo esc_attr( $meta['label'] ); ?>">
+                                        <span class="brz-toggle-label"><?php echo $enabled && ! $disabled_wc && ! $is_retired ? 'روشن' : 'خاموش'; ?></span>
+                                        <?php if ( ! $disabled_wc && ! $is_retired ) : ?>
+                                            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="brz-toggle-form" data-module="<?php echo esc_attr( $slug ); ?>" data-label="<?php echo esc_attr( $meta['label'] ); ?>" data-critical="<?php echo $is_critical_locked ? '1' : '0'; ?>">
                                                 <?php wp_nonce_field( 'brz_toggle_module_' . $slug ); ?>
                                                 <input type="hidden" name="action" value="brz_toggle_module" />
                                                 <input type="hidden" name="module" value="<?php echo esc_attr( $slug ); ?>" />
                                                 <input type="hidden" name="state" value="<?php echo $enabled ? '0' : '1'; ?>" />
                                                 <input type="hidden" name="redirect" value="<?php echo esc_url( admin_url( 'admin.php?page=' . self::PARENT_SLUG ) ); ?>" />
-                                                <button type="submit" class="brz-toggle-switch <?php echo $enabled ? 'is-on' : 'is-off'; ?>">
+                                                <button type="submit" class="brz-toggle-switch <?php echo $enabled ? 'is-on' : 'is-off'; ?>" aria-checked="<?php echo $enabled ? 'true' : 'false'; ?>">
                                                     <span class="screen-reader-text"><?php echo $enabled ? 'غیرفعال کردن ماژول' : 'فعال کردن ماژول'; ?></span>
                                                 </button>
                                             </form>
                                         <?php else : ?>
-                                            <span style="font-size:11px;color:#999;">غیرفعال</span>
+                                            <span style="font-size:11px;color:#999;"><?php echo $is_retired ? 'منسوخ' : 'غیرفعال'; ?></span>
                                         <?php endif; ?>
                                     </div>
-                                    <?php if ( $enabled && ! $disabled_wc ) : ?>
+                                    <?php if ( $enabled && ! $disabled_wc && ! $is_retired ) : ?>
                                         <a class="brz-link" href="<?php echo esc_url( admin_url( 'admin.php?page=buyruz-module-' . $slug ) ); ?>">تنظیمات</a>
                                     <?php else : ?>
                                         <span class="brz-link" style="opacity: 0.5; cursor: not-allowed; text-decoration: none;" title="برای دسترسی به تنظیمات ابتدا ماژول را روشن کنید.">تنظیمات</span>
@@ -1888,9 +1910,17 @@ class BRZ_Settings {
 
         check_admin_referer( 'brz_toggle_module_' . $slug );
 
-        $result = self::toggle_module_state( $slug, $state );
+        $force  = ! empty( $_POST['force'] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        $result = self::toggle_module_state( $slug, $state, array( 'force' => $force, 'source' => 'ui' ) );
         if ( is_wp_error( $result ) ) {
-            wp_safe_redirect( add_query_arg( array( 'page' => self::PARENT_SLUG, 'brz-msg' => 'module-error', 'module' => $slug ), $redirect ) );
+            $err_code = $result->get_error_code();
+            $msg_key  = 'module-error';
+            if ( 'brz_critical_module_locked' === $err_code ) {
+                $msg_key = 'module-locked';
+            } elseif ( 'brz_retired_module' === $err_code ) {
+                $msg_key = 'module-retired';
+            }
+            wp_safe_redirect( add_query_arg( array( 'page' => self::PARENT_SLUG, 'brz-msg' => $msg_key, 'module' => $slug ), $redirect ) );
             exit;
         }
 
@@ -1913,9 +1943,17 @@ class BRZ_Settings {
 
         check_ajax_referer( 'brz_toggle_module_' . $slug );
 
-        $result = self::toggle_module_state( $slug, $state );
+        $force  = ! empty( $_POST['force'] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        $result = self::toggle_module_state( $slug, $state, array( 'force' => $force, 'source' => 'ajax' ) );
         if ( is_wp_error( $result ) ) {
-            wp_send_json_error( array( 'message' => $result->get_error_message() ), 400 );
+            $status = ( 'brz_critical_module_locked' === $result->get_error_code() ) ? 403 : 400;
+            wp_send_json_error(
+                array(
+                    'message' => $result->get_error_message(),
+                    'code'    => $result->get_error_code(),
+                ),
+                $status
+            );
         }
 
         wp_send_json_success(
@@ -2041,33 +2079,8 @@ class BRZ_Settings {
         exit;
     }
 
-    private static function toggle_module_state( $slug, $state ) {
-        $registry = BRZ_Modules::registry();
-        if ( empty( $registry[ $slug ] ) ) {
-            return new WP_Error( 'brz_invalid_module', 'ماژول معتبر نیست' );
-        }
-
-        $states = BRZ_Modules::get_states();
-        $states[ $slug ] = $state ? 1 : 0;
-
-        $current = self::get();
-        if ( ! is_array( $current ) ) {
-            $current = array();
-        }
-
-        $current['modules'] = $states;
-        update_option( BRZ_OPTION, $current, false );
-        self::$options_cache = $current;
-        if ( function_exists( 'wp_cache_delete' ) ) {
-            wp_cache_delete( BRZ_OPTION, 'options' );
-        }
-
-        $label = isset( $registry[ $slug ]['label'] ) ? $registry[ $slug ]['label'] : $slug;
-
-        return array(
-            'state' => $states[ $slug ],
-            'label' => $label,
-        );
+    private static function toggle_module_state( $slug, $state, $context = array() ) {
+        return BRZ_Modules::set_enabled( $slug, (bool) $state, is_array( $context ) ? $context : array() );
     }
 
     public static function sanitize_wc_product_shortcodes_option( $value ) {
@@ -2083,6 +2096,7 @@ class BRZ_Settings {
 
 
     public static function sanitize( $input ) {
+        BRZ_Modules::flush_option_cache();
         $existing = self::get();
         if ( ! is_array( $existing ) ) {
             $existing = array();
@@ -2096,18 +2110,45 @@ class BRZ_Settings {
             unset( $input['brz_form_context'] );
         }
 
-        // Modules (preserve existing states by default, only merge explicitly submitted module keys)
+        // Modules (override-only merge: never snapshot defaults of untouched modules)
         if ( isset( $input['modules'] ) && is_array( $input['modules'] ) ) {
-            $states = BRZ_Modules::get_states();
+            $saved_modules = isset( $existing['modules'] ) && is_array( $existing['modules'] ) ? $existing['modules'] : array();
+            $registry      = BRZ_Modules::registry();
+            $prev_states   = BRZ_Modules::get_states();
+            $force_modules = ! empty( $input['force_modules'] );
+
             foreach ( $input['modules'] as $slug => $val ) {
-                if ( array_key_exists( $slug, BRZ_Modules::registry() ) ) {
-                    $states[ $slug ] = ! empty( $val ) ? 1 : 0;
+                $slug = sanitize_key( (string) $slug );
+                if ( ! array_key_exists( $slug, $registry ) ) {
+                    continue;
+                }
+                if ( BRZ_Modules::is_retired( $slug ) ) {
+                    $saved_modules[ $slug ] = 0;
+                    continue;
+                }
+                $new_val = ! empty( $val ) ? 1 : 0;
+                $old_val = isset( $prev_states[ $slug ] ) ? (int) $prev_states[ $slug ] : 0;
+                if ( ! $new_val && BRZ_Modules::is_critical_for_current_profile( $slug ) && ! $force_modules ) {
+                    continue;
+                }
+                $saved_modules[ $slug ] = $new_val;
+                if ( $old_val !== $new_val ) {
+                    BRZ_Modules::record_audit_event(
+                        $slug,
+                        $old_val,
+                        $new_val,
+                        array(
+                            'source' => 'settings',
+                            'force'  => $force_modules,
+                        )
+                    );
                 }
             }
-            $output['modules'] = $states;
-            unset( $input['modules'] );
+
+            $output['modules'] = $saved_modules;
+            unset( $input['modules'], $input['force_modules'] );
         } elseif ( ! isset( $output['modules'] ) || ! is_array( $output['modules'] ) ) {
-            $output['modules'] = BRZ_Modules::default_states();
+            $output['modules'] = array();
         }
 
         // General settings.
