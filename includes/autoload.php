@@ -105,6 +105,7 @@ spl_autoload_register( function( $class ) {
         'BRZ_Product_Brand_Cat_Header'   => 'modules/product-brand-cat-header/class-brz-product-brand-cat-header.php',
         'BRZ_Shipping_Bridge'            => 'modules/shipping-bridge/class-brz-shipping-bridge.php',
         'BRZ_Link_Nexus_REST'            => 'integration/class-brz-link-nexus-rest.php',
+        'BRZ_Catalog_Sync_REST'          => 'integration/class-brz-catalog-sync-rest.php',
         'BRZ_Smart_Telemetry'            => 'modules/smart-telemetry/class-brz-smart-telemetry.php',
         'BRZ_Smart_Comments'             => 'modules/smart-comments/class-brz-smart-comments.php',
         'BRZ_BNPL_Hub'                   => 'modules/bnpl-hub/class-brz-bnpl-hub.php',

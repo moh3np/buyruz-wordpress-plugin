@@ -115,6 +115,9 @@ class BRZ_Plugin {
         if ( $is_wc && class_exists( 'BRZ_Rest' ) ) {
             BRZ_Rest::init();
         }
+        if ( $is_wc && class_exists( 'BRZ_Catalog_Sync_REST' ) ) {
+            BRZ_Catalog_Sync_REST::init();
+        }
 
         if ( class_exists( 'BRZ_Tag_Sync_Guard' ) ) {
             BRZ_Tag_Sync_Guard::init();

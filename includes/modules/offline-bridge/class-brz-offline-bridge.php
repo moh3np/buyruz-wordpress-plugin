@@ -1087,14 +1087,44 @@ class BRZ_Offline_Bridge {
                                 $attribute->set_id( $attr_id );
                                 $attribute->set_name( $taxonomy );
 
-                                // Resolve term IDs (insert terms if they don't exist)
+                                // Resolve term IDs (supports explicit option_ids, numeric term IDs, objects, or names)
                                 $term_ids = array();
-                                if ( ! empty( $attr_data['options'] ) && is_array( $attr_data['options'] ) ) {
-                                    foreach ( $attr_data['options'] as $term_name ) {
+                                if ( ! empty( $attr_data['option_ids'] ) && is_array( $attr_data['option_ids'] ) ) {
+                                    foreach ( $attr_data['option_ids'] as $raw_tid ) {
+                                        $tid = (int) $raw_tid;
+                                        if ( $tid > 0 ) {
+                                            $term_ids[] = $tid;
+                                        }
+                                    }
+                                } elseif ( ! empty( $attr_data['options'] ) && is_array( $attr_data['options'] ) ) {
+                                    foreach ( $attr_data['options'] as $term_opt ) {
+                                        if ( is_array( $term_opt ) ) {
+                                            $opt_id   = isset( $term_opt['id'] ) ? (int) $term_opt['id'] : 0;
+                                            $opt_name = isset( $term_opt['name'] ) ? sanitize_text_field( (string) $term_opt['name'] ) : '';
+                                            if ( $opt_id > 0 ) {
+                                                $term_obj = function_exists( 'get_term' ) ? get_term( $opt_id, $taxonomy ) : get_term_by( 'id', $opt_id, $taxonomy );
+                                                if ( $term_obj && ! is_wp_error( $term_obj ) ) {
+                                                    $term_ids[] = (int) $term_obj->term_id;
+                                                    continue;
+                                                }
+                                            }
+                                            $term_opt = $opt_name;
+                                        }
+                                        if ( is_int( $term_opt ) && $term_opt > 0 ) {
+                                            $term_obj = function_exists( 'get_term' ) ? get_term( $term_opt, $taxonomy ) : get_term_by( 'id', $term_opt, $taxonomy );
+                                            if ( $term_obj && ! is_wp_error( $term_obj ) ) {
+                                                $term_ids[] = (int) $term_obj->term_id;
+                                            }
+                                            continue;
+                                        }
+                                        $term_name = sanitize_text_field( (string) $term_opt );
+                                        if ( '' === $term_name ) {
+                                            continue;
+                                        }
                                         $term = get_term_by( 'name', $term_name, $taxonomy );
                                         if ( ! $term ) {
                                             $inserted = wp_insert_term( $term_name, $taxonomy );
-                                            if ( ! is_wp_error( $inserted ) ) {
+                                            if ( ! is_wp_error( $inserted ) && isset( $inserted['term_id'] ) ) {
                                                 $term_ids[] = (int) $inserted['term_id'];
                                             }
                                         } else {
@@ -1102,6 +1132,7 @@ class BRZ_Offline_Bridge {
                                         }
                                     }
                                 }
+                                $term_ids = array_values( array_unique( array_filter( array_map( 'intval', $term_ids ) ) ) );
                                 $attribute->set_options( $term_ids );
                             } else {
                                 continue;
